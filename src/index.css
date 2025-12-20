@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Variables CSS personalizadas basadas en tokens de tema
+ * Estas variables pueden ser usadas en componentes y estilos CSS
+ */
+:root {
+  /* Colores de fondo - Modo claro (estilo n8n) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+  --color-bg-tertiary: #e9ecef;
+  
+  /* Colores de texto - Modo claro */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6c757d;
+  --color-text-tertiary: #adb5bd;
+  
+  /* Colores del canvas - Modo claro */
+  --color-canvas-bg: #f8f9fa;
+  --color-canvas-grid: #dee2e6;
+  --color-node-default: #ffffff;
+  --color-node-selected: #fff4f2;
+  --color-node-hover: #f8f9fa;
+  --color-node-border: #dee2e6;
+  --color-node-border-hover: #ff6d5a;
+  --color-node-border-selected: #ff6d5a;
+  --color-node-header: #f8f9fa;
+  --color-node-header-accent: #ff6d5a;
+  --color-edge-default: #adb5bd;
+  --color-edge-selected: #ff6d5a;
+  --color-edge-hover: #ff8a7a;
+  
+  /* Sombras para nodos - Modo claro */
+  --shadow-node: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-node-hover: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --shadow-node-selected: 0 0 0 2px rgba(255, 109, 90, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  
+  /* Colores de estado - estilo n8n */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  
+  /* Estados de nodos */
+  --node-disabled-opacity: 0.5;
+  --node-status-error: #ef4444;
+  --node-status-warning: #f59e0b;
+  --node-status-info: #3b82f6;
+  --node-status-success: #10b981;
+  
+  /* Colores de acento - Rojo n8n */
+  --color-accent-primary: #ff6d5a;
+  --color-accent-secondary: #ff8a7a;
+  --color-accent-tertiary: #ffa99b;
+  
+  /* Colores de grupos */
+  --color-group-default: rgba(59, 130, 246, 0.1);
+  --color-group-border: rgba(59, 130, 246, 0.3);
+  --color-group-text: #3b82f6;
+  
+  /* Espaciado */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
+  
+  /* Tipografía - estilo n8n */
+  --font-family-sans: 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif';
+  --font-family-mono: 'Fira Code', 'Consolas', 'Monaco', 'monospace';
+  
+  /* Bordes */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1rem;
+}
+
+/* Modo oscuro - estilo n8n */
+.dark {
+  /* Colores de fondo - Modo oscuro */
+  --color-bg-primary: #1a1a1a;
+  --color-bg-secondary: #2d2d2d;
+  --color-bg-tertiary: #3d3d3d;
+  
+  /* Colores de texto - Modo oscuro */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #d1d5db;
+  --color-text-tertiary: #9ca3af;
+  
+  /* Colores del canvas - Modo oscuro */
+  --color-canvas-bg: #1a1a1a;
+  --color-canvas-grid: #2d2d2d;
+  --color-node-default: #2d2d2d;
+  --color-node-selected: #3d2a26;
+  --color-node-hover: #353535;
+  --color-node-border: #404040;
+  --color-node-border-hover: #ff6d5a;
+  --color-node-border-selected: #ff6d5a;
+  --color-node-header: #353535;
+  --color-node-header-accent: #ff6d5a;
+  --color-edge-default: #6b7280;
+  --color-edge-selected: #ff6d5a;
+  --color-edge-hover: #ff8a7a;
+  
+  /* Sombras para nodos - Modo oscuro */
+  --shadow-node: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-node-hover: 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-node-selected: 0 0 0 2px rgba(255, 109, 90, 0.3), 0 2px 6px rgba(0, 0, 0, 0.4);
+  
+  /* Estados de nodos - Modo oscuro (mismos colores) */
+  --node-disabled-opacity: 0.5;
+  --node-status-error: #ef4444;
+  --node-status-warning: #f59e0b;
+  --node-status-info: #3b82f6;
+  --node-status-success: #10b981;
+  
+  /* Colores de grupos - Modo oscuro */
+  --color-group-default: rgba(59, 130, 246, 0.15);
+  --color-group-border: rgba(59, 130, 246, 0.4);
+  --color-group-text: #60a5fa;
+}
+
+/* Estilos globales mínimos */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Estilos para React Flow custom nodes */
+.react-flow__node {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Deshabilitar transiciones durante el arrastre para actualización en tiempo real */
+.react-flow__node.dragging {
+  transition: none !important;
+  will-change: transform;
+}
+
+.react-flow__node.selected {
+  outline: none;
+}
+
+/* Estilos para edges suaves */
+.react-flow__edge {
+  transition: stroke-width 0.2s ease-in-out, stroke 0.2s ease-in-out;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3;
+  stroke: var(--color-edge-selected);
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3;
+  stroke: var(--color-edge-hover);
+}
+
+/* Mejorar la apariencia de los handles */
+.react-flow__handle {
+  transition: all 0.2s ease-in-out;
+}
+
+.react-flow__handle:hover {
+  transform: scale(1.2);
+}
+
+/* Estilos para el canvas background */
+.react-flow__background {
+  opacity: 0.4;
+}
+
+/* Quitar bordes de grupos y otros nodos React Flow por defecto */
+.react-flow__node-default,
+.react-flow__node-input,
+.react-flow__node-output {
+  border: none !important;
+  border-width: 0 !important;
+  border-color: transparent !important;
+  border-style: none !important;
+}
+
+/* Eliminar TODOS los estilos del contenedor externo de grupos (React Flow lo crea automáticamente) */
+.react-flow__node-group {
+  /* Eliminar estilos de fondo y padding que React Flow aplica por defecto */
+  background-color: transparent !important;
+  background: none !important;
+  padding: 0 !important;
+  border: none !important;
+  border-width: 0 !important;
+  border-color: transparent !important;
+  border-style: none !important;
+  box-shadow: none !important;
+  /* Mantener funcionalidad pero sin estilos visuales */
+  /* IMPORTANTE: NO tocar pointer-events para mantener funcionalidad de drop */
+}
+
+.react-flow__node-group:hover {
+  box-shadow: none !important;
+  background-color: transparent !important;
+  background: none !important;
+}
+
+.react-flow__node-group.selected {
+  box-shadow: none !important;
+  outline: none !important;
+  background-color: transparent !important;
+  background: none !important;
+}
+
+/* Eliminar solo sombras del contenedor interno del grupo (mantener transiciones para funcionalidad) */
+.group-node {
+  box-shadow: none !important;
+}
+
+.group-node:hover {
+  box-shadow: none !important;
+}
+
