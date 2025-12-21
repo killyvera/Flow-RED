@@ -236,6 +236,29 @@ export function CanvasPage() {
   const [nodes, setNodesLocal, onNodesChange] = useNodesState(storeNodes)
   const [edges, setEdgesLocal, onEdgesChange] = useEdgesState(applyModernEdgeStyles(storeEdges))
   
+  // Ref para almacenar los nodos actualizados y actualizar el store después del render
+  const pendingStoreUpdateRef = React.useRef<{ nodes: Node[] | null; edges: Edge[] | null }>({ nodes: null, edges: null })
+  
+  // Efecto para aplicar actualizaciones pendientes al store después del render
+  // Usar useLayoutEffect para ejecutar antes del paint, pero después del render
+  React.useLayoutEffect(() => {
+    if (pendingStoreUpdateRef.current.nodes) {
+      const nodesToUpdate = pendingStoreUpdateRef.current.nodes
+      pendingStoreUpdateRef.current.nodes = null
+      // Usar setTimeout para asegurar que se ejecute después del render completo
+      setTimeout(() => {
+        setNodes(nodesToUpdate)
+      }, 0)
+    }
+    if (pendingStoreUpdateRef.current.edges) {
+      const edgesToUpdate = pendingStoreUpdateRef.current.edges
+      pendingStoreUpdateRef.current.edges = null
+      setTimeout(() => {
+        setEdges(edgesToUpdate)
+      }, 0)
+    }
+  })
+  
   // Referencia para React Flow instance (se inicializará dentro del componente)
   const reactFlowInstanceRef = React.useRef<any>(null)
   
@@ -351,17 +374,20 @@ export function CanvasPage() {
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
     // Aplicar cambios inmediatamente para que los edges se actualicen en tiempo real
     onNodesChange(changes)
+    
+    // Verificar si hay cambios persistentes antes de actualizar
+    const hasPersistentChanges = isEditMode && !isInitialRenderRef.current && 
+      changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')
+    
+    // Aplicar cambios localmente
     setNodesLocal((prevNodes) => {
       const updatedNodes = applyNodeChanges(changes, prevNodes)
-      // Actualizar store solo en modo edición y solo para cambios persistentes (mueves, no selecciones)
-      // Actualizar inmediatamente sin delay para que los nodos hijos se muevan en tiempo real
-      if (isEditMode && !isInitialRenderRef.current) {
-        const hasPersistentChanges = changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')
-        if (hasPersistentChanges) {
-          // Actualizar inmediatamente para que los nodos hijos se muevan sin delay
-          setNodes(updatedNodes)
-        }
+      
+      // Guardar en ref para actualizar el store después del render
+      if (hasPersistentChanges) {
+        pendingStoreUpdateRef.current.nodes = updatedNodes
       }
+      
       return updatedNodes
     })
   }, [isEditMode, setNodes, onNodesChange, setNodesLocal])
@@ -371,13 +397,11 @@ export function CanvasPage() {
     setEdgesLocal((prevEdges) => {
       const updatedEdges = applyEdgeChanges(changes, prevEdges)
       // Actualizar store solo en modo edición y cambios persistentes
-      // Usar setTimeout para evitar actualizar durante el renderizado
+      // Guardar en ref para actualizar después del render
       if (isEditMode && !isInitialRenderRef.current) {
         const hasPersistentChanges = changes.some(c => c.type === 'remove' || c.type === 'add')
         if (hasPersistentChanges) {
-          setTimeout(() => {
-            setEdges(updatedEdges)
-          }, 0)
+          pendingStoreUpdateRef.current.edges = updatedEdges
         }
       }
       return updatedEdges
