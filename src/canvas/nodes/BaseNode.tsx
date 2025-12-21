@@ -19,6 +19,7 @@ import { useCanvasStore } from '@/state/canvasStore'
 import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 import { generateNodeSummary } from '@/utils/summaryEngine'
 import { SummaryBadge } from '@/components/SummaryBadge'
+import { getNodeExplanation } from '@/utils/nodeExplanations'
 
 /**
  * Componente BaseNode
@@ -111,6 +112,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
   const executionLogs = useCanvasStore((state) => state.executionLogs)
   const currentFrame = useCanvasStore((state) => state.currentFrame)
+  const explainMode = useCanvasStore((state) => state.explainMode)
   
   // Obtener último snapshot del nodo (del frame actual si existe)
   const lastSnapshot = useMemo(() => {
@@ -272,10 +274,10 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
                 boxShadow: `0 0 8px ${runtimeStateColor}, 0 0 4px ${runtimeStateColor}`,
               }}
               title={
-                runtimeState === 'running' ? 'Ejecutando' :
-                runtimeState === 'error' ? 'Error' :
-                runtimeState === 'warning' ? 'Advertencia' :
-                'Inactivo'
+                runtimeState === 'running' ? 'Running: Node is currently executing' :
+                runtimeState === 'error' ? 'Error: Node execution failed' :
+                runtimeState === 'warning' ? 'Warning: Node completed with warnings' :
+                'Idle: Node is ready'
               }
             >
               {/* Animación de pulso para estado running */}
@@ -440,6 +442,15 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           }}
         >
           {nodeStatus.text}
+        </div>
+      )}
+
+      {/* Overlay de explicación en Explain Mode */}
+      {explainMode && (
+        <div className="absolute top-full left-0 right-0 mt-1 px-2 py-1 bg-bg-secondary border border-node-border rounded-md shadow-lg z-50">
+          <p className="text-[10px] text-text-primary font-medium text-center">
+            {getNodeExplanation(nodeRedType)}
+          </p>
         </div>
       )}
 

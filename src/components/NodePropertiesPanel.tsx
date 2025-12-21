@@ -18,6 +18,7 @@ import { shouldNodeHaveEditableProperties, getNoPropertiesMessage } from '@/util
 import { TextField, NumberField, SelectField, BooleanField, JSONField, TypedInputField } from './fields'
 import { generateNodeSummary } from '@/utils/summaryEngine'
 import { SummaryBadge } from './SummaryBadge'
+import { getNodeExplanation, getNodeDescription } from '@/utils/nodeExplanations'
 
 export interface NodePropertiesPanelProps {
   node: Node | null
@@ -692,6 +693,10 @@ export function NodePropertiesPanel({
   
   // Estado para colapsar payload viewer
   const [isPayloadExpanded, setIsPayloadExpanded] = useState(true)
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false)
+  
+  // Obtener explainMode del store
+  const explainMode = useCanvasStore((state) => state.explainMode)
   
   // Edges conectados al nodo (input/output)
   const edges = useCanvasStore((state) => state.edges)
@@ -916,25 +921,143 @@ export function NodePropertiesPanel({
         ) : (
           /* Pestaña de Estado */
           <div className="p-3 space-y-4">
-            {/* Bloque de Resumen Semántico */}
-            <div className="space-y-2 pb-3 border-b border-node-border">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                Resumen
-              </h3>
-              <div className="flex items-start gap-2">
-                <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-text-primary">
-                    {nodeSummary.title}
-                  </h4>
-                  {nodeSummary.subtitle && (
-                    <p className="text-xs text-text-secondary mt-0.5">
-                      {nodeSummary.subtitle}
-                    </p>
+            {explainMode ? (
+              /* Vista amigable en Explain Mode */
+              <>
+                {/* What it does */}
+                <div className="space-y-2 pb-3 border-b border-node-border">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                    What it does
+                  </h3>
+                  <p className="text-sm text-text-primary">
+                    {getNodeDescription(nodeType)}
+                  </p>
+                </div>
+
+                {/* Inputs */}
+                <div className="space-y-2 pb-3 border-b border-node-border">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                    Inputs
+                  </h3>
+                  {inputNodes.length > 0 ? (
+                    <div className="space-y-1">
+                      {inputNodes.map(({ nodeName }) => (
+                        <div key={nodeName} className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-secondary">
+                          Receives data from: <span className="font-medium text-text-primary">{nodeName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-tertiary">No inputs (this is a trigger node)</p>
                   )}
                 </div>
-              </div>
-            </div>
+
+                {/* Outputs */}
+                <div className="space-y-2 pb-3 border-b border-node-border">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                    Outputs
+                  </h3>
+                  {outputNodes.length > 0 ? (
+                    <div className="space-y-1">
+                      {outputNodes.map(({ nodeName }) => (
+                        <div key={nodeName} className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-secondary">
+                          Sends data to: <span className="font-medium text-text-primary">{nodeName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-tertiary">No outputs</p>
+                  )}
+                </div>
+
+                {/* Last result */}
+                <div className="space-y-2 pb-3 border-b border-node-border">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                    Last result
+                  </h3>
+                  <div className="flex items-start gap-2">
+                    <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-text-primary">
+                        {nodeSummary.title}
+                      </h4>
+                      {nodeSummary.subtitle && (
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {nodeSummary.subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {lastLogWithData && lastLogWithData.data && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setIsPayloadExpanded(!isPayloadExpanded)}
+                        className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                      >
+                        {isPayloadExpanded ? 'Hide' : 'Show'} output data
+                      </button>
+                      {isPayloadExpanded && (
+                        <div className="mt-2 bg-bg-secondary rounded-md p-2 border border-node-border/50">
+                          <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-32 overflow-y-auto">
+                            {JSON.stringify(lastLogWithData.data, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Advanced (colapsable) */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
+                    className="w-full text-left text-xs font-semibold text-text-secondary uppercase tracking-wide flex items-center justify-between"
+                  >
+                    <span>Advanced</span>
+                    <span className="text-text-tertiary">{isAdvancedExpanded ? '−' : '+'}</span>
+                  </button>
+                  {isAdvancedExpanded && (
+                    <div className="space-y-3 pt-2">
+                      {/* Estado de runtime */}
+                      <div className="space-y-2">
+                        <label className="block text-xs font-medium text-text-secondary">
+                          Runtime State
+                        </label>
+                        {runtimeStateColor ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: runtimeStateColor }} />
+                            <span className="text-xs text-text-primary capitalize">{runtimeState || 'idle'}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-text-tertiary">No active state</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Vista normal */
+              <>
+                {/* Bloque de Resumen Semántico */}
+                <div className="space-y-2 pb-3 border-b border-node-border">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                    Resumen
+                  </h3>
+                  <div className="flex items-start gap-2">
+                    <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-text-primary">
+                        {nodeSummary.title}
+                      </h4>
+                      {nodeSummary.subtitle && (
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {nodeSummary.subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
             
             {/* Estado actual del nodo */}
             <div className="space-y-2 pb-3 border-b border-node-border">
@@ -1024,15 +1147,16 @@ export function NodePropertiesPanel({
               </div>
             </div>
 
-            {/* Último Payload (estilo n8n, colapsable) */}
+            {/* Output Data (estilo n8n, colapsable) */}
             {lastLogWithData && lastLogWithData.data && (
               <div className="space-y-2 pb-3 border-b border-node-border">
                 <button
                   onClick={() => setIsPayloadExpanded(!isPayloadExpanded)}
                   className="flex items-center justify-between w-full text-left hover:bg-bg-secondary/50 rounded px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                  title="Output data (payload in Node-RED)"
                 >
                   <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                    Último Payload
+                    Output Data
                   </h3>
                   {isPayloadExpanded ? (
                     <ChevronUp className="w-3 h-3 text-text-tertiary" />
@@ -1104,8 +1228,8 @@ export function NodePropertiesPanel({
                         <p className="text-text-secondary text-[11px] mb-1">{log.message}</p>
                         {log.data && (
                           <details className="mt-1">
-                            <summary className="text-[10px] text-text-tertiary cursor-pointer hover:text-text-secondary">
-                              Ver payload
+                            <summary className="text-[10px] text-text-tertiary cursor-pointer hover:text-text-secondary" title="View output data (payload in Node-RED)">
+                              Ver output data
                             </summary>
                             <pre className="mt-1 p-1.5 bg-bg-tertiary rounded text-[10px] text-text-secondary overflow-x-auto max-h-32 overflow-y-auto">
                               {JSON.stringify(log.data, null, 2)}
@@ -1154,6 +1278,8 @@ export function NodePropertiesPanel({
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         )}
       </div>

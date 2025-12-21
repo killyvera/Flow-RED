@@ -30,6 +30,8 @@ import 'reactflow/dist/style.css'
 import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
 import { ExecutionBar } from '@/components/ExecutionBar'
+import { ExplainModeStepper } from '@/components/ExplainModeStepper'
+import { HelpCircle } from 'lucide-react'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 import { useTheme } from '@/context/ThemeContext'
@@ -163,6 +165,8 @@ export function CanvasPage() {
   const setGroups = useCanvasStore((state) => state.setGroups)
   const collapsedGroupIds = useCanvasStore((state) => state.collapsedGroupIds)
   const setCollapsedGroupIds = useCanvasStore((state) => state.setCollapsedGroupIds)
+  const explainMode = useCanvasStore((state) => state.explainMode)
+  const toggleExplainMode = useCanvasStore((state) => state.toggleExplainMode)
 
   // Cargar estado de grupos colapsados desde localStorage inicialmente
   const hasInitializedCollapsedRef = React.useRef(false)
@@ -1699,6 +1703,21 @@ export function CanvasPage() {
           </>
         )}
 
+        {/* Botón Explain Mode */}
+        <div className="w-px h-6 bg-canvas-grid" />
+        <button
+          onClick={toggleExplainMode}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+            explainMode
+              ? 'bg-accent-primary text-white hover:bg-accent-secondary'
+              : 'bg-bg-tertiary text-text-primary hover:bg-node-hover'
+          }`}
+          title={explainMode ? 'Exit Explain Mode' : 'Enter Explain Mode'}
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>Explain Mode</span>
+        </button>
+
         {/* Botón de guardar (solo en modo edición) */}
         {isEditMode && activeFlowId && (
           <>
@@ -1721,7 +1740,7 @@ export function CanvasPage() {
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Guardar</span>
+                  <span>Save & Deploy</span>
                 </>
               )}
             </button>
@@ -2305,6 +2324,7 @@ export function CanvasPage() {
 
       {/* Execution Bar - Barra de estado de Execution Frames */}
       <ExecutionBar />
+      <ExplainModeStepper />
     </div>
   )
 }

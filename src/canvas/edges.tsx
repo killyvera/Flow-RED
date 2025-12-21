@@ -4,9 +4,9 @@
  * Define los tipos de edges y sus estilos para un look moderno estilo Flowise/n8n.
  */
 
-import React, { memo } from 'react'
+import React, { memo, useState } from 'react'
 import type { Edge, EdgeProps } from 'reactflow'
-import { BaseEdge, SmoothStepEdge, BezierEdge, getSmoothStepPath } from 'reactflow'
+import { BaseEdge, SmoothStepEdge, BezierEdge, getSmoothStepPath, EdgeLabelRenderer } from 'reactflow'
 import { useCanvasStore } from '@/state/canvasStore'
 
 /**
@@ -29,7 +29,9 @@ const AnimatedEdge = memo(function AnimatedEdge({
   ...props
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
+  const explainMode = useCanvasStore((state) => state.explainMode)
   const isActive = activeEdges.has(id)
+  const [isHovered, setIsHovered] = useState(false)
   
   // Log cuando el edge se activa/desactiva
   React.useEffect(() => {
@@ -51,6 +53,10 @@ const AnimatedEdge = memo(function AnimatedEdge({
     targetPosition,
   })
 
+  // Calcular posición del label (centro del edge)
+  const labelX = (sourceX + targetX) / 2
+  const labelY = (sourceY + targetY) / 2
+
   return (
     <>
       {/* Edge base usando BaseEdge de React Flow */}
@@ -71,6 +77,8 @@ const AnimatedEdge = memo(function AnimatedEdge({
         }}
         className={isActive ? 'edge-active' : ''}
         markerEnd={markerEnd}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       />
       
       {/* Capa de pulso cuando está activo */}
@@ -113,6 +121,22 @@ const AnimatedEdge = memo(function AnimatedEdge({
             />
           </circle>
         </>
+      )}
+      
+      {/* Label en Explain Mode (solo en hover) */}
+      {explainMode && isHovered && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: 'all',
+            }}
+            className="px-2 py-0.5 bg-bg-secondary border border-node-border rounded text-[10px] text-text-secondary shadow-sm z-10"
+          >
+            passes msg
+          </div>
+        </EdgeLabelRenderer>
       )}
     </>
   )

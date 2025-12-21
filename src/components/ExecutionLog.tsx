@@ -97,7 +97,11 @@ export function ExecutionLog({ isOpen, onClose }: ExecutionLogProps) {
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {sortedLogs.length === 0 ? (
           <div className="text-center text-text-tertiary text-sm py-8">
-            No hay logs de ejecución
+            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="font-medium">No execution captured yet</p>
+            <p className="text-xs mt-1 opacity-75">
+              Execution logs will appear here when nodes run
+            </p>
           </div>
         ) : (
           sortedLogs.map((log) => (

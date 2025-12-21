@@ -77,6 +77,13 @@ export function SummaryBadge({ severity, size = 'sm', icon }: SummaryBadgeProps)
     md: 'w-4 h-4',
   }
 
+  const severityTooltips: Record<SummarySeverity, string> = {
+    success: 'Success: Node executed successfully',
+    warn: 'Warning: Node completed with warnings',
+    error: 'Error: Node execution failed',
+    info: 'Info: Node is ready or running',
+  }
+
   return (
     <div
       className={`
@@ -88,7 +95,7 @@ export function SummaryBadge({ severity, size = 'sm', icon }: SummaryBadgeProps)
         ${sizeClasses[size]}
         flex-shrink-0
       `}
-      title={severity}
+      title={severityTooltips[severity]}
     >
       <IconComponent
         className={`

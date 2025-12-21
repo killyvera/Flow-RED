@@ -709,10 +709,209 @@ Se ha implementado un sistema de resúmenes semánticos que muestra resultados l
 - **Error state:** "Error" con "Execution failed" (error, rojo)
 - **Running state:** "Running..." (info, azul)
 
-#### Próximos Pasos (PROMPT 9D):
+---
 
-Con Semantic Summaries implementado, el siguiente paso es:
-- Agregar más heurísticas específicas por tipo de nodo
-- Mejorar la visualización de resúmenes en timeline de frames
-- Agregar tooltips con más detalles en los badges
+## 10. Explain Mode Implemented (PROMPT 9D)
+
+**Estado:** ✅ **IMPLEMENTADO**
+
+### Explain Mode - Modo Demo/Onboarding
+
+Se ha implementado Explain Mode, un overlay que transforma la UI en una vista guiada y no técnica, haciendo los flows auto-explicativos.
+
+#### Funcionalidades Implementadas:
+
+1. **Toggle en Toolbar:**
+   - Botón "Explain Mode" en la barra superior del canvas
+   - Icono `HelpCircle` de lucide-react
+   - Toggle que activa/desactiva el modo
+   - Estilo consistente con otros botones
+
+2. **Overlay en Nodos:**
+   - Cuando Explain Mode está activo, cada nodo muestra una explicación de una línea
+   - Explicaciones simples: "Triggers flow", "Calls API", "Filters data", "Logs output"
+   - Overlay pequeño debajo del nodo con estilo minimalista
+
+3. **Labels en Edges:**
+   - Cuando Explain Mode está activo, los edges muestran label sutil en hover: "passes msg"
+   - Solo visible al pasar el mouse sobre el edge
+   - Estilo minimalista, no intrusivo
+
+4. **Inspector Explain Mode:**
+   - Vista amigable que reemplaza la configuración técnica:
+     - **"What it does"** - Descripción del nodo en lenguaje simple
+     - **"Inputs"** - Qué datos recibe (usando conexiones existentes)
+     - **"Outputs"** - Qué datos produce (usando conexiones existentes)
+     - **"Last result"** - Resumen + preview (usando summary engine)
+     - **"Advanced"** - Botón colapsable que muestra configuración técnica
+   - Campos técnicos ocultos por defecto
+   - Solo información esencial visible
+
+5. **Stepper Component:**
+   - Componente de navegación con botones "Next" / "Previous"
+   - Orden de ejecución calculado con BFS desde triggers
+   - Highlight automático del nodo actual
+   - Botón "Exit Explain Mode" visible
+   - Navegación con teclado (flechas ← →, Esc para salir)
+   - Posicionamiento: fixed bottom center del canvas
+
+6. **Utilidad de Explicaciones:**
+   - `getNodeExplanation(nodeType)` - Mapeo de tipos a explicaciones simples
+   - `getNodeDescription(nodeType)` - Descripciones más detalladas para inspector
+   - Fallback: "Processes data" para nodos desconocidos
+
+#### Archivos Creados/Modificados:
+
+- ✅ `src/state/canvasStore.ts` - Extendido con `explainMode` state y acciones
+- ✅ `src/utils/nodeExplanations.ts` - Mapeo de explicaciones para tipos de nodos
+- ✅ `src/pages/CanvasPage.tsx` - Toggle en toolbar
+- ✅ `src/canvas/nodes/BaseNode.tsx` - Overlay de explicación
+- ✅ `src/canvas/edges.tsx` - Labels en edges
+- ✅ `src/components/NodePropertiesPanel.tsx` - Vista amigable en Explain Mode
+- ✅ `src/components/ExplainModeStepper.tsx` - Componente de navegación
+
+#### Restricciones Cumplidas:
+
+- ✅ NO modifica flow JSON
+- ✅ Visualmente consistente con el sistema de temas
+- ✅ Fácil de salir (botón Exit y tecla Esc)
+- ✅ Overlay visual, no modifica datos
+
+---
+
+## 11. Polish Implemented (PROMPT 9E)
+
+**Estado:** ✅ **IMPLEMENTADO**
+
+### Polish - Naming, Microinteractions, Performance y Regression Checklist
+
+Se ha implementado el polish final de la capa semántica, mejorando la experiencia del usuario con naming amigable, microinteractions, optimizaciones de performance y un checklist de regresión.
+
+#### Naming Audit - Reemplazo de Jerga de Node-RED:
+
+1. **"Último Payload" → "Output Data":**
+   - Cambiado en `NodePropertiesPanel.tsx`
+   - Tooltip mantiene término técnico: "Output data (payload in Node-RED)"
+
+2. **"Ver payload" → "Ver output data":**
+   - Cambiado en `NodePropertiesPanel.tsx`
+   - Tooltip: "View output data (payload in Node-RED)"
+
+3. **"Guardar" → "Save & Deploy":**
+   - Cambiado en `CanvasPage.tsx` (botón de guardar)
+   - Más descriptivo del comportamiento real
+
+4. **Comentarios en código:**
+   - Actualizados en `summaryEngine.ts` para claridad
+   - Términos técnicos mantenidos en comentarios internos
+
+#### Microinteractions:
+
+1. **Tooltips en Badges:**
+   - `SummaryBadge` ahora muestra tooltips descriptivos:
+     - success: "Success: Node executed successfully"
+     - warn: "Warning: Node completed with warnings"
+     - error: "Error: Node execution failed"
+     - info: "Info: Node is ready or running"
+
+2. **Tooltips en Estado de Runtime:**
+   - `BaseNode` muestra tooltips mejorados:
+     - running: "Running: Node is currently executing"
+     - error: "Error: Node execution failed"
+     - warning: "Warning: Node completed with warnings"
+     - idle: "Idle: Node is ready"
+
+3. **Empty States:**
+   - `ExecutionLog`: "No execution captured yet" con icono y mensaje descriptivo
+   - `NodePropertiesPanel`: "No execution data available" con mensaje claro
+   - Mensajes consistentes y amigables
+
+4. **Safe Fallbacks:**
+   - "No preview available" cuando no hay payload
+   - "Unknown node type" cuando el tipo no se reconoce
+   - "No data" cuando no hay logs
+
+#### Performance:
+
+1. **Memoization Verificada:**
+   - ✅ `BaseNode` usa `memo` y `useMemo` para resúmenes
+   - ✅ `NodePropertiesPanel` usa `useMemo` para cálculos pesados
+   - ✅ `generateNodeSummary` está memoizado correctamente
+
+2. **Truncation Verificada:**
+   - ✅ Payload preview truncado a 100 caracteres (en `createPayloadPreview`)
+   - ✅ Resúmenes truncados a 50 caracteres (en `summaryEngine`)
+   - ✅ Funciona en todos los lugares donde se muestra payload
+
+3. **Caps Verificados:**
+   - ✅ Frames: máximo 20 frames (`slice(-20)`)
+   - ✅ Snapshots: máximo 50 por nodo (`slice(0, 50)`)
+   - ✅ Logs: máximo 1000 logs (configurable)
+
+#### Regression Checklist:
+
+1. **Archivo Creado:**
+   - ✅ `docs/checklists/semantic-layer-regression.md`
+   - Checklist completo con todas las funcionalidades
+   - Casos especiales y edge cases incluidos
+
+2. **Categorías del Checklist:**
+   - Funcionalidades Core (Render, Edit, WS, Themes, Groups, Inspector)
+   - Funcionalidades de Capa Semántica (Frames, Summaries, Explain Mode, Polish)
+   - Casos Especiales (Edge cases, Integración)
+
+#### Archivos Modificados:
+
+- ✅ `src/components/NodePropertiesPanel.tsx` - Naming changes
+- ✅ `src/pages/CanvasPage.tsx` - "Save & Deploy"
+- ✅ `src/utils/summaryEngine.ts` - Comentarios actualizados
+- ✅ `src/components/SummaryBadge.tsx` - Tooltips mejorados
+- ✅ `src/canvas/nodes/BaseNode.tsx` - Tooltips mejorados
+- ✅ `src/components/ExecutionLog.tsx` - Empty state mejorado
+- ✅ `docs/checklists/semantic-layer-regression.md` - Checklist creado
+
+#### Resultado Final:
+
+- ✅ Experiencia consistente sin confusión
+- ✅ Sin regresiones en funcionalidades existentes
+- ✅ Naming amigable manteniendo términos técnicos en tooltips
+- ✅ Microinteractions mejoran la usabilidad
+- ✅ Performance optimizada con memoization y caps
+- ✅ Checklist de regresión para futuras verificaciones
+
+---
+
+## Resumen de Implementación Completa
+
+**Estado:** ✅ **CAPA SEMÁNTICA COMPLETA**
+
+### Prompts Implementados:
+
+1. ✅ **PROMPT 9B** - Execution Frames
+2. ✅ **PROMPT 9C** - Semantic Summaries
+3. ✅ **PROMPT 9D** - Explain Mode
+4. ✅ **PROMPT 9E** - Polish
+
+### Funcionalidades Principales:
+
+- **Execution Frames:** Agrupa eventos WebSocket en sesiones de ejecución coherentes
+- **Semantic Summaries:** Muestra resultados legibles antes que JSON crudo
+- **Explain Mode:** Modo demo/onboarding que hace flows auto-explicativos
+- **Polish:** Naming amigable, microinteractions, performance optimizada
+
+### Restricciones Cumplidas:
+
+- ✅ NO modifica runtime de Node-RED
+- ✅ NO hardcodea tipos de nodos específicos
+- ✅ NO cambia flow JSON
+- ✅ Mantiene compatibilidad 100% con funcionalidad existente
+- ✅ Usa sistema de temas consistentemente
+- ✅ Payloads truncados, frames y snapshots con caps
+
+### Próximos Pasos:
+
+La capa semántica está completa. Posibles mejoras futuras:
+- Timeline visual de frames
+- Más heurísticas específicas por tipo de nodo
+- Mejoras en la visualización de resúmenes
 
