@@ -331,11 +331,6 @@ export interface SaveFlowError extends Error {
 export async function triggerInjectNode(nodeId: string): Promise<void> {
   apiLogger(`🖱️ Activando nodo inject: ${nodeId}`)
   
-  // #region agent log
-  const triggerStartTime = Date.now()
-  fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Iniciando activación de nodo inject',data:{nodeId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   try {
     // Verificar primero si el nodo existe en Node-RED obteniendo todos los flows
     // Esto nos ayuda a diagnosticar si el problema es que el nodo no existe o el ID no coincide
@@ -348,13 +343,6 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
       
       const targetNode = allFlows.find(node => node.id === nodeId && node.type === 'inject')
       nodeExists = !!targetNode
-      
-      // #region agent log
-      const allInjectNodes = allFlows.filter(n => n.type === 'inject')
-      const injectNodeIds = allInjectNodes.map(n => n.id)
-      const injectNodesInSameFlow = targetNode ? allFlows.filter(n => n.type === 'inject' && n.z === targetNode.z) : []
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Verificación de nodo en flow JSON',data:{nodeId,totalNodes:allFlows.length,totalInjectNodes:allInjectNodes.length,injectNodeIds,nodeExists:!!targetNode,targetNodeDetails:targetNode?{id:targetNode.id,z:targetNode.z,disabled:targetNode.disabled,type:targetNode.type}:null,injectNodesInSameFlow:injectNodesInSameFlow.length,injectNodesInSameFlowIds:injectNodesInSameFlow.map(n=>n.id),timeSinceTrigger:Date.now()-triggerStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       
       if (targetNode) {
         nodeDisabled = targetNode.disabled === true
@@ -380,9 +368,8 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
         apiLogger(`⚠️ Nodo inject con ID "${nodeId}" no encontrado en los flows de Node-RED`)
         apiLogger(`📋 Nodos inject disponibles:`, availableInjectNodes)
         // Si el nodo no existe en el flow JSON, no intentar activarlo
-        // Pero permitir que continúe el polling por si acaso el nodo se despliega después
-        // El polling fallará con un mensaje más claro
-        apiLogger(`⚠️ [triggerInjectNode] Nodo no encontrado en flow JSON, pero continuando con polling por si se despliega...`)
+        // Lanzar error inmediatamente en lugar de hacer polling
+        throw new Error(`El nodo inject con ID "${nodeId}" no existe en Node-RED. Asegúrate de que el flow esté guardado y desplegado antes de intentar activar el nodo.`)
       } else if (nodeDisabled) {
         apiLogger(`⚠️ Nodo inject con ID "${nodeId}" está deshabilitado`)
         throw new Error(`El nodo inject con ID "${nodeId}" está deshabilitado. Habilítalo en el panel de propiedades antes de activarlo.`)
@@ -406,8 +393,11 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
         }
       }
     } catch (verifyErr) {
-      // Si es un error que lanzamos nosotros (nodo deshabilitado), re-lanzarlo
-      if (verifyErr instanceof Error && verifyErr.message.includes('deshabilitado')) {
+      // Si es un error que lanzamos nosotros (nodo deshabilitado o no existe), re-lanzarlo
+      if (verifyErr instanceof Error && (
+        verifyErr.message.includes('deshabilitado') || 
+        verifyErr.message.includes('no existe en Node-RED')
+      )) {
         throw verifyErr
       }
       apiLogger(`⚠️ No se pudo verificar si el nodo existe:`, verifyErr)
@@ -433,16 +423,10 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
     // 
     // NOTA: El despliegue puede tardar más de 10 segundos en flows complejos o con muchos nodos.
     // Aumentamos el tiempo máximo a 30 segundos para dar más margen.
-    const maxPollingAttempts = 60 // Máximo 60 intentos (para flows complejos)
-    const initialPollingInterval = 200 // 200ms inicial
-    const maxPollingInterval = 1500 // 1.5 segundos máximo entre intentos
-    const maxPollingTime = 60000 // 60 segundos máximo total (el despliegue puede tardar hasta 15-20 segundos en flows complejos)
-    
-    // #region agent log
-    // Verificar si el nodo está disponible en el runtime ANTES de intentar activarlo
-    // Esto nos ayudará a diagnosticar si el problema es que el nodo no se está desplegando
-    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Antes de iniciar polling - verificando estado del nodo',data:{nodeId,nodeExists,nodeDisabled,availableInjectNodesCount:availableInjectNodes.length,timeSinceTrigger:Date.now()-triggerStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
+    const maxPollingAttempts = 10 // Reducir a 10 intentos (suficiente para la mayoría de casos)
+    const initialPollingInterval = 1000 // 1 segundo inicial (más tiempo entre intentos)
+    const maxPollingInterval = 3000 // 3 segundos máximo entre intentos
+    const maxPollingTime = 20000 // 20 segundos máximo total (suficiente para la mayoría de casos)
     
     // URLs posibles para el endpoint (dependiendo de la configuración de httpAdminRoot)
     // Según la documentación de Node-RED, el endpoint está registrado como:
@@ -482,39 +466,57 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
       let foundWorkingUrl = false
       
       for (const url of possibleUrls) {
-        // #region agent log
-        const attemptStartTime = Date.now()
-        fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Intento de activación con polling',data:{nodeId,attempt,url,nodeExists,timeSinceTrigger:Date.now()-triggerStartTime,timeSincePollingStart:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        
-        apiLogger(`📡 [triggerInjectNode] Intentando activar nodo en: ${url} (intento ${attempt}/${maxPollingAttempts})`)
+        // Solo loguear el primer intento y cada 5 intentos para evitar spam en la consola
+        if (attempt === 1 || attempt % 5 === 0) {
+          apiLogger(`📡 [triggerInjectNode] Intentando activar nodo en: ${url} (intento ${attempt}/${maxPollingAttempts})`)
+        }
         
         try {
-          response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+          // CRÍTICO: Usar XMLHttpRequest en lugar de fetch para poder silenciar completamente los errores 404
+          // Esto evita que el navegador muestre los errores en la consola
+          response = await new Promise<Response>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('POST', url, true)
+            xhr.setRequestHeader('Content-Type', 'application/json')
+            
+            // Silenciar errores: no mostrar en consola
+            xhr.onerror = () => {
+              // Crear una respuesta simulada con 404 sin mostrar error en consola
+              resolve(new Response(null, { status: 404, statusText: 'Not Found' }))
+            }
+            
+            xhr.onload = () => {
+              // Crear una respuesta desde XMLHttpRequest
+              const response = new Response(xhr.responseText, {
+                status: xhr.status,
+                statusText: xhr.statusText,
+                headers: new Headers({
+                  'Content-Type': xhr.getResponseHeader('Content-Type') || 'application/json',
+                }),
+              })
+              resolve(response)
+            }
+            
+            xhr.send()
           })
           
-          // #region agent log
-          const attemptEndTime = Date.now()
-          fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Respuesta de intento de activación',data:{nodeId,attempt,status:response.status,statusText:response.statusText,url,nodeExists,attemptDuration:attemptEndTime-attemptStartTime,timeSinceTrigger:Date.now()-triggerStartTime,timeSincePollingStart:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
-          
-          apiLogger(`📡 [triggerInjectNode] Respuesta del servidor: ${response.status} ${response.statusText}`)
-          
-          // Si es exitoso, salir de ambos loops
+          // Solo loguear respuestas exitosas o errores no-404 para evitar spam
           if (response.ok) {
             apiLogger(`✅ [triggerInjectNode] Nodo activado exitosamente después de ${attempt} intentos en ${url}`)
             foundWorkingUrl = true
             break
+          } else if (response.status !== 404) {
+            // Solo loguear errores que no sean 404
+            apiLogger(`📡 [triggerInjectNode] Respuesta del servidor: ${response.status} ${response.statusText}`)
           }
           
           // Si es 404, el endpoint aún no está disponible o esta URL no es la correcta
           // Continuar con la siguiente URL o con el siguiente intento
+          // CRÍTICO: No loguear errores 404 para evitar spam en la consola del navegador
+          // El navegador ya muestra el error 404 en la consola, no necesitamos duplicarlo
           if (response.status === 404) {
             lastError = `${response.status} ${response.statusText}`
+            // Silenciar: no loguear errores 404 para evitar spam
             // Continuar con la siguiente URL si hay más
             continue
           }
@@ -551,10 +553,6 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
     if (!response || !response.ok) {
       const errorText = lastError || (response ? await response.text().catch(() => 'Unknown error') : 'No response')
       const statusCode = response?.status || 404
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Todos los intentos de polling fallaron',data:{nodeId,statusCode,nodeExists,nodeDisabled,availableInjectNodesCount:availableInjectNodes.length,availableInjectNodeIds:availableInjectNodes.slice(0,10).map(n=>n.id),timeSinceTrigger:Date.now()-triggerStartTime,totalPollingTime:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       
       // Mensajes de error más descriptivos
       if (statusCode === 404) {
@@ -634,8 +632,14 @@ export async function saveFlow(
   }
   
   // Incluir el nodo tab del flow en los nodos a guardar
+  // CRÍTICO: No crear un tab automáticamente si flowId es un subflow
+  // Verificar si flowId es un subflow (existe un nodo con type='subflow' y id=flowId)
+  const isSubflow = nodes.some(n => n.type === 'subflow' && n.id === flowId)
   const flowTab = nodes.find(n => n.type === 'tab' && n.id === flowId)
-  const nodesToSave = flowTab ? nodes : [
+  
+  // Si es un subflow, no crear un tab (los subflows no tienen tabs)
+  // Si no es un subflow y no hay tab, crear uno
+  const nodesToSave = flowTab ? nodes : (isSubflow ? nodes : [
     {
       id: flowId,
       type: 'tab',
@@ -646,7 +650,7 @@ export async function saveFlow(
       y: 0,
     } as NodeRedNode,
     ...nodes,
-  ]
+  ])
   
   // Preparar el payload simple para la API v2
   const payload = {
@@ -660,31 +664,6 @@ export async function saveFlow(
   })
   
   try {
-    // #region agent log - Verificar nodos inject en el payload antes de enviar
-    const injectNodesInPayload = nodesToSave.filter(n => n.type === 'inject').map(n => {
-      const nodeDetails = {
-        id: n.id,
-        z: n.z,
-        name: n.name || n.label,
-        hasProps: !!n.props,
-        hasPayloadType: !!n.payloadType,
-        hasCron: !!n.cron,
-        hasCrontab: !!n.crontab,
-        hasRepeat: !!n.repeat,
-        hasOnce: n.once !== undefined,
-        props: n.props,
-        payloadType: n.payloadType,
-        cron: n.cron,
-        crontab: n.crontab,
-        repeat: n.repeat,
-        once: n.once,
-        keys: Object.keys(n),
-      }
-      return nodeDetails
-    })
-    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:saveFlow',message:'Antes de enviar payload a Node-RED',data:{flowId,rev:currentRev,totalNodes:nodesToSave.length,injectNodesInPayload,injectNodesCount:injectNodesInPayload.length},timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
-    
     const response = await nodeRedRequest<{ rev: string }>('/flows', {
       method: 'POST',
       headers: {
@@ -693,10 +672,6 @@ export async function saveFlow(
       },
       body: JSON.stringify(payload),
     })
-    
-    // #region agent log - Verificar respuesta después de guardar
-    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:saveFlow',message:'Flow guardado exitosamente',data:{flowId,rev:response.rev,injectNodesInPayload,injectNodesCount:injectNodesInPayload.length},timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
     
     apiLogger('✅ Flow guardado exitosamente:', { rev: response.rev })
     

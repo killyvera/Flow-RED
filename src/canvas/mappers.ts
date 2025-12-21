@@ -302,7 +302,13 @@ export function transformNodeRedFlow(
   // Convertir nodos de Node-RED a React Flow nodes (excluyendo grupos)
   // Pasar subflowDefinitions para que las instancias puedan obtener su definición
   const nodes = nonGroupNodes.map((nodeRedNode) => {
-    const reactFlowNode = mapNodeRedNodeToReactFlowNode(nodeRedNode, subflowDefinitions)
+    // CRÍTICO: Si estamos renderizando un subflow (flowId es un subflow),
+    // los nodos internos vienen de subflow.flow[] y no tienen z.
+    // Necesitamos establecer z = flowId para que luego se puedan identificar correctamente al guardar.
+    const nodeWithZ = subflowDefinition && !nodeRedNode.z
+      ? { ...nodeRedNode, z: flowId }
+      : nodeRedNode
+    const reactFlowNode = mapNodeRedNodeToReactFlowNode(nodeWithZ, subflowDefinitions)
     
     // Si el nodo pertenece a un grupo, establecer parentId
     if (nodeRedNode.g) {
@@ -478,13 +484,34 @@ export function transformReactFlowToNodeRed(
   mapperLogger('🔄 Transformando React Flow a Node-RED para flow:', flowId)
 
   // Obtener subflows originales desde allNodeRedNodes si están disponibles
+  // CRÍTICO: Solo incluir DEFINICIONES de subflow (type === 'subflow' Y sin x, y, z)
+  // Las INSTANCIAS de subflow tienen type === 'subflow:ID' y SÍ tienen x, y, z
   const originalSubflows = new Map<string, NodeRedSubflowDefinition>()
   if (allNodeRedNodes) {
     allNodeRedNodes.forEach(node => {
-      if (node.type === 'subflow') {
+      // Solo agregar definiciones de subflow, no instancias
+      // Definición: type === 'subflow' Y sin x, y, z
+      if (node.type === 'subflow' && !node.x && !node.y && !node.z) {
         originalSubflows.set(node.id, node as NodeRedSubflowDefinition)
       }
     })
+  }
+  
+  // CRÍTICO: Si el flowId es un subflow (estamos editando un subflow), agregarlo a originalSubflows
+  // Esto asegura que los nodos internos se identifiquen correctamente
+  // IMPORTANTE: NO crear entrada temporal para tabs - solo para subflows reales
+  if (flowId && !originalSubflows.has(flowId)) {
+    // Buscar el subflow en allNodeRedNodes - DEBE ser type === 'subflow' Y NO tener x, y, z (definición, no instancia)
+    const subflowInAllNodes = allNodeRedNodes?.find(n => 
+      n.id === flowId && 
+      n.type === 'subflow' && 
+      !n.x && !n.y && !n.z  // Solo definiciones de subflow, no instancias
+    )
+    if (subflowInAllNodes) {
+      originalSubflows.set(flowId, subflowInAllNodes as NodeRedSubflowDefinition)
+    }
+    // NO crear entrada temporal - si no es un subflow real, no debe estar en originalSubflows
+    // Esto previene que los nodos de un tab normal se traten como "nodos internos de subflow"
   }
 
   // Agrupar edges por nodo fuente para reconstruir wires
@@ -513,14 +540,38 @@ export function transformReactFlowToNodeRed(
   const normalNodes: ReactFlowNode[] = []
   const subflowInternalNodes = new Map<string, NodeRedNode[]>() // subflowId -> nodos internos
 
+  // Log para debug
+  mapperLogger('🔍 Identificando nodos internos:', {
+    flowId,
+    originalSubflowsCount: originalSubflows.size,
+    originalSubflowIds: Array.from(originalSubflows.keys()),
+    nodesCount: nodes.length,
+  })
+
   nodes.forEach((node) => {
     const originalNodeRedNode = node.data.nodeRedNode || {}
     const nodeZ = originalNodeRedNode.z
+    const flowIdFromData = node.data.flowId // También verificar flowId desde data
     
     // Si el nodo pertenece a un subflow (z es un ID de subflow), es un nodo interno
-    if (nodeZ && originalSubflows.has(nodeZ)) {
-      if (!subflowInternalNodes.has(nodeZ)) {
-        subflowInternalNodes.set(nodeZ, [])
+    // CRÍTICO: También verificar si flowId es un subflow (estamos editando un subflow)
+    // Si nodeZ === flowId, entonces estamos editando un subflow y estos son nodos internos
+    // IMPORTANTE: Si flowId es un subflow y el nodo no tiene z pero está en el canvas del subflow,
+    // también es un nodo interno (viene de subflow.flow[] que no tiene z)
+    const isEditingSubflow = originalSubflows.has(flowId) || (flowId && allNodeRedNodes?.some(n => n.id === flowId && n.type === 'subflow'))
+    // Usar nodeZ o flowIdFromData para determinar el z del nodo
+    const effectiveZ = nodeZ || flowIdFromData
+    // Un nodo es interno de un subflow si:
+    // 1. Su z apunta a un subflow que existe en originalSubflows (NO si z === flowId cuando flowId es un tab)
+    // 2. O estamos editando un subflow (isEditingSubflow=true) y el nodo no tiene z o su z es el subflow actual
+    const isInternalNode = (effectiveZ && originalSubflows.has(effectiveZ)) || 
+                          (isEditingSubflow && (!effectiveZ || effectiveZ === flowId))
+    
+    if (isInternalNode) {
+      // Usar effectiveZ como subflowId, o flowId si effectiveZ no está definido
+      const targetSubflowId = effectiveZ || flowId
+      if (!subflowInternalNodes.has(targetSubflowId)) {
+        subflowInternalNodes.set(targetSubflowId, [])
       }
       // Convertir el nodo interno usando la misma lógica que los nodos normales
       // pero sin z (ya que está dentro del subflow)
@@ -553,10 +604,25 @@ export function transformReactFlowToNodeRed(
         ...(wires.length > 0 && { wires }),
       }
       
-      subflowInternalNodes.get(nodeZ)!.push(internalNode)
+      // targetSubflowId ya está definido arriba
+      subflowInternalNodes.get(targetSubflowId)!.push(internalNode)
+      
+      mapperLogger('📦 Nodo interno identificado:', {
+        nodeId: internalNode.id,
+        nodeType: internalNode.type,
+        subflowId: targetSubflowId,
+        hasWires: !!internalNode.wires,
+      })
     } else {
       normalNodes.push(node)
     }
+  })
+  
+  mapperLogger('📊 Resumen de nodos internos:', {
+    subflowInternalNodesCount: Array.from(subflowInternalNodes.values()).reduce((sum, arr) => sum + arr.length, 0),
+    bySubflow: Object.fromEntries(
+      Array.from(subflowInternalNodes.entries()).map(([id, nodes]) => [id, nodes.length])
+    ),
   })
 
   // Convertir cada nodo normal de React Flow a Node-RED
@@ -671,51 +737,6 @@ export function transformReactFlowToNodeRed(
       }
     }
     
-    // #region agent log - Verificar nodos inject transformados
-    if (nodeRedNode.type === 'inject') {
-      // Log detallado del nodo antes y después de transformar
-      const originalProps = originalNodeRedNode.props ? JSON.stringify(originalNodeRedNode.props) : 'undefined'
-      const transformedProps = nodeRedNode.props ? JSON.stringify(nodeRedNode.props) : 'undefined'
-      const originalPayloadType = originalNodeRedNode.payloadType || 'undefined'
-      const transformedPayloadType = nodeRedNode.payloadType || 'undefined'
-      
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed',message:'Nodo inject transformado - COMPARACIÓN DETALLADA',data:{
-        nodeId:nodeRedNode.id,
-        originalNode:{
-          id:originalNodeRedNode.id,
-          type:originalNodeRedNode.type,
-          z:originalNodeRedNode.z,
-          props:originalProps,
-          payloadType:originalPayloadType,
-          repeat:originalNodeRedNode.repeat,
-          cron:originalNodeRedNode.cron,
-          crontab:originalNodeRedNode.crontab,
-          once:originalNodeRedNode.once,
-          onceDelay:originalNodeRedNode.onceDelay,
-          topic:originalNodeRedNode.topic,
-          payload:originalNodeRedNode.payload,
-          keys:Object.keys(originalNodeRedNode),
-        },
-        transformedNode:{
-          id:nodeRedNode.id,
-          type:nodeRedNode.type,
-          z:nodeRedNode.z,
-          props:transformedProps,
-          payloadType:transformedPayloadType,
-          repeat:nodeRedNode.repeat,
-          cron:nodeRedNode.cron,
-          crontab:nodeRedNode.crontab,
-          once:nodeRedNode.once,
-          onceDelay:nodeRedNode.onceDelay,
-          topic:nodeRedNode.topic,
-          payload:nodeRedNode.payload,
-          keys:Object.keys(nodeRedNode),
-        },
-        propsChanged:originalProps!==transformedProps,
-        payloadTypeChanged:originalPayloadType!==transformedPayloadType,
-      },timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'H'})}).catch(()=>{});
-    }
-    // #endregion
 
 
     return nodeRedNode
@@ -723,13 +744,108 @@ export function transformReactFlowToNodeRed(
 
 
   // Procesar subflows: agregar nodos internos a la propiedad 'flow'
+  // CRÍTICO: Node-RED necesita que los nodos internos estén:
+  // 1. En subflow.flow[] (sin z) - para compatibilidad con módulos
+  // 2. En el array principal con z = subflowId - para que estén en node_map cuando Node-RED procesa el subflow
   const processedSubflows = new Set<string>()
   const finalNodes: NodeRedNode[] = []
+  const internalNodesToAdd: NodeRedNode[] = [] // Nodos internos que se agregarán al array principal
+  
+  // CRÍTICO: Si estamos editando un subflow (flowId es un subflow), crear la definición del subflow
+  // porque los nodos React Flow solo incluyen los nodos internos, no la definición del subflow
+  if (flowId && originalSubflows.has(flowId)) {
+    const subflowId = flowId
+    const internalNodes = subflowInternalNodes.get(subflowId) || []
+    const originalSubflow = originalSubflows.get(subflowId)!
+    
+    // Crear la definición del subflow con los nodos internos actualizados
+    // CRÍTICO: Preservar TODAS las propiedades del subflow original (in, out, name, category, etc.)
+    const subflow: NodeRedSubflowDefinition = {
+      ...originalSubflow, // Preservar TODAS las propiedades originales (in, out, name, category, color, icon, env, etc.)
+      id: subflowId,
+      type: 'subflow',
+      flow: internalNodes.length > 0 ? internalNodes : (originalSubflow.flow || []),
+    } as NodeRedSubflowDefinition
+    
+    // CRÍTICO: Limpiar y validar wires en in/out para evitar errores en Node-RED
+    // Node-RED falla si hay elementos undefined en los arrays de wires
+    const internalNodeIds = new Set(subflow.flow.map(n => n.id))
+    
+    if (subflow.in && Array.isArray(subflow.in)) {
+      subflow.in = subflow.in.map((inPort: any, portIndex: number) => {
+        const validWires = inPort.wires 
+          ? inPort.wires
+              .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
+              .filter((w: any) => w.id != null && w.id !== undefined && typeof w.id === 'string' && w.id.trim() !== '')
+              .filter((w: any) => internalNodeIds.has(w.id))
+              .map((w: any) => ({ id: w.id }))
+          : []
+        return {
+          ...inPort,
+          wires: validWires.length > 0 ? validWires : []
+        }
+      }).filter((p: any) => p != null && p !== undefined)
+    }
+    
+    if (subflow.out && Array.isArray(subflow.out)) {
+      subflow.out = subflow.out.map((outPort: any, portIndex: number) => {
+        const validWires = outPort.wires
+          ? outPort.wires
+              .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
+              .filter((w: any) => w.id != null && w.id !== undefined && typeof w.id === 'string' && w.id.trim() !== '')
+              .filter((w: any) => internalNodeIds.has(w.id))
+              .map((w: any) => ({ 
+                id: w.id,
+                ...(w.port !== undefined && { port: w.port })
+              }))
+          : []
+        return {
+          ...outPort,
+          wires: validWires.length > 0 ? validWires : []
+        }
+      }).filter((p: any) => p != null && p !== undefined)
+    }
+    
+    // CRÍTICO: También agregar los nodos internos como nodos separados con z = subflowId
+    // Esto es necesario para que Node-RED pueda encontrarlos en node_map cuando procesa el subflow
+    if (internalNodes.length > 0) {
+      internalNodes.forEach(internalNode => {
+        // Crear una copia del nodo interno con z = subflowId para el array principal
+        const internalNodeWithZ: NodeRedNode = {
+          ...internalNode, // Preservar TODAS las propiedades (wires, func, outputs, etc.)
+          z: subflowId, // CRÍTICO: Los nodos internos en el array principal DEBEN tener z = subflowId
+          x: internalNode.x ?? 0, // Asegurar que tenga x
+          y: internalNode.y ?? 0, // Asegurar que tenga y
+        } as NodeRedNode
+        
+        internalNodesToAdd.push(internalNodeWithZ)
+      })
+    }
+    
+    finalNodes.push(subflow)
+    processedSubflows.add(subflowId)
+    
+    mapperLogger('📦 Subflow creado desde originalSubflow:', {
+      subflowId,
+      internalNodesCount: internalNodes.length,
+      hasIn: !!subflow.in,
+      inLength: subflow.in?.length || 0,
+      hasOut: !!subflow.out,
+      outLength: subflow.out?.length || 0,
+      flowLength: subflow.flow?.length || 0,
+    })
+  }
   
   nodeRedNodes.forEach((node) => {
     // Si es un subflow, agregar sus nodos internos
     if (node.type === 'subflow') {
       const subflowId = node.id
+      
+      // Si ya procesamos este subflow (porque flowId === subflowId), saltarlo
+      if (processedSubflows.has(subflowId)) {
+        return
+      }
+      
       const internalNodes = subflowInternalNodes.get(subflowId) || []
       
       // Obtener el subflow original para preservar su estructura
@@ -742,6 +858,61 @@ export function transformReactFlowToNodeRed(
         type: 'subflow',
         flow: internalNodes.length > 0 ? internalNodes : (originalSubflow?.flow || []),
       } as NodeRedSubflowDefinition
+      
+      // CRÍTICO: Limpiar y validar wires en in/out para evitar errores en Node-RED
+      // Node-RED falla si hay elementos undefined en los arrays de wires
+      const internalNodeIdsForSubflow = new Set(subflow.flow.map(n => n.id))
+      
+      if (subflow.in && Array.isArray(subflow.in)) {
+        subflow.in = subflow.in.map((inPort: any, portIndex: number) => {
+          const validWires = inPort.wires 
+            ? inPort.wires
+                .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
+                .filter((w: any) => w.id != null && w.id !== undefined && typeof w.id === 'string' && w.id.trim() !== '')
+                .filter((w: any) => internalNodeIdsForSubflow.has(w.id))
+                .map((w: any) => ({ id: w.id }))
+            : []
+          return {
+            ...inPort,
+            wires: validWires.length > 0 ? validWires : []
+          }
+        }).filter((p: any) => p != null && p !== undefined)
+      }
+      
+      if (subflow.out && Array.isArray(subflow.out)) {
+        subflow.out = subflow.out.map((outPort: any, portIndex: number) => {
+          const validWires = outPort.wires
+            ? outPort.wires
+                .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
+                .filter((w: any) => w.id != null && w.id !== undefined && typeof w.id === 'string' && w.id.trim() !== '')
+                .filter((w: any) => internalNodeIdsForSubflow.has(w.id))
+                .map((w: any) => ({ 
+                  id: w.id,
+                  ...(w.port !== undefined && { port: w.port })
+                }))
+            : []
+          return {
+            ...outPort,
+            wires: validWires.length > 0 ? validWires : []
+          }
+        }).filter((p: any) => p != null && p !== undefined)
+      }
+      
+      // CRÍTICO: También agregar los nodos internos como nodos separados con z = subflowId
+      // Esto es necesario para que Node-RED pueda encontrarlos en node_map cuando procesa el subflow
+      if (internalNodes.length > 0) {
+        internalNodes.forEach(internalNode => {
+          // Crear una copia del nodo interno con z = subflowId para el array principal
+          const internalNodeWithZ: NodeRedNode = {
+            ...internalNode, // Preservar TODAS las propiedades (wires, func, outputs, etc.)
+            z: subflowId, // CRÍTICO: Los nodos internos en el array principal DEBEN tener z = subflowId
+            x: internalNode.x ?? 0, // Asegurar que tenga x
+            y: internalNode.y ?? 0, // Asegurar que tenga y
+          } as NodeRedNode
+          
+          internalNodesToAdd.push(internalNodeWithZ)
+        })
+      }
       
       finalNodes.push(subflow)
       processedSubflows.add(subflowId)
@@ -787,12 +958,23 @@ export function transformReactFlowToNodeRed(
     })
   }
 
+  // CRÍTICO: Agregar nodos internos al array principal ANTES de las definiciones de subflow
+  // El orden es importante: tabs → internalNodes → subflowDefinitions → otros nodos
+  // Esto asegura que los nodos internos estén en node_map antes de que Node-RED procese el subflow
+  const tabs = finalNodes.filter(n => n.type === 'tab')
+  const subflowDefs = finalNodes.filter(n => n.type === 'subflow')
+  const otherNodes = finalNodes.filter(n => n.type !== 'tab' && n.type !== 'subflow')
+  
+  // Orden final: tabs → internalNodes → subflowDefinitions → otros nodos
+  const orderedFinalNodes = [...tabs, ...internalNodesToAdd, ...subflowDefs, ...otherNodes]
+  
   mapperLogger('✅ Transformación a Node-RED completada:', {
-    nodesCount: finalNodes.length,
+    nodesCount: orderedFinalNodes.length,
     edgesCount: edges.length,
     subflowsProcessed: processedSubflows.size,
     subflowInternalNodes: Array.from(subflowInternalNodes.values()).reduce((sum, arr) => sum + arr.length, 0),
+    internalNodesInArray: internalNodesToAdd.length,
   })
 
-  return finalNodes
+  return orderedFinalNodes
 }

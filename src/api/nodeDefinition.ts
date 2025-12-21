@@ -3,10 +3,15 @@
  * 
  * Obtiene la definición completa de un nodo desde el endpoint /nodes
  * para poder generar formularios dinámicos.
+ * 
+ * Para subflows, busca la definición en los flows cargados.
  */
 
 import { getNodes } from './client'
 import { apiLogger } from '@/utils/logger'
+import { useCanvasStore } from '@/state/canvasStore'
+import type { NodeRedSubflowDefinition } from '@/api/types'
+import { extractSubflowIdFromType } from '@/utils/subflowUtils'
 
 export interface NodeDefinition {
   /** Tipo del nodo */
@@ -66,6 +71,51 @@ export async function getNodeDefinition(nodeType: string): Promise<NodeDefinitio
   const loadPromise = (async () => {
     try {
       apiLogger('📥 Cargando definición de nodo:', nodeType)
+      
+      // Si es un subflow, buscar en los flows cargados
+      if (nodeType.startsWith('subflow:')) {
+        const subflowId = extractSubflowIdFromType(nodeType)
+        if (subflowId) {
+          // Obtener el estado del store directamente (no como hook)
+          const nodeRedNodes = useCanvasStore.getState().nodeRedNodes
+          const subflowDefinition = nodeRedNodes.find(
+            (n): n is NodeRedSubflowDefinition => n.type === 'subflow' && n.id === subflowId
+          )
+          
+          if (subflowDefinition) {
+            // Construir definición del subflow basada en su estructura
+            const definition: NodeDefinition = {
+              type: nodeType,
+              category: 'subflows',
+              name: subflowDefinition.name,
+              info: subflowDefinition.info,
+              description: subflowDefinition.info,
+              defaults: {
+                name: { value: subflowDefinition.name || '' },
+                // Agregar otros defaults si existen
+              },
+              // Propiedades del subflow
+              inputs: subflowDefinition.inputs || 0,
+              outputs: subflowDefinition.outputs || 0,
+              in: subflowDefinition.in,
+              out: subflowDefinition.out,
+              flow: subflowDefinition.flow,
+              color: subflowDefinition.color,
+              icon: subflowDefinition.icon,
+              env: subflowDefinition.env,
+            }
+            
+            // Guardar en cache
+            nodeDefinitionCache.set(nodeType, { promise: null, data: definition })
+            apiLogger('✅ Definición de subflow cargada:', { nodeType, subflowId, name: subflowDefinition.name })
+            return definition
+          } else {
+            apiLogger('⚠️ Subflow no encontrado en flows cargados:', { nodeType, subflowId })
+            nodeDefinitionCache.set(nodeType, { promise: null, data: null })
+            return null
+          }
+        }
+      }
       
       const nodesResponse = await getNodes()
       

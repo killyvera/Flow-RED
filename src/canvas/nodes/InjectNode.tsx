@@ -54,11 +54,6 @@ export const InjectNode = memo((props: BaseNodeProps) => {
       return
     }
     
-    // #region agent log
-    const triggerClickTime = Date.now()
-    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InjectNode.tsx:handleTrigger',message:'Click en botón trigger',data:{nodeId,reactFlowId:id,nodeRedId:nodeRedNode?.id,nodeName:nodeRedNode?.name||nodeRedNode?.label,nodeType:nodeRedNode?.type,nodeZ:nodeRedNode?.z,hasNodeRedNode:!!nodeRedNode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     console.log('🖱️ [InjectNode] Intentando activar nodo:', {
       nodeId,
       reactFlowId: id, // ID del nodo en React Flow
@@ -73,19 +68,11 @@ export const InjectNode = memo((props: BaseNodeProps) => {
     try {
       await triggerInjectNode(nodeId)
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InjectNode.tsx:handleTrigger',message:'Nodo inject activado exitosamente',data:{nodeId,timeSinceClick:Date.now()-triggerClickTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       console.log('✅ [InjectNode] Nodo inject activado exitosamente:', nodeId)
       // Feedback visual breve
       setTimeout(() => setIsTriggering(false), 500)
     } catch (err: any) {
       const errorMessage = err.message || 'Error desconocido'
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InjectNode.tsx:handleTrigger',message:'Error al activar nodo inject',data:{nodeId,error:errorMessage,timeSinceClick:Date.now()-triggerClickTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       console.error('❌ [InjectNode] Error al activar nodo inject:', {
         nodeId,

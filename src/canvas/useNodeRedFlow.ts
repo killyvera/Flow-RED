@@ -71,6 +71,13 @@ export function useNodeRedFlow(autoLoad: boolean = true) {
       setNodeRedNodes(allNodes)
       setFlows(extractedFlows)
       flowLogger('💾 Flows guardados en el store')
+      
+      // #region agent log
+      // Hipótesis A: Verificar estructura de subflows cuando se cargan del servidor
+      const subflowsLoaded = allNodes.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z)
+      const internalNodesLoaded = allNodes.filter(n => n.z && subflowsLoaded.some(sf => sf.id === n.z))
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedFlow.ts:loadFlows',message:'Subflows cargados del servidor',data:{subflowCount:subflowsLoaded.length,internalNodesCount:internalNodesLoaded.length,subflows:subflowsLoaded.map(sf=>({id:sf.id,name:sf.name,hasFlow:!!sf.flow,flowLength:Array.isArray(sf.flow)?sf.flow.length:0,flowNodeIds:Array.isArray(sf.flow)?sf.flow.map(n=>({id:n.id,z:n.z,hasZ:n.z!==undefined})):[]})),internalNodes:internalNodesLoaded.map(n=>({id:n.id,type:n.type,z:n.z}))},timestamp:Date.now(),sessionId:'debug-session',runId:'subflow-debug',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       // Si hay flows y no hay flow activo, seleccionar el primero
       if (extractedFlows.length > 0 && !activeFlowId) {

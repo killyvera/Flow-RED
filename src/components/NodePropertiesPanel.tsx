@@ -227,6 +227,20 @@ function renderField(
         )
       }
       
+      // Detectar si es un campo de código (multilínea)
+      const isCodeField = prop.id === 'func' || 
+                          prop.id === 'initialize' || 
+                          prop.id === 'finalize' ||
+                          prop.id === 'template' ||
+                          prop.id === 'syntax' ||
+                          prop.id === 'expression' ||
+                          (prop.label && (
+                            prop.label.toLowerCase().includes('function') ||
+                            prop.label.toLowerCase().includes('code') ||
+                            prop.label.toLowerCase().includes('script') ||
+                            prop.label.toLowerCase().includes('template')
+                          ))
+      
       return (
         <TextField
           key={fieldId}
@@ -238,6 +252,8 @@ function renderField(
           required={prop.required}
           disabled={disabled}
           description={prop.placeholder}
+          multiline={isCodeField}
+          rows={isCodeField ? 10 : undefined}
         />
       )
   }
