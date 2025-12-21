@@ -12,17 +12,32 @@ import { useTheme } from '@/context/ThemeContext'
 
 interface SidebarItem {
   id: string
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon: React.ComponentType<any>
   label: string
   onClick: () => void
 }
 
 type SidebarView = 'menu' | 'settings'
 
-export function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+interface SidebarProps {
+  isCollapsed: boolean
+  onToggleCollapse: () => void
+  onCollapse?: () => void // Callback cuando se colapsa para resetear la vista
+}
+
+export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarProps) {
   const [currentView, setCurrentView] = useState<SidebarView>('menu')
   const { isDarkMode, toggleDarkMode } = useTheme()
+
+  // Resetear al menú principal cuando se colapsa
+  React.useEffect(() => {
+    if (isCollapsed && currentView !== 'menu') {
+      setCurrentView('menu')
+      if (onCollapse) {
+        onCollapse()
+      }
+    }
+  }, [isCollapsed, currentView, onCollapse])
 
   const sidebarItems: SidebarItem[] = [
     {
@@ -33,15 +48,11 @@ export function Sidebar() {
         setCurrentView('settings')
         // Si está colapsado, expandir al abrir configuración
         if (isCollapsed) {
-          setIsCollapsed(false)
+          onToggleCollapse()
         }
       },
     },
   ]
-
-  const toggleCollapse = () => {
-    setIsCollapsed((prev) => !prev)
-  }
 
   const handleBackToMenu = () => {
     setCurrentView('menu')
@@ -57,30 +68,41 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto">
         {currentView === 'menu' ? (
           /* Vista del menú principal */
-          <div className="py-4">
-            <div className="flex flex-col gap-2 px-2">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.id}
-                    onClick={item.onClick}
-                    className={`flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors ${
-                      isCollapsed ? 'justify-center' : 'justify-start'
-                    }`}
-                    title={isCollapsed ? item.label : undefined}
-                    aria-label={item.label}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
-                    {!isCollapsed && (
-                      <span className="text-sm font-medium whitespace-nowrap">
-                        {item.label}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
+          <div className="flex flex-col h-full">
+            <div className="flex-1 py-4">
+              <div className="flex flex-col gap-2 px-2">
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={item.onClick}
+                      className={`flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors ${
+                        isCollapsed ? 'justify-center' : 'justify-start'
+                      }`}
+                      title={isCollapsed ? item.label : undefined}
+                      aria-label={item.label}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
+                      {!isCollapsed && (
+                        <span className="text-sm font-medium whitespace-nowrap">
+                          {item.label}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
+            
+            {/* Sección de versión al final */}
+            {!isCollapsed && (
+              <div className="border-t border-canvas-grid p-4">
+                <div className="text-xs text-text-tertiary text-center">
+                  Versión 0.0.1
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Vista de configuración */
@@ -158,22 +180,42 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Botón de colapsar/expandir */}
-      <div className="border-t border-canvas-grid p-2">
-        <button
-          onClick={toggleCollapse}
-          className="w-full flex items-center justify-center p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors"
-          aria-label={isCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
-          title={isCollapsed ? 'Expandir' : 'Colapsar'}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-5 h-5" strokeWidth={2} />
-          ) : (
-            <ChevronLeft className="w-5 h-5" strokeWidth={2} />
-          )}
-        </button>
-      </div>
     </div>
+  )
+}
+
+/**
+ * Botón flotante circular para expandir/colapsar el sidebar
+ * Se posiciona en el borde entre el sidebar y el canvas, centrado verticalmente
+ */
+export function SidebarToggleButton({ 
+  isCollapsed, 
+  onToggle 
+}: { 
+  isCollapsed: boolean
+  onToggle: () => void 
+}) {
+  // Calcular la posición: mitad del ancho del sidebar (64px cuando colapsado, 256px cuando expandido)
+  const sidebarWidth = isCollapsed ? 64 : 256
+  const buttonPosition = sidebarWidth // El borde derecho del sidebar
+  
+  return (
+    <button
+      onClick={onToggle}
+      className="fixed top-1/2 z-50 w-10 h-10 rounded-full bg-bg-primary border-2 border-canvas-grid shadow-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300"
+      aria-label={isCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+      title={isCollapsed ? 'Expandir' : 'Colapsar'}
+      style={{
+        transform: 'translate(-50%, -50%)',
+        left: `${buttonPosition}px`,
+      }}
+    >
+      {isCollapsed ? (
+        <ChevronRight className="w-5 h-5" strokeWidth={2} />
+      ) : (
+        <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+      )}
+    </button>
   )
 }
 
