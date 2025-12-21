@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "npm run build && vite preview",
+    "start:preview": "vite preview",
     "create-sample-flow": "node scripts/create-sample-flow.js",
     "seed-flows": "node scripts/seed-flows.js",
     "bench:generate": "npx tsx scripts/bench/generateFlow.ts"

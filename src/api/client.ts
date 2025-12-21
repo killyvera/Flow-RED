@@ -474,7 +474,7 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
         try {
           // CRÍTICO: Usar XMLHttpRequest en lugar de fetch para poder silenciar completamente los errores 404
           // Esto evita que el navegador muestre los errores en la consola
-          response = await new Promise<Response>((resolve, reject) => {
+          response = await new Promise<Response>((resolve) => {
             const xhr = new XMLHttpRequest()
             xhr.open('POST', url, true)
             xhr.setRequestHeader('Content-Type', 'application/json')

@@ -252,7 +252,7 @@ function renderField(
           required={prop.required}
           disabled={disabled}
           description={prop.placeholder}
-          multiline={isCodeField}
+          multiline={!!isCodeField}
           rows={isCodeField ? 10 : undefined}
         />
       )

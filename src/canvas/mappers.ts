@@ -769,10 +769,10 @@ export function transformReactFlowToNodeRed(
     
     // CRÍTICO: Limpiar y validar wires en in/out para evitar errores en Node-RED
     // Node-RED falla si hay elementos undefined en los arrays de wires
-    const internalNodeIds = new Set(subflow.flow.map(n => n.id))
+    const internalNodeIds = new Set((subflow.flow || []).map(n => n.id))
     
     if (subflow.in && Array.isArray(subflow.in)) {
-      subflow.in = subflow.in.map((inPort: any, portIndex: number) => {
+      subflow.in = subflow.in.map((inPort: any) => {
         const validWires = inPort.wires 
           ? inPort.wires
               .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
@@ -788,7 +788,7 @@ export function transformReactFlowToNodeRed(
     }
     
     if (subflow.out && Array.isArray(subflow.out)) {
-      subflow.out = subflow.out.map((outPort: any, portIndex: number) => {
+      subflow.out = subflow.out.map((outPort: any) => {
         const validWires = outPort.wires
           ? outPort.wires
               .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
@@ -861,10 +861,10 @@ export function transformReactFlowToNodeRed(
       
       // CRÍTICO: Limpiar y validar wires en in/out para evitar errores en Node-RED
       // Node-RED falla si hay elementos undefined en los arrays de wires
-      const internalNodeIdsForSubflow = new Set(subflow.flow.map(n => n.id))
+      const internalNodeIdsForSubflow = new Set((subflow.flow || []).map(n => n.id))
       
       if (subflow.in && Array.isArray(subflow.in)) {
-        subflow.in = subflow.in.map((inPort: any, portIndex: number) => {
+        subflow.in = subflow.in.map((inPort: any) => {
           const validWires = inPort.wires 
             ? inPort.wires
                 .filter((w: any) => w != null && w !== undefined && typeof w === 'object')
@@ -880,7 +880,7 @@ export function transformReactFlowToNodeRed(
       }
       
       if (subflow.out && Array.isArray(subflow.out)) {
-        subflow.out = subflow.out.map((outPort: any, portIndex: number) => {
+        subflow.out = subflow.out.map((outPort: any) => {
           const validWires = outPort.wires
             ? outPort.wires
                 .filter((w: any) => w != null && w !== undefined && typeof w === 'object')

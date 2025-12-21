@@ -436,9 +436,9 @@ export function CanvasPage() {
         }
         
         // Verificar si el nuevo flow es un subflow
-        const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
-        const targetFlow = allNodeRedNodes.find(n => n.id === activeFlowId)
-        const isSubflow = targetFlow?.type === 'subflow'
+        // const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+        // const targetFlow = allNodeRedNodes.find(n => n.id === activeFlowId)
+        // const isSubflow = targetFlow?.type === 'subflow' // No usado por ahora
         
         // Verificar si hay un draft guardado para este flow
         const checkDraft = async () => {
@@ -822,7 +822,7 @@ export function CanvasPage() {
       })
       
       // #region agent log
-      const groupsInTransformed = nodeRedNodes.filter(n => n.type === 'group').map(n => n.id)
+      // const groupsInTransformed = nodeRedNodes.filter(n => n.type === 'group').map(n => n.id) // No usado por ahora
       const nodesFromOtherFlowsByType = nodesFromOtherFlows.reduce((acc, n) => {
         acc[n.type] = (acc[n.type] || 0) + 1
         return acc
@@ -902,7 +902,7 @@ export function CanvasPage() {
               // CRÍTICO: Validar y limpiar wires en in/out
               // Los wires deben apuntar a nodos que existen en flow[]
               // Node-RED usa estos IDs para buscar nodos en node_map, así que deben coincidir exactamente
-              const internalNodeIds = new Set(subflowWithFlow.flow.map(n => n.id))
+              const internalNodeIds = new Set((subflowWithFlow.flow || []).map(n => n.id))
               
               // Log para debug
               console.log(`[handleSave] Validando wires del subflow ${subflow.id}:`, {
@@ -1077,9 +1077,9 @@ export function CanvasPage() {
       // CRÍTICO: Identificar correctamente definiciones de subflow vs instancias
       // - Definiciones de subflow: type === 'subflow' (NO tienen x, y, z)
       // - Instancias de subflow: type === 'subflow:ID' (SÍ tienen x, y, z)
-      const subflowDefinitionIds = new Set(
-        allNodesToSave.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z).map(n => n.id)
-      )
+      // const subflowDefinitionIds = new Set(
+      //   allNodesToSave.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z).map(n => n.id)
+      // ) // No usado por ahora
       
       // CRÍTICO: Node-RED necesita que los nodos internos de subflows estén en el array principal
       // con z = subflowId, además de estar en subflow.flow[]
@@ -1303,7 +1303,7 @@ export function CanvasPage() {
       // CRÍTICO: Actualizar o agregar nodos internos
       // Si un nodo interno ya existe en el payload, debe ser REEMPLAZADO (no filtrado)
       // porque puede haber sido editado en el subflow
-      const existingNodeIds = new Set(otherNodesWithoutSubflows.map(n => n.id))
+      // const existingNodeIds = new Set(otherNodesWithoutSubflows.map(n => n.id)) // No usado por ahora
       const internalNodeIdsToAdd = new Set(internalNodesToAdd.map(n => n.id))
       
       // Filtrar nodos internos existentes que deben ser reemplazados
@@ -1781,7 +1781,7 @@ export function CanvasPage() {
       
       if (subflowDefinition) {
         const newNodeId = `subflow-instance-${Date.now()}`
-        const inputs = subflowDefinition.in?.length || 1
+        // const inputs = subflowDefinition.in?.length || 1 // No usado por ahora
         const outputs = subflowDefinition.out?.length || 1
         const newNodeType = getNodeType(nodeType)
         const newNode: Node = {
@@ -2703,7 +2703,7 @@ export function CanvasPage() {
 
       flowNodes.forEach(node => {
         if (node.wires && Array.isArray(node.wires)) {
-          node.wires.forEach((targetIds, outputPort) => {
+          node.wires.forEach((targetIds) => {
             if (Array.isArray(targetIds)) {
               targetIds.forEach(targetId => {
                 if (!outgoingConnections.has(node.id)) {
@@ -2767,6 +2767,7 @@ export function CanvasPage() {
 
       // Crear el subflow con los nodos internos
       // Los nodos internos NO deben tener z cuando están en flow[]
+      // NOTA: Los subflows NO tienen x, y (son definiciones, no instancias)
       const subflow: NodeRedSubflowDefinition = {
         id: subflowId,
         type: 'subflow',
@@ -2785,6 +2786,9 @@ export function CanvasPage() {
           const { z, ...nodeWithoutZ } = n
           return nodeWithoutZ as NodeRedNode
         }),
+        // Los subflows NO tienen x, y (son definiciones, no instancias visuales)
+        x: 0,
+        y: 0,
       }
 
       // Guardar el subflow y eliminar el tab original
@@ -2804,8 +2808,18 @@ export function CanvasPage() {
       ]
 
       // Guardar usando la API
-      const currentRev = useCanvasStore.getState().rev || ''
-      const result = await nodeRedRequest<{ rev: string }>('/flows', {
+      // Obtener rev desde la API primero
+      let currentRev = ''
+      try {
+        const flowsResponse = await nodeRedRequest<{ rev: string }>('/flows', {
+          headers: { 'Node-RED-API-Version': 'v2' },
+        })
+        currentRev = flowsResponse.rev || ''
+      } catch (err) {
+        console.warn('⚠️ No se pudo obtener rev, usando string vacío')
+      }
+      
+      await nodeRedRequest<{ rev: string }>('/flows', {
         method: 'POST',
         headers: {
           'Node-RED-API-Version': 'v2',
@@ -2817,8 +2831,7 @@ export function CanvasPage() {
         }),
       })
       
-      // Actualizar el rev
-      useCanvasStore.getState().setRev(result.rev)
+      // Rev se actualiza automáticamente cuando se recargan los flows
 
       // Recargar flows para actualizar la lista
       await loadFlows()
