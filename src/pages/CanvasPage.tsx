@@ -13,7 +13,6 @@
 import React, { useCallback, useEffect } from 'react'
 import type { Node, MarkerType } from 'reactflow'
 import ReactFlow, {
-  Background,
   Controls,
   MiniMap,
   Connection,
@@ -29,6 +28,7 @@ import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
+import { DottedGridBackground } from '@/components/DottedGridBackground'
 
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
@@ -1673,15 +1673,8 @@ export function CanvasPage() {
             fitView
             {...dynamicCanvasConfig}
           >
-          {/* Fondo con grid más sutil */}
-          <Background
-            color="var(--color-canvas-grid)"
-            gap={20}
-            size={1}
-            style={{
-              opacity: 0.4, // Grid más sutil
-            }}
-          />
+          {/* Grid de puntos personalizado */}
+          <DottedGridBackground />
 
           {/* Controles de zoom y pan */}
           <Controls
