@@ -59,7 +59,6 @@ import { hasUnsavedChanges, createFlowSnapshot, type SavedFlowState } from '@/ut
 import { saveDraft, loadDraft, deleteDraft } from '@/utils/draftStorage'
 import { DeployConflictModal } from '@/components/DeployConflictModal'
 import { DraftRestoreModal } from '@/components/DraftRestoreModal'
-import { FlowManager } from '@/components/FlowManager'
 import { useFlowManager } from '@/context/FlowManagerContext'
 
 // Registrar los tipos de nodos personalizados
@@ -134,7 +133,7 @@ const canvasConfig = {
 
 export function CanvasPage() {
   // Theme context available if needed
-  const { isFlowManagerOpen, closeFlowManager } = useFlowManager()
+  const { setFlowManagerProps } = useFlowManager()
 
   // Memoizar nodeTypes y edgeTypes para evitar recreaciones en cada render
   // Esto es necesario para evitar warnings de React Flow
@@ -2853,6 +2852,25 @@ export function CanvasPage() {
     }
   }, [nodeRedNodes, activeFlowId, loadFlows, handleSwitchFlow])
 
+  // Actualizar props del FlowManager en el contexto
+  useEffect(() => {
+    setFlowManagerProps({
+      flows,
+      activeFlowId,
+      allNodes: nodeRedNodes,
+      isLoading,
+      onSelectFlow: handleSwitchFlow,
+      onCreateFlow: createNewFlow,
+      onEditFlow: switchFlow,
+      onDuplicateFlow: duplicateExistingFlow,
+      onDeleteFlow: removeFlow,
+      onImportFlow: async (json, options) => {
+        await importFlowFromJson(json, options)
+      },
+      onConvertToSubflow: handleConvertFlowToSubflow,
+    })
+  }, [flows, activeFlowId, nodeRedNodes, isLoading, setFlowManagerProps, handleSwitchFlow, createNewFlow, switchFlow, duplicateExistingFlow, removeFlow, importFlowFromJson, handleConvertFlowToSubflow])
+
   // Agregar handlers a nodos de grupo cuando se cargan o cambia el modo edición
   useEffect(() => {
     // Usar setter funcional para evitar dependencia de 'nodes'
@@ -3183,25 +3201,6 @@ export function CanvasPage() {
         />
       )}
 
-      {/* Flow Manager */}
-      <FlowManager
-        flows={flows}
-        activeFlowId={activeFlowId}
-        allNodes={nodeRedNodes}
-        isLoading={isLoading}
-        onSelectFlow={handleSwitchFlow}
-        onCreateFlow={createNewFlow}
-        onEditFlow={switchFlow}
-        onDuplicateFlow={duplicateExistingFlow}
-        onDeleteFlow={removeFlow}
-        onImportFlow={async (json, options) => {
-          await importFlowFromJson(json, options)
-        }}
-        onConvertToSubflow={handleConvertFlowToSubflow}
-        isOpen={isFlowManagerOpen}
-        onClose={closeFlowManager}
-        showFloatingButton={false}
-      />
 
       {/* Breadcrumb de navegación de subflows */}
       {subflowBreadcrumb.length > 0 && (
@@ -3520,6 +3519,7 @@ export function CanvasPage() {
             showZoom={true}
             showFitView={true}
             showInteractive={false}
+            position="top-left"
             className="react-flow__controls-minimal react-flow__controls-with-tidy"
             style={{
               backgroundColor: 'var(--color-bg-primary)',

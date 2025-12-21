@@ -3,7 +3,7 @@
  * Similar al panel lateral de n8n
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Upload, X } from 'lucide-react'
 import { FlowList } from './FlowList'
 import { DeleteFlowModal } from './DeleteFlowModal'
@@ -23,9 +23,6 @@ export interface FlowManagerProps {
   onDeleteFlow: (flowId: string) => Promise<void>
   onImportFlow: (json: string | object, options?: { name?: string }) => Promise<void>
   onConvertToSubflow?: (flowId: string) => Promise<void>
-  isOpen?: boolean // Control externo del estado abierto/cerrado
-  onClose?: () => void // Callback cuando se cierra
-  showFloatingButton?: boolean // Si se muestra el botón flotante (por defecto true para compatibilidad)
 }
 
 export function FlowManager({
@@ -40,23 +37,17 @@ export function FlowManager({
   onDeleteFlow,
   onImportFlow,
   onConvertToSubflow,
-  isOpen: externalIsOpen,
-  onClose: externalOnClose,
-  showFloatingButton = true,
 }: FlowManagerProps) {
-  // Estado interno para controlar si el panel está abierto (solo si no se controla externamente)
-  const [internalIsOpen, setInternalIsOpen] = useState(false)
-  
-  // Si isOpen es controlado externamente, usar ese valor, sino usar el interno
-  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
-  const handleClose = () => {
-    if (externalOnClose) {
-      externalOnClose()
-    } else {
-      setInternalIsOpen(false)
+  // Estado para controlar si el panel está abierto
+  const [isOpen, setIsOpen] = useState(false)
+  // Estado para controlar si el botón está colapsado (solo icono) o expandido (icono + texto)
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('flowManagerCollapsed')
+      return saved !== null ? saved === 'true' : true // Por defecto colapsado
     }
-  }
-
+    return true
+  })
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; flowId: string | null; flowName: string }>({
     isOpen: false,
     flowId: null,
@@ -65,6 +56,14 @@ export function FlowManager({
   const [importModal, setImportModal] = useState(false)
   const [newFlowName, setNewFlowName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Guardar estado de colapsado en localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('flowManagerCollapsed', String(isCollapsed))
+    }
+  }, [isCollapsed])
 
   const handleExport = async (flowId: string) => {
     try {
@@ -110,27 +109,33 @@ export function FlowManager({
     }
   }
 
-  // Si el panel no está abierto y se debe mostrar el botón flotante, mostrarlo
-  if (!isOpen && showFloatingButton) {
+  // Si el panel no está abierto, mostrar botón colapsable
+  if (!isOpen) {
+    const shouldShowText = !isCollapsed || isHovered
+
     return (
       <button
         onClick={() => {
-          if (externalIsOpen === undefined) {
-            setInternalIsOpen(true)
-          }
+          setIsOpen(true)
+          // Expandir al abrir
+          setIsCollapsed(false)
         }}
-        className="fixed left-4 top-20 z-40 flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 justify-center"
-        title="Gestionar flows"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed left-4 top-20 z-40 flex items-center gap-3 bg-bg-secondary border border-canvas-grid rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300 ease-in-out focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 ${
+          shouldShowText ? 'px-4 py-3 justify-start' : 'p-3 justify-center'
+        }`}
+        title={!shouldShowText ? 'Gestionar flows' : undefined}
         aria-label="Gestionar flows"
       >
         <Plus className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
+        {shouldShowText && (
+          <span className="text-sm font-medium whitespace-nowrap">
+            Crear flujo
+          </span>
+        )}
       </button>
     )
-  }
-
-  // Si no está abierto y no se debe mostrar el botón flotante, no renderizar nada
-  if (!isOpen) {
-    return null
   }
 
   return (
@@ -140,7 +145,7 @@ export function FlowManager({
         <div className="flex items-center justify-between p-4 border-b border-node-border">
           <h2 className="text-lg font-semibold text-text-primary">Flows</h2>
           <button
-            onClick={handleClose}
+            onClick={() => setIsOpen(false)}
             className="p-1.5 rounded hover:bg-node-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             title="Cerrar"
           >
