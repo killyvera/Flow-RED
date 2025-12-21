@@ -1670,6 +1670,361 @@ const flow10Nodes = [
 ]
 
 // Combinar todos los flows
+// Flow 11: Subflows Demo
+const flow11 = {
+  id: 'flow11',
+  type: 'tab',
+  label: 'Subflows Demo',
+  disabled: false,
+  info: 'Flow que demuestra subflows: definición y uso de instancias',
+  env: []
+}
+
+// Definición de subflow: Procesador de datos
+// Los nodos internos deben estar en la propiedad 'flow' del subflow
+const subflow1 = {
+  id: 'subflow-processor',
+  type: 'subflow',
+  name: 'Procesador de Datos',
+  category: 'common',
+  icon: 'subflow.svg',
+  color: '#DDAA99',
+  in: [
+    {
+      x: 40,
+      y: 60,
+      wires: [{ id: 'subflow-processor-inject' }]
+    }
+  ],
+  out: [
+    {
+      x: 460,
+      y: 60,
+      wires: [{ id: 'subflow-processor-debug', port: 0 }]
+    }
+  ],
+  env: [],
+  meta: {
+    module: 'node-red',
+    version: '1.0.0'
+  },
+  // Los nodos internos del subflow van en la propiedad 'flow'
+  flow: [
+    {
+      id: 'subflow-processor-inject',
+      type: 'function',
+      z: 'subflow-processor',
+      name: 'Procesar',
+      func: 'msg.payload = "Procesado: " + JSON.stringify(msg.payload);\nreturn msg;',
+      outputs: 1,
+      noerr: 0,
+      timeout: 0,
+      initialize: '',
+      finalize: '',
+      libs: [],
+      x: 200,
+      y: 60,
+      wires: [['subflow-processor-debug']]
+    },
+    {
+      id: 'subflow-processor-debug',
+      type: 'debug',
+      z: 'subflow-processor',
+      name: 'Resultado',
+      active: true,
+      tosidebar: true,
+      console: false,
+      tostatus: false,
+      complete: 'payload',
+      targetType: 'msg',
+      statusVal: '',
+      statusType: 'auto',
+      x: 360,
+      y: 60,
+      wires: []
+    }
+  ]
+}
+
+// Instancias del subflow en flow11
+const flow11Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow11',
+    name: 'Trigger',
+    props: [{ p: 'payload', v: 'Datos de prueba', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'Datos de prueba',
+    payloadType: 'str',
+    x: 100,
+    y: 100,
+    wires: [['subflow-instance-1']]
+  },
+  {
+    id: 'subflow-instance-1',
+    type: 'subflow:subflow-processor',
+    z: 'flow11',
+    name: 'Procesador 1',
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['debug-result-1']]
+  },
+  {
+    id: 'debug-result-1',
+    type: 'debug',
+    z: 'flow11',
+    name: 'Resultado 1',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: []
+  },
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow11',
+    name: 'Trigger 2',
+    props: [{ p: 'payload', v: '{"value": 42}', vt: 'json' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '{"value": 42}',
+    payloadType: 'json',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['subflow-instance-2']]
+  },
+  {
+    id: 'subflow-instance-2',
+    type: 'subflow:subflow-processor',
+    z: 'flow11',
+    name: 'Procesador 2',
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['debug-result-2']]
+  },
+  {
+    id: 'debug-result-2',
+    type: 'debug',
+    z: 'flow11',
+    name: 'Resultado 2',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  }
+]
+
+// Flow 12: Link Nodes Demo
+const flow12 = {
+  id: 'flow12',
+  type: 'tab',
+  label: 'Link Nodes Demo',
+  disabled: false,
+  info: 'Flow que demuestra link nodes: link in, link out y link call',
+  env: []
+}
+
+const flow12Nodes = [
+  // Link Out 1
+  {
+    id: 'link-out-1',
+    type: 'link out',
+    z: 'flow12',
+    name: 'MiLink',
+    mode: 'link',
+    links: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: []
+  },
+  // Link In 1 (conectado a link-out-1)
+  {
+    id: 'link-in-1',
+    type: 'link in',
+    z: 'flow12',
+    name: 'MiLink',
+    links: ['link-out-1'],
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: [['debug-link-1']]
+  },
+  // Inject que alimenta link-out-1
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow12',
+    name: 'Enviar a Link',
+    props: [{ p: 'payload', v: 'Mensaje via Link', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'Mensaje via Link',
+    payloadType: 'str',
+    x: 100,
+    y: 100,
+    wires: [['link-out-1']]
+  },
+  // Debug para link-in-1
+  {
+    id: 'debug-link-1',
+    type: 'debug',
+    z: 'flow12',
+    name: 'Recibido',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100,
+    wires: []
+  },
+  // Link Out 2 (múltiples destinos)
+  {
+    id: 'link-out-2',
+    type: 'link out',
+    z: 'flow12',
+    name: 'Broadcast',
+    mode: 'link',
+    links: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  },
+  // Link In 2a (destino 1)
+  {
+    id: 'link-in-2a',
+    type: 'link in',
+    z: 'flow12',
+    name: 'Broadcast',
+    links: ['link-out-2'],
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING - 40,
+    wires: [['debug-link-2a']]
+  },
+  // Link In 2b (destino 2)
+  {
+    id: 'link-in-2b',
+    type: 'link in',
+    z: 'flow12',
+    name: 'Broadcast',
+    links: ['link-out-2'],
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING + 40,
+    wires: [['debug-link-2b']]
+  },
+  // Inject que alimenta link-out-2
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow12',
+    name: 'Broadcast',
+    props: [{ p: 'payload', v: 'Mensaje Broadcast', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'Mensaje Broadcast',
+    payloadType: 'str',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['link-out-2']]
+  },
+  // Debug para link-in-2a
+  {
+    id: 'debug-link-2a',
+    type: 'debug',
+    z: 'flow12',
+    name: 'Destino A',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100 + VERTICAL_SPACING - 40,
+    wires: []
+  },
+  // Debug para link-in-2b
+  {
+    id: 'debug-link-2b',
+    type: 'debug',
+    z: 'flow12',
+    name: 'Destino B',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100 + VERTICAL_SPACING + 40,
+    wires: []
+  },
+  // Link Call
+  {
+    id: 'link-call-1',
+    type: 'link call',
+    z: 'flow12',
+    name: 'Llamar Link',
+    links: 'MiLink',
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: []
+  },
+  // Inject que alimenta link-call-1
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow12',
+    name: 'Call Link',
+    props: [{ p: 'payload', v: 'Via Link Call', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'Via Link Call',
+    payloadType: 'str',
+    x: 100,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['link-call-1']]
+  }
+]
+
 const allFlows = [
   flow1,
   ...flow1Nodes,
@@ -1690,7 +2045,12 @@ const allFlows = [
   flow9,
   ...flow9Nodes,
   flow10,
-  ...flow10Nodes
+  ...flow10Nodes,
+  flow11,
+  subflow1, // El subflow ya incluye sus nodos internos en la propiedad 'flow'
+  ...flow11Nodes,
+  flow12,
+  ...flow12Nodes
 ]
 
 async function seedFlows() {
@@ -1744,7 +2104,7 @@ async function seedFlows() {
         return false // Eliminar todos los tabs existentes
       }
       // Mantener config nodes y otros nodos especiales que no pertenezcan a nuestros flows
-      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id])
+      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id, subflow1.id])
       if (f.z && ourFlowIds.has(f.z)) {
         return false // Eliminar nodos que pertenecen a nuestros flows
       }
@@ -1766,6 +2126,8 @@ async function seedFlows() {
     console.log(`   - Flow 8: APIs Públicas - POST/PUT (${flow8Nodes.length} nodos) - Envía datos a APIs`)
     console.log(`   - Flow 9: Webhook y Transformers (${flow9Nodes.length} nodos) - Webhooks HTTP y transformaciones`)
     console.log(`   - Flow 10: Convert y Transformaciones (${flow10Nodes.length} nodos) - Conversiones de tipos`)
+    console.log(`   - Flow 11: Subflows Demo (${flow11Nodes.length} nodos + 1 subflow) - Subflows reutilizables`)
+    console.log(`   - Flow 12: Link Nodes Demo (${flow12Nodes.length} nodos) - Link in/out/call`)
     if (existingFlows.length > 0) {
       console.log(`   🔄 Reemplazando flows existentes con versiones limpias`)
     }
@@ -1821,7 +2183,7 @@ async function seedFlows() {
     console.log('\n✅ Flows de ejemplo creados y desplegados exitosamente!')
     console.log('📋 Resultado:', result)
     console.log('\n📊 Resumen:')
-    console.log(`   - Total de flows creados: 10`)
+    console.log(`   - Total de flows creados: 12`)
     console.log(`   - Total de nodos creados: ${allFlows.filter(n => n.type !== 'tab' && n.type !== 'group').length}`)
     console.log(`   - Total de grupos creados: ${allFlows.filter(n => n.type === 'group').length}`)
     console.log('\n🔄 Recarga tu editor visual para ver los flows')
@@ -1854,6 +2216,22 @@ async function seedFlows() {
     console.log('     curl -X POST http://localhost:1880/webhook/test -H "Content-Type: application/json" -d \'{"type":"user","name":"Test"}\'')
     console.log('   - Flow 10: Conversiones de tipos (string↔number, JSON↔string, split/join)')
     console.log('   - Todos los flows usan nodos básicos: HTTP, JSON, Change, Template, Switch, etc.')
+    console.log('\n🔄 NUEVO: Subflows y Link Nodes (PROMPT 10C)')
+    console.log('   - Flow 11: Subflows Demo')
+    console.log('     • Subflow "Procesador de Datos" reutilizable')
+    console.log('     • 2 instancias del subflow en el flow principal')
+    console.log('     • 🖱️ Haz doble clic en un nodo subflow para abrirlo (breadcrumb)')
+    console.log('     • 🖱️ Click derecho → "Abrir subflow" desde el menú contextual')
+    console.log('   - Flow 12: Link Nodes Demo')
+    console.log('     • Link Out → Link In: Conexión entre nodos no adyacentes')
+    console.log('     • Broadcast: Un Link Out conectado a múltiples Link In')
+    console.log('     • Link Call: Llamar a un Link In por nombre')
+    console.log('     • 🔗 Los nodos link muestran un badge de portal en el header')
+    console.log('     • 🖱️ Click derecho en un link node → "Ir a [nombre]" para navegar')
+    console.log('   - 🔍 Búsqueda rápida: Presiona Ctrl+K (Cmd+K en Mac)')
+    console.log('     • Busca por nombre, tipo o ID')
+    console.log('     • Navega con ↑↓ y Enter para saltar al nodo')
+    console.log('     • El canvas se centra y resalta el nodo seleccionado')
   } catch (error) {
     console.error('❌ Error al crear flows:', error.message)
     if (error.message.includes('fetch')) {

@@ -10,7 +10,9 @@ import { BaseNode } from './BaseNode'
 import { InjectNode } from './InjectNode'
 import { DebugNode } from './DebugNode'
 import { GroupNode } from './GroupNode'
+import { SubflowNode } from './SubflowNode'
 import type { BaseNodeData } from './types'
+import { isSubflowInstance } from '@/utils/subflowUtils'
 
 /**
  * Mapeo de tipos de Node-RED a componentes React Flow
@@ -38,6 +40,11 @@ const nodeTypeMap: Record<string, React.ComponentType<any>> = {
 export function getNodeType(nodeRedType: string | undefined): string {
   if (!nodeRedType) return 'baseNode'
   
+  // Detectar subflows (tipo: "subflow:ID")
+  if (isSubflowInstance({ type: nodeRedType } as any)) {
+    return 'subflow'
+  }
+  
   // Si hay un componente específico registrado, usar su tipo
   if (nodeTypeMap[nodeRedType]) {
     return nodeRedType // El tipo será el mismo que el nodeRedType
@@ -55,6 +62,11 @@ export function getNodeType(nodeRedType: string | undefined): string {
  */
 export function getNodeComponent(nodeRedType: string | undefined): React.ComponentType<any> {
   if (!nodeRedType) return BaseNode
+  
+  // Detectar subflows (tipo: "subflow:ID")
+  if (isSubflowInstance({ type: nodeRedType } as any)) {
+    return SubflowNode
+  }
   
   // Si hay un componente específico, usarlo
   if (nodeTypeMap[nodeRedType]) {

@@ -40,19 +40,25 @@ function validateNode(node: any, nodeIndex: number): { isValid: boolean; errors:
     errors.push(`Nodo ${nodeIndex}: 'type' es requerido y debe ser un string no vacío`)
   }
 
-  // Validar x
-  if (typeof node.x !== 'number' || isNaN(node.x)) {
-    errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'x' es requerido y debe ser un número`)
-  }
+  // Los nodos internos de subflows (en la propiedad 'flow' de un subflow) no necesitan x, y, z
+  // Si el nodo está dentro de un subflow.flow, saltar validación de posición
+  const isSubflowInternalNode = node._isSubflowInternal || false
+  
+  if (!isSubflowInternalNode) {
+    // Validar x
+    if (typeof node.x !== 'number' || isNaN(node.x)) {
+      errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'x' es requerido y debe ser un número`)
+    }
 
-  // Validar y
-  if (typeof node.y !== 'number' || isNaN(node.y)) {
-    errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'y' es requerido y debe ser un número`)
-  }
+    // Validar y
+    if (typeof node.y !== 'number' || isNaN(node.y)) {
+      errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'y' es requerido y debe ser un número`)
+    }
 
-  // Validar z (flowId) - requerido para nodos que no son tabs
-  if (node.type !== 'tab' && (!node.z || typeof node.z !== 'string' || node.z.trim() === '')) {
-    errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'z' (flowId) es requerido para nodos que no son tabs`)
+    // Validar z (flowId) - requerido para nodos que no son tabs ni subflows
+    if (node.type !== 'tab' && node.type !== 'subflow' && (!node.z || typeof node.z !== 'string' || node.z.trim() === '')) {
+      errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'z' (flowId) es requerido para nodos que no son tabs`)
+    }
   }
 
   // Validar wires si existe
@@ -102,13 +108,44 @@ export function validateFlow(nodes: NodeRedNode[]): ValidationResult {
     }
   }
 
+  // Identificar IDs de subflows
+  const subflowIds = new Set<string>()
+  nodes.forEach(node => {
+    if (node.type === 'subflow') {
+      subflowIds.add(node.id)
+    }
+  })
+
+  // Filtrar nodos internos de subflows (tienen z = subflowId)
+  // Estos nodos NO deben estar en el array principal, deben estar en subflow.flow
+  // También filtrar nodos que son subflows pero no tienen las propiedades requeridas (x, y, z)
+  const nodesToValidate = nodes.filter((node, index) => {
+    // Si el nodo tiene z que es un ID de subflow, es un nodo interno
+    if (node.z && subflowIds.has(node.z)) {
+      // Este nodo debería estar en subflow.flow, no en el array principal
+      errors.push(`Nodo ${index} (${node.id || 'sin id'}): Los nodos internos de subflows deben estar en la propiedad 'flow' del subflow, no como nodos separados`)
+      return false // Excluir de validación (ya se reportó el error)
+    }
+    // Si el nodo es un subflow pero no tiene x, y, z, puede ser un nodo interno mal formado
+    if (node.type === 'subflow' && (!node.x || !node.y || !node.z)) {
+      // Verificar si hay un subflow con el mismo ID que tenga las propiedades correctas
+      const validSubflow = nodes.find(n => n.type === 'subflow' && n.id === node.id && n.x && n.y && n.z)
+      if (validSubflow && validSubflow !== node) {
+        // Este es un duplicado del subflow sin propiedades, excluirlo
+        errors.push(`Nodo ${index} (${node.id || 'sin id'}): Subflow duplicado sin propiedades requeridas (x, y, z)`)
+        return false
+      }
+    }
+    return true
+  })
+
   // Validar que haya al menos un nodo
-  if (nodes.length === 0) {
+  if (nodesToValidate.length === 0) {
     warnings.push('El flow está vacío (no hay nodos)')
   }
 
-  // Validar cada nodo
-  nodes.forEach((node, index) => {
+  // Validar cada nodo (solo los que no son internos de subflows)
+  nodesToValidate.forEach((node, index) => {
     const nodeValidation = validateNode(node, index)
     if (!nodeValidation.isValid) {
       errors.push(...nodeValidation.errors)

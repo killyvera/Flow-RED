@@ -20,6 +20,8 @@ import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 import { generateNodeSummary } from '@/utils/summaryEngine'
 import { SummaryBadge } from '@/components/SummaryBadge'
 import { getNodeExplanation } from '@/utils/nodeExplanations'
+import { isLinkIn, isLinkOut } from '@/utils/linkUtils'
+import { Link } from 'lucide-react'
 
 /**
  * Componente BaseNode
@@ -353,6 +355,16 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           <h3 className="text-xs font-semibold text-text-primary truncate flex-1 leading-tight">
             {label || nodeRedType || 'Node'}
           </h3>
+
+          {/* Indicador de link node (portal) */}
+          {(isLinkIn(nodeRedNode) || isLinkOut(nodeRedNode)) && (
+            <div
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-primary/20 border border-accent-primary/30"
+              title={isLinkIn(nodeRedNode) ? 'Link In: Recibe mensajes de Link Out' : 'Link Out: Envía mensajes a Link In'}
+            >
+              <Link className="w-2.5 h-2.5 text-accent-primary" strokeWidth={2.5} />
+            </div>
+          )}
 
           {/* Indicador de estado de runtime (prioridad sobre status estático) */}
           {runtimeStateColor && (

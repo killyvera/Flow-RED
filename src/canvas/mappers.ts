@@ -8,9 +8,10 @@
  */
 
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
-import type { NodeRedNode, NodeRedGroup } from '@/api/types'
+import type { NodeRedNode, NodeRedGroup, NodeRedSubflowDefinition } from '@/api/types'
 import { mapperLogger } from '@/utils/logger'
 import { getNodeType } from './nodes/nodeFactory'
+import { isSubflowInstance, getSubflowDefinition } from '@/utils/subflowUtils'
 
 /**
  * Convierte un nodo de Node-RED a un nodo de React Flow
@@ -22,10 +23,12 @@ import { getNodeType } from './nodes/nodeFactory'
  * - data: contiene label y metadata del nodo
  * 
  * @param nodeRedNode Nodo de Node-RED a convertir
+ * @param subflowDefinitions Array de definiciones de subflows (opcional, para instancias de subflow)
  * @returns Nodo de React Flow
  */
 export function mapNodeRedNodeToReactFlowNode(
-  nodeRedNode: NodeRedNode
+  nodeRedNode: NodeRedNode,
+  subflowDefinitions?: NodeRedSubflowDefinition[]
 ): ReactFlowNode {
   // Preservar el ID exactamente como viene de Node-RED
   const id = nodeRedNode.id
@@ -47,6 +50,12 @@ export function mapNodeRedNodeToReactFlowNode(
   // Calcular número de puertos de salida basado en wires
   const outputPortsCount = nodeRedNode.wires ? nodeRedNode.wires.length : 1
 
+  // Si es una instancia de subflow, obtener la definición
+  let subflowDefinition: NodeRedSubflowDefinition | undefined
+  if (isSubflowInstance(nodeRedNode) && subflowDefinitions) {
+    subflowDefinition = getSubflowDefinition(nodeRedNode, subflowDefinitions)
+  }
+
   // Data contiene información del nodo original
   // IMPORTANTE: Preservar TODO el objeto original de Node-RED para poder
   // reconstruirlo completamente al guardar
@@ -61,6 +70,8 @@ export function mapNodeRedNodeToReactFlowNode(
     // Preservar TODO el nodo original de Node-RED (incluyendo todas las propiedades)
     // Esto es crítico para preservar propiedades desconocidas, configuración, etc.
     nodeRedNode: { ...nodeRedNode },
+    // Agregar definición de subflow si está disponible
+    ...(subflowDefinition && { subflowDefinition }),
   }
 
   return {
@@ -209,10 +220,24 @@ export function transformNodeRedFlow(
 ): { nodes: ReactFlowNode[]; edges: ReactFlowEdge[]; groups: NodeRedGroup[] } {
   mapperLogger('🔄 Transformando flow:', flowId)
   
+  // Extraer definiciones de subflows de todos los nodos
+  const subflowDefinitions = allNodes.filter(
+    (node): node is NodeRedSubflowDefinition => node.type === 'subflow'
+  )
+  mapperLogger('📦 Definiciones de subflows encontradas:', { count: subflowDefinitions.length })
+  
   // Filtrar nodos que pertenecen a este flow
   // Excluimos el nodo "tab" mismo ya que no se renderiza
+  // También excluimos nodos internos de subflows (tienen z = subflowId)
+  const subflowIds = new Set(subflowDefinitions.map(sf => sf.id))
   const flowNodes = filterNodesByFlow(allNodes, flowId).filter(
-    (node) => node.type !== 'tab'
+    (node) => {
+      // Excluir tabs
+      if (node.type === 'tab') return false
+      // Excluir nodos internos de subflows (tienen z = subflowId)
+      if (node.z && subflowIds.has(node.z)) return false
+      return true
+    }
   )
   mapperLogger('📋 Nodos del flow filtrados:', { 
     total: allNodes.length, 
@@ -251,8 +276,9 @@ export function transformNodeRedFlow(
   })
   
   // Convertir nodos de Node-RED a React Flow nodes (excluyendo grupos)
+  // Pasar subflowDefinitions para que las instancias puedan obtener su definición
   const nodes = nonGroupNodes.map((nodeRedNode) => {
-    const reactFlowNode = mapNodeRedNodeToReactFlowNode(nodeRedNode)
+    const reactFlowNode = mapNodeRedNodeToReactFlowNode(nodeRedNode, subflowDefinitions)
     
     // Si el nodo pertenece a un grupo, establecer parentId
     if (nodeRedNode.g) {
@@ -407,9 +433,20 @@ function deepMerge<T extends Record<string, any>>(original: T, updates: Partial<
 export function transformReactFlowToNodeRed(
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
-  flowId: string
+  flowId: string,
+  allNodeRedNodes?: NodeRedNode[] // Todos los nodos de Node-RED (para obtener subflows originales)
 ): NodeRedNode[] {
   mapperLogger('🔄 Transformando React Flow a Node-RED para flow:', flowId)
+
+  // Obtener subflows originales desde allNodeRedNodes si están disponibles
+  const originalSubflows = new Map<string, NodeRedSubflowDefinition>()
+  if (allNodeRedNodes) {
+    allNodeRedNodes.forEach(node => {
+      if (node.type === 'subflow') {
+        originalSubflows.set(node.id, node as NodeRedSubflowDefinition)
+      }
+    })
+  }
 
   // Agrupar edges por nodo fuente para reconstruir wires
   const edgesBySource = new Map<string, Map<number, string[]>>()
@@ -433,8 +470,55 @@ export function transformReactFlowToNodeRed(
     sourceEdges.get(outputPortIndex)!.push(edge.target)
   })
 
-  // Convertir cada nodo de React Flow a Node-RED
-  const nodeRedNodes: NodeRedNode[] = nodes.map((node) => {
+  // Separar nodos normales de nodos internos de subflows
+  const normalNodes: ReactFlowNode[] = []
+  const subflowInternalNodes = new Map<string, NodeRedNode[]>() // subflowId -> nodos internos
+
+  nodes.forEach((node) => {
+    const originalNodeRedNode = node.data.nodeRedNode || {}
+    const nodeZ = originalNodeRedNode.z
+    
+    // Si el nodo pertenece a un subflow (z es un ID de subflow), es un nodo interno
+    if (nodeZ && originalSubflows.has(nodeZ)) {
+      if (!subflowInternalNodes.has(nodeZ)) {
+        subflowInternalNodes.set(nodeZ, [])
+      }
+      // Convertir el nodo interno usando la misma lógica que los nodos normales
+      // pero sin z (ya que está dentro del subflow)
+      const originalNodeRedNode = node.data.nodeRedNode || {}
+      const nodeName = originalNodeRedNode.name !== undefined && originalNodeRedNode.name !== ''
+        ? originalNodeRedNode.name
+        : (node.data.label || undefined)
+      
+      // Reconstruir wires desde edges (solo edges internos del subflow)
+      const wires: string[][] = []
+      const sourceEdges = edgesBySource.get(node.id)
+      if (sourceEdges) {
+        const maxPort = Math.max(...Array.from(sourceEdges.keys()), -1)
+        for (let i = 0; i <= maxPort; i++) {
+          wires[i] = sourceEdges.get(i) || []
+        }
+      }
+      
+      const internalNode: NodeRedNode = {
+        ...originalNodeRedNode,
+        id: node.id,
+        type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
+        x: node.position.x,
+        y: node.position.y,
+        // NO incluir z - los nodos internos no tienen z
+        ...(nodeName && { name: nodeName }),
+        ...(wires.length > 0 && { wires }),
+      }
+      
+      subflowInternalNodes.get(nodeZ)!.push(internalNode)
+    } else {
+      normalNodes.push(node)
+    }
+  })
+
+  // Convertir cada nodo normal de React Flow a Node-RED
+  const nodeRedNodes: NodeRedNode[] = normalNodes.map((node) => {
     // Si es un grupo, manejar de forma especial
     if (node.type === 'group' && node.data.group) {
       const group = node.data.group as NodeRedGroup
@@ -513,10 +597,78 @@ export function transformReactFlowToNodeRed(
     return nodeRedNode
   })
 
+  // Procesar subflows: agregar nodos internos a la propiedad 'flow'
+  const processedSubflows = new Set<string>()
+  const finalNodes: NodeRedNode[] = []
+  
+  nodeRedNodes.forEach((node) => {
+    // Si es un subflow, agregar sus nodos internos
+    if (node.type === 'subflow') {
+      const subflowId = node.id
+      const internalNodes = subflowInternalNodes.get(subflowId) || []
+      
+      // Obtener el subflow original para preservar su estructura
+      const originalSubflow = originalSubflows.get(subflowId)
+      
+      // Crear el subflow con sus nodos internos en la propiedad 'flow'
+      const subflow: NodeRedSubflowDefinition = {
+        ...(originalSubflow || {}),
+        ...node,
+        type: 'subflow',
+        flow: internalNodes.length > 0 ? internalNodes : (originalSubflow?.flow || []),
+      } as NodeRedSubflowDefinition
+      
+      finalNodes.push(subflow)
+      processedSubflows.add(subflowId)
+    } else {
+      finalNodes.push(node)
+    }
+  })
+  
+  // Agregar subflows que no estaban en el canvas pero existen en allNodeRedNodes
+  // IMPORTANTE: Los nodos internos de subflows (con z = subflowId) NO deben incluirse como nodos separados
+  // Solo deben estar en subflow.flow
+  if (allNodeRedNodes) {
+    const allSubflowIds = new Set(originalSubflows.keys())
+    allNodeRedNodes.forEach(node => {
+      if (node.type === 'subflow' && !processedSubflows.has(node.id)) {
+        // Preservar el subflow original con sus nodos internos en subflow.flow
+        // Asegurar que el subflow tenga la propiedad 'flow' con sus nodos internos
+        const subflow = node as NodeRedSubflowDefinition
+        if (!subflow.flow) {
+          // Si el subflow no tiene 'flow', buscar nodos internos en allNodeRedNodes
+          const internalNodes = allNodeRedNodes.filter(
+            n => n.z === subflow.id && n.type !== 'subflow'
+          )
+          if (internalNodes.length > 0) {
+            // Crear una copia del subflow con los nodos internos en 'flow'
+            const subflowWithFlow: NodeRedSubflowDefinition = {
+              ...subflow,
+              flow: internalNodes.map(n => {
+                // Los nodos internos NO deben tener z
+                const { z, ...nodeWithoutZ } = n
+                return nodeWithoutZ as NodeRedNode
+              }),
+            }
+            finalNodes.push(subflowWithFlow)
+          } else {
+            finalNodes.push(subflow)
+          }
+        } else {
+          finalNodes.push(subflow)
+        }
+      }
+      // NO incluir nodos que tienen z = subflowId (son nodos internos)
+      // Estos ya están en subflow.flow
+    })
+  }
+
   mapperLogger('✅ Transformación a Node-RED completada:', {
-    nodesCount: nodeRedNodes.length,
+    nodesCount: finalNodes.length,
     edgesCount: edges.length,
+    subflowsProcessed: processedSubflows.size,
+    subflowInternalNodes: Array.from(subflowInternalNodes.values()).reduce((sum, arr) => sum + arr.length, 0),
   })
 
-  return nodeRedNodes
+  return finalNodes
 }

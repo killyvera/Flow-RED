@@ -10,7 +10,9 @@
 
 import { useEffect, useRef } from 'react'
 import type { Node } from 'reactflow'
-import { Edit, Copy, Scissors, Trash2, Power, PowerOff, Plus, Clipboard, FolderPlus, FolderMinus, Palette } from 'lucide-react'
+import { Edit, Copy, Scissors, Trash2, Power, PowerOff, Plus, Clipboard, FolderPlus, FolderMinus, Palette, Workflow, ArrowRight } from 'lucide-react'
+import { isSubflowInstance } from '@/utils/subflowUtils'
+import { isLinkIn, isLinkOut, findLinkOutTargets, findLinkInTargets } from '@/utils/linkUtils'
 
 export interface ContextMenuOption {
   id: string
@@ -49,6 +51,12 @@ export interface ContextMenuProps {
   hasClipboard?: boolean
   /** Si el nodo está en un grupo */
   nodeInGroup?: boolean
+  /** Callback para abrir subflow */
+  onOpenSubflow?: (subflowId: string) => void
+  /** Callback para navegar a nodo link conectado */
+  onNavigateToLink?: (nodeId: string) => void
+  /** Todos los nodos (para encontrar links conectados) */
+  allNodes?: any[]
 }
 
 export function ContextMenu({
@@ -72,6 +80,9 @@ export function ContextMenu({
   onDeleteGroup,
   hasClipboard = false,
   nodeInGroup = false,
+  onOpenSubflow,
+  onNavigateToLink,
+  allNodes = [],
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -108,6 +119,18 @@ export function ContextMenu({
 
   // Detectar si es un grupo
   const isGroup = node?.type === 'group'
+  
+  // Detectar si es un subflow
+  const isSubflow = node?.type === 'subflow' || (node?.data?.nodeRedNode && isSubflowInstance(node.data.nodeRedNode))
+  
+  // Detectar si es un link node y encontrar targets
+  const isLink = node?.data?.nodeRedNode && (isLinkIn(node.data.nodeRedNode) || isLinkOut(node.data.nodeRedNode))
+  const linkTargets = isLink && node?.data?.nodeRedNode && allNodes.length > 0
+    ? (isLinkIn(node.data.nodeRedNode)
+        ? findLinkOutTargets(node.data.nodeRedNode, allNodes.map(n => n.data?.nodeRedNode).filter(Boolean))
+        : findLinkInTargets(node.data.nodeRedNode, allNodes.map(n => n.data?.nodeRedNode).filter(Boolean))
+      )
+    : []
 
   // Opciones específicas para grupos
   const groupOptions: ContextMenuOption[] = isGroup
@@ -174,6 +197,35 @@ export function ContextMenu({
   // Opciones para nodo normal
   const nodeOptions: ContextMenuOption[] = node && !isGroup
     ? [
+        // Opción para abrir subflow
+        ...(isSubflow && onOpenSubflow && node.data?.nodeRedNode
+          ? [{
+              id: 'open-subflow',
+              label: 'Abrir subflow',
+              icon: <Workflow className="w-3.5 h-3.5" />,
+              onClick: () => {
+                const subflowId = node.data.nodeRedNode.type.replace('subflow:', '')
+                if (onOpenSubflow) onOpenSubflow(subflowId)
+                onClose()
+              },
+            }]
+          : []),
+        // Opciones de navegación para link nodes
+        ...(isLink && linkTargets.length > 0 && onNavigateToLink
+          ? linkTargets.slice(0, 5).map((target, index) => ({
+              id: `navigate-link-${index}`,
+              label: `Ir a ${target.name || target.id.slice(0, 8)}`,
+              icon: <ArrowRight className="w-3.5 h-3.5" />,
+              onClick: () => {
+                // Encontrar el nodo React Flow correspondiente
+                const targetNode = allNodes.find(n => n.data?.nodeRedNode?.id === target.id)
+                if (targetNode && onNavigateToLink) {
+                  onNavigateToLink(targetNode.id)
+                }
+                onClose()
+              },
+            }))
+          : []),
         {
           id: 'edit',
           label: 'Editar propiedades',

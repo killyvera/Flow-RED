@@ -37,7 +37,6 @@ import { getPerformanceMonitor } from '@/utils/performance'
 import { HelpCircle } from 'lucide-react'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
-import { useTheme } from '@/context/ThemeContext'
 
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
@@ -65,6 +64,10 @@ import { DraftRestoreModal } from '@/components/DraftRestoreModal'
 import { InjectNode } from '@/canvas/nodes/InjectNode'
 import { DebugNode } from '@/canvas/nodes/DebugNode'
 import { GroupNode } from '@/canvas/nodes/GroupNode'
+import { SubflowNode } from '@/canvas/nodes/SubflowNode'
+import { SearchModal } from '@/components/SearchModal'
+import { SubflowBreadcrumb } from '@/components/SubflowBreadcrumb'
+import { isSubflowInstance, extractSubflowIdFromType } from '@/utils/subflowUtils'
 
 // Definir tipos de nodos fuera del componente para referencia
 const baseNodeTypes = {
@@ -72,6 +75,7 @@ const baseNodeTypes = {
   inject: InjectNode,
   debug: DebugNode,
   group: GroupNode,
+  subflow: SubflowNode,
 }
 
 /**
@@ -127,8 +131,7 @@ const canvasConfig = {
 }
 
 export function CanvasPage() {
-  // Obtener tema actual
-  const { isDarkMode } = useTheme()
+  // Theme context available if needed
 
   // Memoizar nodeTypes y edgeTypes para evitar recreaciones en cada render
   // Esto es necesario para evitar warnings de React Flow
@@ -251,6 +254,17 @@ export function CanvasPage() {
     isOpen: false,
     nodeId: null,
   })
+
+  // Estado para búsqueda
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false)
+
+  // Estado para navegación de subflows (breadcrumb)
+  const [subflowBreadcrumb, setSubflowBreadcrumb] = React.useState<Array<{
+    flowId: string
+    flowName: string
+    subflowId?: string
+    subflowName?: string
+  }>>([])
 
 
   // Estados locales de React Flow para manejar cambios en tiempo real
@@ -509,6 +523,13 @@ export function CanvasPage() {
         return
       }
 
+      // Atajo para búsqueda: Ctrl+K o Cmd+K
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault()
+        setIsSearchOpen(true)
+        return
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         const selectedNodes = nodes.filter(node => node.selected)
         const selectedEdges = edges.filter(edge => edge.selected)
@@ -539,7 +560,40 @@ export function CanvasPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEditMode, nodes, edges, setNodesLocal, setEdgesLocal, setNodes, setEdges])
+  }, [isEditMode, nodes, edges, setNodesLocal, setEdgesLocal, setNodes, setEdges, setIsSearchOpen])
+
+  // Función para saltar a un nodo (centrar y resaltar)
+  const jumpToNode = useCallback((nodeId: string) => {
+    if (!reactFlowInstanceRef.current) return
+
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return
+
+    // Centrar el nodo en la vista
+    reactFlowInstanceRef.current.setCenter(node.position.x, node.position.y, {
+      zoom: 1,
+      duration: 300,
+    })
+
+    // Seleccionar el nodo
+    const updatedNodes = nodes.map(n => ({
+      ...n,
+      selected: n.id === nodeId,
+    }))
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+
+    // Resaltar temporalmente (agregar clase de animación)
+    setTimeout(() => {
+      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
+      if (nodeElement) {
+        nodeElement.classList.add('animate-pulse')
+        setTimeout(() => {
+          nodeElement.classList.remove('animate-pulse')
+        }, 2000)
+      }
+    }, 100)
+  }, [nodes, setNodesLocal, setNodes, reactFlowInstanceRef])
 
   // Función para guardar el flow
   const handleSave = useCallback(async () => {
@@ -564,7 +618,7 @@ export function CanvasPage() {
         nodesWithParentId: nodes.filter(n => n.parentId).map(n => ({ id: n.id, parentId: n.parentId, position: n.position })),
         groupNodes: nodes.filter(n => n.type === 'group').map(n => ({ id: n.id, position: n.position })),
       })
-      const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId)
+      const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId, allNodeRedNodes)
       console.log('[handleSave] Después de transformar:', {
         transformedCount: nodeRedNodes.length,
         nodesWithG: nodeRedNodes.filter(n => n.g).map(n => ({ id: n.id, g: n.g, x: n.x, y: n.y })),
@@ -595,8 +649,17 @@ export function CanvasPage() {
       // CRÍTICO: Preservar TODOS los nodos de otros flows (no solo grupos)
       // Node-RED reemplaza TODOS los flows cuando se guarda, así que debemos incluir
       // todos los nodos de todos los flows para no perderlos
+      // Identificar IDs de subflows para excluir nodos internos
+      const subflowIds = new Set<string>()
+      allNodeRedNodes.forEach(node => {
+        if (node.type === 'subflow') {
+          subflowIds.add(node.id)
+        }
+      })
       const nodesFromOtherFlows = allNodeRedNodes.filter(
-        n => n.z !== activeFlowId && n.type !== 'tab'
+        n => n.z !== activeFlowId && 
+             n.type !== 'tab' && 
+             !(n.z && subflowIds.has(n.z)) // Excluir nodos internos de subflows
       )
       
       // #region agent log
@@ -618,7 +681,49 @@ export function CanvasPage() {
       // 1. Todos los flows (tabs) para preservarlos
       // 2. Nodos transformados del flow activo (incluye grupos del flow activo)
       // 3. TODOS los nodos de otros flows para preservarlos (grupos y nodos normales)
-      const allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
+      let allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
+      
+      // Verificar y filtrar nodos internos de subflows que puedan estar como nodos separados
+      // Estos nodos deben estar en subflow.flow, no como nodos separados
+      const subflowIdsInPayload = new Set(
+        allNodesToSave.filter(n => n.type === 'subflow' && n.x && n.y && n.z).map(n => n.id)
+      )
+      
+      // Filtrar nodos internos de subflows (tienen z = subflowId)
+      const internalNodesInPayload = allNodesToSave.filter(
+        n => n.z && subflowIdsInPayload.has(n.z) && n.type !== 'subflow' && n.type !== 'tab'
+      )
+      
+      // Filtrar subflows duplicados sin propiedades requeridas (x, y, z)
+      const subflowsById = new Map<string, (typeof allNodesToSave[number])[]>()
+      allNodesToSave.forEach(n => {
+        if (n.type === 'subflow') {
+          if (!subflowsById.has(n.id)) {
+            subflowsById.set(n.id, [])
+          }
+          subflowsById.get(n.id)!.push(n)
+        }
+      })
+      
+      const duplicateSubflows = Array.from(subflowsById.entries())
+        .filter(([, nodes]) => nodes.length > 1)
+        .flatMap(([, nodes]) => {
+          // Mantener solo el subflow con x, y, z válidos
+          const validSubflow = nodes.find(n => n.x && n.y && n.z)
+          return nodes.filter(n => n !== validSubflow)
+        })
+      
+      if (internalNodesInPayload.length > 0 || duplicateSubflows.length > 0) {
+        console.warn('[handleSave] ⚠️ Filtrando nodos problemáticos:', {
+          internalNodes: internalNodesInPayload.map(n => ({ id: n.id, type: n.type, z: n.z })),
+          duplicateSubflows: duplicateSubflows.map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y, z: n.z }))
+        })
+        // Filtrar estos nodos del payload final
+        allNodesToSave = allNodesToSave.filter(
+          n => !(n.z && subflowIdsInPayload.has(n.z) && n.type !== 'subflow' && n.type !== 'tab') &&
+               !duplicateSubflows.includes(n)
+        )
+      }
       
       console.log('[handleSave] Payload final:', {
         totalNodes: allNodesToSave.length,
@@ -1926,6 +2031,34 @@ export function CanvasPage() {
         />
       )}
 
+      {/* Breadcrumb de navegación de subflows */}
+      {subflowBreadcrumb.length > 0 && (
+        <SubflowBreadcrumb
+          breadcrumb={subflowBreadcrumb}
+          onNavigate={(index) => {
+            // Navegar a un elemento del breadcrumb
+            const newBreadcrumb = subflowBreadcrumb.slice(0, index + 1)
+            setSubflowBreadcrumb(newBreadcrumb)
+            // TODO: Implementar navegación real al flow/subflow
+            if (index === 0) {
+              // Volver al flow principal
+              setSubflowBreadcrumb([])
+            }
+          }}
+          onBack={() => {
+            // Volver al elemento anterior
+            if (subflowBreadcrumb.length > 0) {
+              const newBreadcrumb = subflowBreadcrumb.slice(0, -1)
+              setSubflowBreadcrumb(newBreadcrumb)
+              // TODO: Implementar navegación real
+              if (newBreadcrumb.length === 0) {
+                // Volver al flow principal
+              }
+            }
+          }}
+        />
+      )}
+
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
         {/* Indicador discreto de conexión WebSocket */}
@@ -2046,8 +2179,27 @@ export function CanvasPage() {
               // No abrir panel automáticamente en click simple, solo seleccionar
             }}
             onNodeDoubleClick={(_, node) => {
-              setSelectedNode(node)
-              setIsPropertiesOpen(true)
+              // Si es un subflow, navegar a él
+              if (node.type === 'subflow' && isSubflowInstance(node.data?.nodeRedNode)) {
+                const subflowNode = node.data.nodeRedNode
+                const subflowId = extractSubflowIdFromType(subflowNode.type)
+                if (subflowId) {
+                  // Agregar al breadcrumb
+                  const currentFlow = flows.find(f => f.id === activeFlowId)
+                  setSubflowBreadcrumb(prev => [...prev, {
+                    flowId: activeFlowId || '',
+                    flowName: currentFlow?.label || currentFlow?.name || 'Flow',
+                    subflowId,
+                    subflowName: subflowNode.name || subflowId,
+                  }])
+                  // TODO: Implementar navegación al subflow (cargar nodos del subflow)
+                  // Por ahora, solo mostrar mensaje
+                  console.log('Navegar a subflow:', subflowId)
+                }
+              } else {
+                setSelectedNode(node)
+                setIsPropertiesOpen(true)
+              }
             }}
             onNodeDragStart={(event, node) => {
               // Para grupos, solo permitir arrastre desde el header
@@ -2187,6 +2339,27 @@ export function CanvasPage() {
             position={contextMenu.position}
             node={contextMenu.node}
             onClose={() => setContextMenu(null)}
+            allNodes={nodes}
+            onOpenSubflow={(subflowId) => {
+              // Agregar al breadcrumb
+              const currentFlow = flows.find(f => f.id === activeFlowId)
+              const subflowNode = nodes.find(n => 
+                n.data?.nodeRedNode && 
+                isSubflowInstance(n.data.nodeRedNode) &&
+                extractSubflowIdFromType(n.data.nodeRedNode.type) === subflowId
+              )
+              setSubflowBreadcrumb(prev => [...prev, {
+                flowId: activeFlowId || '',
+                flowName: currentFlow?.label || currentFlow?.name || 'Flow',
+                subflowId,
+                subflowName: subflowNode?.data?.label || subflowNode?.data?.nodeRedNode?.name || subflowId,
+              }])
+              // TODO: Implementar navegación real al subflow
+              console.log('Abrir subflow:', subflowId)
+            }}
+            onNavigateToLink={(nodeId) => {
+              jumpToNode(nodeId)
+            }}
             onEdit={(nodeId) => {
               const node = nodes.find(n => n.id === nodeId)
               if (node) {
@@ -2290,7 +2463,6 @@ export function CanvasPage() {
             }}
             onCreateGroup={handleCreateGroup}
             onAddToGroup={(nodeId) => {
-              const node = nodes.find(n => n.id === nodeId)
               const position = contextMenu?.position
               handleAddToGroup(nodeId, position)
             }}
@@ -2393,6 +2565,14 @@ export function CanvasPage() {
       {/* Performance Readout (dev-only) */}
       <PerfReadout />
       
+      {/* Modal de búsqueda */}
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        nodes={nodes}
+        onJumpToNode={jumpToNode}
+      />
+      
       {/* Modal de conflictos de deploy */}
       {conflictModal && (
         <DeployConflictModal
@@ -2419,10 +2599,19 @@ export function CanvasPage() {
               setIsSaving(true)
               const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
               const allFlows = allNodeRedNodes.filter(n => n.type === 'tab')
+              // Identificar IDs de subflows para excluir nodos internos
+              const subflowIds = new Set<string>()
+              allNodeRedNodes.forEach(node => {
+                if (node.type === 'subflow') {
+                  subflowIds.add(node.id)
+                }
+              })
               const nodesFromOtherFlows = allNodeRedNodes.filter(
-                n => n.z !== activeFlowId && n.type !== 'tab'
+                n => n.z !== activeFlowId && 
+                     n.type !== 'tab' && 
+                     !(n.z && subflowIds.has(n.z)) // Excluir nodos internos de subflows
               )
-              const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId!)
+              const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId!, allNodeRedNodes)
               const allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
               
               // Guardar sin rev (force overwrite)

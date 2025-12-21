@@ -66,6 +66,64 @@ export interface NodeRedGroup extends NodeRedNode {
 }
 
 /**
+ * Subflow Definition de Node-RED
+ * 
+ * Define la estructura de un subflow reutilizable.
+ * Los subflows tienen puertos de entrada (in) y salida (out).
+ */
+export interface NodeRedSubflowDefinition extends NodeRedNode {
+  type: 'subflow'
+  /** Nombre del subflow */
+  name: string
+  /** Categoría del subflow */
+  category?: string
+  /** Icono del subflow */
+  icon?: string
+  /** Color del subflow */
+  color?: string
+  /** Puertos de entrada del subflow */
+  in?: Array<{
+    x: number
+    y: number
+    wires: Array<{ id: string }>
+  }>
+  /** Puertos de salida del subflow */
+  out?: Array<{
+    x: number
+    y: number
+    wires: Array<{ id: string; port?: number }>
+  }>
+  /** Número de entradas */
+  inputs?: number
+  /** Número de salidas */
+  outputs?: number
+  /** Variables de entorno del subflow */
+  env?: Array<{
+    name: string
+    type: string
+    value: any
+  }>
+  /** Información del subflow */
+  info?: string
+  /** Nodos internos del subflow (no tienen z) */
+  flow?: NodeRedNode[]
+}
+
+/**
+ * Subflow Instance de Node-RED
+ * 
+ * Una instancia de un subflow en un flow.
+ * El tipo es 'subflow:ID' donde ID es el ID de la definición del subflow.
+ */
+export interface NodeRedSubflowInstance extends NodeRedNode {
+  type: string // Formato: 'subflow:ID'
+  /** Nombre de la instancia */
+  name?: string
+  /** ID del subflow definición (extraído del type) */
+  subflowId?: string
+}
+
+/**
  * Flow de Node-RED
  * 
  * Un flow es un tab en Node-RED que contiene nodos.
