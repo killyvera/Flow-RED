@@ -28,6 +28,7 @@ import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
+import { ExecutionLog } from '@/components/ExecutionLog'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 
@@ -129,7 +130,13 @@ export function CanvasPage() {
   } = useNodeRedFlow(true)
 
   // Conectar a WebSocket para recibir eventos de runtime
+  // Inicializar conexión WebSocket para estados de runtime
+  // console.log('🎬 [CanvasPage] Inicializando WebSocket...')
   const wsConnection = useNodeRedWebSocket(true)
+  // console.log('🔌 [CanvasPage] Estado de conexión WebSocket:', {
+  //   connected: wsConnection.connected,
+  //   connectionState: wsConnection.connectionState
+  // })
   
   // #region agent log
   // Log cuando cambian los flows para debug
@@ -1762,21 +1769,23 @@ export function CanvasPage() {
         )}
 
         {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
-        {isEditMode && selectedNode && selectedNode.type !== 'group' && (
+        {/* Visible en modo edición (ambas pestañas) y fuera de modo edición (solo estado) */}
+        {selectedNode && selectedNode.type !== 'group' && (
           <NodePropertiesPanel
             node={selectedNode}
             isOpen={isPropertiesOpen}
+            isEditMode={isEditMode}
             onClose={() => {
               setIsPropertiesOpen(false)
               setSelectedNode(null)
             }}
-            onUpdateNode={(nodeId, updates) => {
+            onUpdateNode={isEditMode ? (nodeId, updates) => {
               const updatedNodes = nodes.map(n => 
                 n.id === nodeId ? { ...n, ...updates } : n
               )
               setNodesLocal(updatedNodes)
               setNodes(updatedNodes)
-            }}
+            } : undefined}
           />
         )}
 
@@ -1939,21 +1948,23 @@ export function CanvasPage() {
         )}
 
         {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
-        {isEditMode && selectedNode && selectedNode.type !== 'group' && (
+        {/* Visible en modo edición (ambas pestañas) y fuera de modo edición (solo estado) */}
+        {selectedNode && selectedNode.type !== 'group' && (
           <NodePropertiesPanel
             node={selectedNode}
             isOpen={isPropertiesOpen}
+            isEditMode={isEditMode}
             onClose={() => {
               setIsPropertiesOpen(false)
               setSelectedNode(null)
             }}
-            onUpdateNode={(nodeId, updates) => {
+            onUpdateNode={isEditMode ? (nodeId, updates) => {
               const updatedNodes = nodes.map(n => 
                 n.id === nodeId ? { ...n, ...updates } : n
               )
               setNodesLocal(updatedNodes)
               setNodes(updatedNodes)
-            }}
+            } : undefined}
           />
         )}
 

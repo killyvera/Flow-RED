@@ -331,19 +331,43 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
   
   try {
     // Node-RED API para activar un nodo inject: POST /inject/:id
-    // Esta es la ruta del admin API de Node-RED
+    // El endpoint está bajo el admin API, que por defecto está en la raíz
+    // pero puede estar en /admin/ si httpAdminRoot está configurado
     const baseUrl = getNodeRedBaseUrl()
-    const url = `${baseUrl}/inject/${nodeId}`
     
-    const response = await fetch(url, {
+    // Intentar primero en la raíz (comportamiento por defecto)
+    let url = `${baseUrl}/inject/${nodeId}`
+    let response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
     })
     
+    // Si falla con 404, intentar con /admin/
+    if (!response.ok && response.status === 404) {
+      apiLogger(`⚠️ Endpoint /inject/${nodeId} no encontrado, intentando /admin/inject/${nodeId}`)
+      url = `${baseUrl}/admin/inject/${nodeId}`
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    }
+    
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error')
+      
+      // Mensajes de error más descriptivos
+      if (response.status === 404) {
+        throw new Error(`Nodo no encontrado (404). Verifica que el nodo con ID "${nodeId}" existe y está desplegado.`)
+      } else if (response.status === 403) {
+        throw new Error(`Acceso denegado (403). Verifica la autenticación de Node-RED.`)
+      } else if (response.status === 500) {
+        throw new Error(`Error del servidor (500). El nodo puede no estar desplegado o tener un error.`)
+      }
+      
       throw new Error(`HTTP ${response.status}: ${errorText}`)
     }
     

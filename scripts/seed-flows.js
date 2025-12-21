@@ -689,29 +689,31 @@ const flow6 = {
 }
 
 const flow6Nodes = [
+  // Trigger manual para demostrar estados
   {
     id: generateId('inject'),
     type: 'inject',
     z: 'flow6',
-    name: 'Trigger cada 2s',
-    props: [{ p: 'payload', v: '', vt: 'date' }],
-    repeat: '2',
+    name: 'Trigger Manual',
+    props: [{ p: 'payload', v: '{"test": true, "timestamp": ""}', vt: 'json' }],
+    repeat: '',
     cron: '',
     once: false,
     onceDelay: 0.1,
     topic: '',
-    payload: '',
-    payloadType: 'date',
+    payload: '{"test": true, "timestamp": ""}',
+    payloadType: 'json',
     x: 100,
     y: 100,
-    wires: [['function_running']]
+    wires: [['function_running', 'function_error', 'function_warning']]
   },
+  // Nodo que muestra estado "running"
   {
     id: 'function_running',
     type: 'function',
     z: 'flow6',
     name: 'Nodo Running',
-    func: '// Este nodo mostrará estado "running" cuando esté procesando\nnode.status({fill:"green",shape:"dot",text:"Procesando..."});\nsetTimeout(() => {\n  node.status({fill:"grey",shape:"dot",text:"Completado"});\n}, 1000);\nreturn msg;',
+    func: '// Establecer estado "running" (verde)\nnode.status({fill:"green",shape:"dot",text:"Procesando datos..."});\n\n// Simular procesamiento\nmsg.payload = {\n  ...msg.payload,\n  processed: true,\n  node: "running",\n  timestamp: new Date().toISOString()\n};\n\n// Limpiar estado después de 1 segundo\nsetTimeout(() => {\n  node.status({fill:"grey",shape:"dot",text:"Completado"});\n}, 1000);\n\nreturn msg;',
     outputs: 1,
     noerr: 0,
     timeout: 0,
@@ -719,46 +721,14 @@ const flow6Nodes = [
     finalize: '',
     libs: [],
     x: 100 + HORIZONTAL_SPACING,
-    y: 100,
-    wires: [['function_error']]
+    y: 50,
+    wires: [['debug_running']]
   },
   {
-    id: 'function_error',
-    type: 'function',
-    z: 'flow6',
-    name: 'Nodo con Error',
-    func: '// Este nodo mostrará estado "error" ocasionalmente\nconst shouldError = Math.random() > 0.5;\nif (shouldError) {\n  node.status({fill:"red",shape:"ring",text:"Error detectado"});\n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot",text:"Reintentando..."});\n  }, 2000);\n} else {\n  node.status({fill:"green",shape:"dot",text:"OK"});\n}\nreturn msg;',
-    outputs: 1,
-    noerr: 0,
-    timeout: 0,
-    initialize: '',
-    finalize: '',
-    libs: [],
-    x: 100 + HORIZONTAL_SPACING * 2,
-    y: 100,
-    wires: [['function_warning']]
-  },
-  {
-    id: 'function_warning',
-    type: 'function',
-    z: 'flow6',
-    name: 'Nodo con Warning',
-    func: '// Este nodo mostrará estado "warning"\nconst value = Math.random();\nif (value > 0.7) {\n  node.status({fill:"yellow",shape:"dot",text:"Advertencia: valor alto"});\n} else {\n  node.status({fill:"green",shape:"dot",text:"Normal"});\n}\nreturn msg;',
-    outputs: 1,
-    noerr: 0,
-    timeout: 0,
-    initialize: '',
-    finalize: '',
-    libs: [],
-    x: 100 + HORIZONTAL_SPACING * 3,
-    y: 100,
-    wires: [['debug_runtime']]
-  },
-  {
-    id: 'debug_runtime',
+    id: 'debug_running',
     type: 'debug',
     z: 'flow6',
-    name: 'Debug Runtime',
+    name: 'Debug Running',
     active: true,
     tosidebar: true,
     console: false,
@@ -767,34 +737,17 @@ const flow6Nodes = [
     targetType: 'msg',
     statusVal: '',
     statusType: 'auto',
-    x: 100 + HORIZONTAL_SPACING * 4,
-    y: 100,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 50,
     wires: []
   },
-  // Nodos adicionales para mostrar diferentes estados
+  // Nodo que muestra estado "error"
   {
-    id: generateId('inject'),
-    type: 'inject',
-    z: 'flow6',
-    name: 'Trigger Manual',
-    props: [{ p: 'payload', v: 'test', vt: 'str' }],
-    repeat: '',
-    cron: '',
-    once: false,
-    onceDelay: 0.1,
-    topic: '',
-    payload: 'test',
-    payloadType: 'str',
-    x: 100,
-    y: 100 + VERTICAL_SPACING,
-    wires: [['function_idle']]
-  },
-  {
-    id: 'function_idle',
+    id: 'function_error',
     type: 'function',
     z: 'flow6',
-    name: 'Nodo Idle',
-    func: '// Este nodo permanecerá en estado idle\n// No establece status, por lo que mostrará estado por defecto\nreturn msg;',
+    name: 'Nodo con Error',
+    func: '// Simular error ocasionalmente\nconst shouldError = Math.random() > 0.3;\n\nif (shouldError) {\n  // Estado de error (rojo)\n  node.status({fill:"red",shape:"ring",text:"Error: valor inválido"});\n  msg.error = "Error simulado";\n  \n  // Limpiar después de 2 segundos\n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot",text:"Reintentando..."});\n  }, 2000);\n} else {\n  // Estado normal\n  node.status({fill:"green",shape:"dot",text:"OK"});\n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot"});\n  }, 1000);\n}\n\nmsg.payload = {\n  ...msg.payload,\n  processed: true,\n  node: "error",\n  hasError: shouldError,\n  timestamp: new Date().toISOString()\n};\n\nreturn msg;',
     outputs: 1,
     noerr: 0,
     timeout: 0,
@@ -802,7 +755,75 @@ const flow6Nodes = [
     finalize: '',
     libs: [],
     x: 100 + HORIZONTAL_SPACING,
-    y: 100 + VERTICAL_SPACING,
+    y: 150,
+    wires: [['debug_error']]
+  },
+  {
+    id: 'debug_error',
+    type: 'debug',
+    z: 'flow6',
+    name: 'Debug Error',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 150,
+    wires: []
+  },
+  // Nodo que muestra estado "warning"
+  {
+    id: 'function_warning',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo con Warning',
+    func: '// Simular advertencia basada en valor aleatorio\nconst value = Math.random();\n\nif (value > 0.6) {\n  // Estado de advertencia (amarillo)\n  node.status({fill:"yellow",shape:"dot",text:"Advertencia: valor alto (" + value.toFixed(2) + ")"});\n  msg.warning = true;\n  \n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot"});\n  }, 1500);\n} else {\n  // Estado normal\n  node.status({fill:"green",shape:"dot",text:"Normal"});\n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot"});\n  }, 1000);\n}\n\nmsg.payload = {\n  ...msg.payload,\n  processed: true,\n  node: "warning",\n  value: value,\n  hasWarning: value > 0.6,\n  timestamp: new Date().toISOString()\n};\n\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 250,
+    wires: [['debug_warning']]
+  },
+  {
+    id: 'debug_warning',
+    type: 'debug',
+    z: 'flow6',
+    name: 'Debug Warning',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 250,
+    wires: []
+  },
+  // Nodo que permanece en estado "idle"
+  {
+    id: 'function_idle',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo Idle',
+    func: '// Este nodo no establece status explícito\n// Por lo tanto, permanecerá en estado "idle" por defecto\nmsg.payload = {\n  ...msg.payload,\n  processed: true,\n  node: "idle",\n  timestamp: new Date().toISOString()\n};\n\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 350,
     wires: [['debug_idle']]
   },
   {
@@ -819,7 +840,7 @@ const flow6Nodes = [
     statusVal: '',
     statusType: 'auto',
     x: 100 + HORIZONTAL_SPACING * 2,
-    y: 100 + VERTICAL_SPACING,
+    y: 350,
     wires: []
   }
 ]
@@ -1817,6 +1838,13 @@ async function seedFlows() {
     console.log('     • ⚪ Sin indicador = Idle')
     console.log('   - Asegúrate de que Node-RED esté ejecutándose para ver los estados')
     console.log('   - El punto verde en la esquina superior derecha indica conexión WebSocket activa')
+    console.log('   - 🖱️ Haz clic en un nodo y ve a la pestaña "Estado" para ver:')
+    console.log('     • Estado de runtime actual')
+    console.log('     • Conexiones de entrada/salida')
+    console.log('     • Último payload procesado')
+    console.log('     • Historial de logs de ejecución (últimos 50)')
+    console.log('   - Las animaciones en los edges muestran el flujo de datos en tiempo real')
+    console.log('   - El panel de logs de ejecución (botón inferior derecho) muestra todos los eventos')
     console.log('\n🌐 APIs Públicas y Nodos Básicos:')
     console.log('   - Flow 7: Descarga JSON de JSONPlaceholder (posts y usuarios)')
     console.log('   - Flow 8: Envía datos con POST y PUT a APIs públicas')

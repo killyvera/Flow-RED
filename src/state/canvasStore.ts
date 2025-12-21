@@ -136,15 +136,18 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     }
     return { collapsedGroupIds: newCollapsed }
   }),
-  setNodeRuntimeState: (nodeId, state) => set((currentState) => {
-    const newStates = new Map(currentState.nodeRuntimeStates)
-    if (state === null) {
-      newStates.delete(nodeId)
-    } else {
-      newStates.set(nodeId, state)
-    }
-    return { nodeRuntimeStates: newStates }
-  }),
+  setNodeRuntimeState: (nodeId, state) => {
+    // console.log('💾 [canvasStore] setNodeRuntimeState:', { nodeId, state })
+    set((currentState) => {
+      const newStates = new Map(currentState.nodeRuntimeStates)
+      if (state === null) {
+        newStates.delete(nodeId)
+      } else {
+        newStates.set(nodeId, state)
+      }
+      return { nodeRuntimeStates: newStates }
+    })
+  },
   clearNodeRuntimeState: (nodeId) => set((currentState) => {
     const newStates = new Map(currentState.nodeRuntimeStates)
     newStates.delete(nodeId)
@@ -153,27 +156,33 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   clearAllRuntimeStates: () => set({ nodeRuntimeStates: new Map() }),
   setWsConnected: (connected) => set({ wsConnected: connected }),
   
-  setActiveEdge: (edgeId, active) => set((state) => {
-    const newActiveEdges = new Set(state.activeEdges)
-    if (active) {
-      newActiveEdges.add(edgeId)
-    } else {
-      newActiveEdges.delete(edgeId)
-    }
-    return { activeEdges: newActiveEdges }
-  }),
+          setActiveEdge: (edgeId, active) => {
+            set((state) => {
+              const newActiveEdges = new Set(state.activeEdges)
+              if (active) {
+                newActiveEdges.add(edgeId)
+              } else {
+                newActiveEdges.delete(edgeId)
+              }
+              return { activeEdges: newActiveEdges }
+            })
+          },
   clearActiveEdges: () => set({ activeEdges: new Set() }),
-  addExecutionLog: (entry) => set((state) => {
-    const newLog: ExecutionLogEntry = {
-      ...entry,
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: Date.now(),
-    }
-    const newLogs = [...state.executionLogs, newLog]
-    // Mantener solo los últimos maxLogs
-    const trimmedLogs = newLogs.slice(-state.maxLogs)
-    return { executionLogs: trimmedLogs }
-  }),
+  addExecutionLog: (entry) => {
+    // console.log('📝 [canvasStore] Agregando log:', entry)
+    set((state) => {
+      const newLog: ExecutionLogEntry = {
+        ...entry,
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: Date.now(),
+      }
+      const newLogs = [newLog, ...state.executionLogs] // Agregar al inicio (más reciente primero)
+      // Mantener solo los últimos maxLogs
+      const trimmedLogs = newLogs.slice(0, state.maxLogs)
+      // console.log('📝 [canvasStore] Total logs después de agregar:', trimmedLogs.length)
+      return { executionLogs: trimmedLogs }
+    })
+  },
   clearExecutionLogs: () => set({ executionLogs: [] }),
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),

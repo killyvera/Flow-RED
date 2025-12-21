@@ -4,6 +4,7 @@
  * Define los tipos de edges y sus estilos para un look moderno estilo Flowise/n8n.
  */
 
+import React from 'react'
 import type { Edge, EdgeProps } from 'reactflow'
 import { SmoothStepEdge, BezierEdge, getSmoothStepPath } from 'reactflow'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -25,6 +26,22 @@ function AnimatedEdge({
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
   const isActive = activeEdges.has(id)
+  
+  // Log cuando el edge se activa/desactiva
+  React.useEffect(() => {
+    if (isActive) {
+      console.log('✨ [AnimatedEdge] Edge activado:', {
+        edgeId: id,
+        activeEdgesCount: activeEdges.size,
+        allActiveEdges: Array.from(activeEdges)
+      })
+    } else {
+      // Log cuando se desactiva solo si antes estaba activo
+      if (activeEdges.size === 0) {
+        console.log('💤 [AnimatedEdge] Todos los edges desactivados')
+      }
+    }
+  }, [isActive, id, activeEdges])
 
   const [edgePath] = getSmoothStepPath({
     sourceX,
@@ -42,33 +59,50 @@ function AnimatedEdge({
         id={id}
         style={{
           ...style,
-          strokeWidth: isActive ? 3 : style.strokeWidth || 2,
+          strokeWidth: isActive ? 4 : style.strokeWidth || 2,
           stroke: isActive ? 'var(--color-edge-active, #10b981)' : style.stroke || 'var(--color-edge-default)',
-          transition: 'stroke-width 0.2s, stroke 0.2s',
+          transition: 'stroke-width 0.3s ease-out, stroke 0.3s ease-out',
+          filter: isActive ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))' : 'none',
         }}
         className="react-flow__edge-path"
         d={edgePath}
         markerEnd={markerEnd}
       />
-      {/* Animación de pulso cuando está activo */}
+      {/* Animación de pulso cuando está activo (estilo n8n) */}
       {isActive && (
-        <path
-          d={edgePath}
-          style={{
-            strokeWidth: 4,
-            stroke: 'var(--color-edge-active, #10b981)',
-            opacity: 0.4,
-            fill: 'none',
-          }}
-          className="react-flow__edge-path"
-        >
-          <animate
-            attributeName="opacity"
-            values="0.4;0.8;0.4"
-            dur="1s"
-            repeatCount="indefinite"
-          />
-        </path>
+        <>
+          <path
+            d={edgePath}
+            style={{
+              strokeWidth: 6,
+              stroke: 'var(--color-edge-active, #10b981)',
+              opacity: 0.3,
+              fill: 'none',
+            }}
+            className="react-flow__edge-path"
+          >
+            <animate
+              attributeName="opacity"
+              values="0.3;0.6;0.3"
+              dur="0.8s"
+              repeatCount="indefinite"
+            />
+          </path>
+          {/* Punto animado que se mueve por el edge */}
+          <circle r="4" fill="var(--color-edge-active, #10b981)">
+            <animateMotion
+              dur="0.5s"
+              repeatCount="indefinite"
+              path={edgePath}
+            />
+            <animate
+              attributeName="opacity"
+              values="1;0.5;1"
+              dur="0.5s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </>
       )}
     </>
   )

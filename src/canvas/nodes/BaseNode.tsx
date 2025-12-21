@@ -101,6 +101,18 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
   const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
   const runtimeState = nodeRedNode?.id ? nodeRuntimeStates.get(nodeRedNode.id) : undefined
   const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
+  
+  // Log para debugging (solo cuando cambia el estado)
+  useEffect(() => {
+    if (nodeRedNode?.id && runtimeState) {
+      console.log('🎨 [BaseNode] Estado de runtime:', {
+        nodeId: nodeRedNode.id,
+        nodeName: label,
+        runtimeState,
+        color: runtimeStateColor
+      })
+    }
+  }, [nodeRedNode?.id, runtimeState, runtimeStateColor, label])
 
   // Calcular posiciones de los handles de salida
   // Si hay múltiples puertos, distribuirlos verticalmente
@@ -178,9 +190,10 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
           {/* Indicador de estado de runtime (prioridad sobre status estático) */}
           {runtimeStateColor && (
             <div
-              className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white shadow-sm"
+              className="absolute top-2 right-2 w-3 h-3 rounded-full border-2 border-white shadow-lg z-10"
               style={{
                 backgroundColor: runtimeStateColor,
+                boxShadow: `0 0 8px ${runtimeStateColor}, 0 0 4px ${runtimeStateColor}`,
               }}
               title={
                 runtimeState === 'running' ? 'Ejecutando' :
@@ -188,7 +201,18 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
                 runtimeState === 'warning' ? 'Advertencia' :
                 'Inactivo'
               }
-            />
+            >
+              {/* Animación de pulso para estado running */}
+              {runtimeState === 'running' && (
+                <div
+                  className="absolute inset-0 rounded-full animate-ping"
+                  style={{
+                    backgroundColor: runtimeStateColor,
+                    opacity: 0.5,
+                  }}
+                />
+              )}
+            </div>
           )}
           
           {/* Badge de status estático (solo si no hay estado de runtime) */}

@@ -8,7 +8,9 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Node } from 'reactflow'
-import { X, Loader2, Info } from 'lucide-react'
+import { X, Loader2, Info, Settings, Activity } from 'lucide-react'
+import { useCanvasStore } from '@/state/canvasStore'
+import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 import { getNodeDefinition } from '@/api/nodeDefinition'
 import { parseNodeSchema, type NodeSchema, type PropertyDefinition } from '@/utils/nodeSchema'
 import { getKnownNodeProperties } from '@/utils/nodeDefaults'
@@ -20,6 +22,7 @@ export interface NodePropertiesPanelProps {
   isOpen: boolean
   onClose: () => void
   onUpdateNode?: (nodeId: string, updates: Partial<Node>) => void
+  isEditMode?: boolean // Si está en modo edición (muestra pestaña de configuración)
 }
 
 /**
@@ -241,6 +244,7 @@ export function NodePropertiesPanel({
   isOpen,
   onClose,
   onUpdateNode,
+  isEditMode = false,
 }: NodePropertiesPanelProps) {
   const [schema, setSchema] = useState<NodeSchema | null>(null)
   const [isLoadingSchema, setIsLoadingSchema] = useState(false)
@@ -592,33 +596,158 @@ export function NodePropertiesPanel({
     return node.data?.label || node.data?.nodeRedName || nodeType
   }, [node?.data?.nodeRedNode?.name, node?.data?.label, node?.data?.nodeRedName, nodeType])
 
+  // Estado de runtime del nodo
+  const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
+  const runtimeState = node?.id ? nodeRuntimeStates.get(node.id) : undefined
+  const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
+  
+  // Logs de ejecución del nodo
+  const executionLogs = useCanvasStore((state) => state.executionLogs)
+  const nodeLogs = useMemo(() => {
+    if (!node?.id) return []
+    const filtered = executionLogs.filter(log => {
+      const matches = log.nodeId === node.id
+      // Log de depuración solo para los primeros logs
+      if (executionLogs.length > 0 && executionLogs.length <= 10) {
+        console.log('🔍 [NodePropertiesPanel] Comparando log:', {
+          logNodeId: log.nodeId,
+          currentNodeId: node.id,
+          matches,
+          logMessage: log.message?.substring(0, 50)
+        })
+      }
+      return matches
+    })
+    // Ordenar por timestamp descendente (más reciente primero)
+    const sorted = filtered.sort((a, b) => b.timestamp - a.timestamp)
+    return sorted.slice(0, 50) // Últimos 50 logs
+  }, [executionLogs, node?.id])
+  
+  // Último log con datos (para mostrar payload)
+  const lastLogWithData = useMemo(() => {
+    return nodeLogs.find(log => log.data) || null
+  }, [nodeLogs])
+  
+  // Edges conectados al nodo (input/output)
+  const edges = useCanvasStore((state) => state.edges)
+  const inputEdges = useMemo(() => {
+    if (!node?.id) return []
+    return edges.filter(e => e.target === node.id)
+  }, [edges, node?.id])
+  
+  const outputEdges = useMemo(() => {
+    if (!node?.id) return []
+    return edges.filter(e => e.source === node.id)
+  }, [edges, node?.id])
+  
+  // Nodos conectados
+  const nodes = useCanvasStore((state) => state.nodes)
+  const inputNodes = useMemo(() => {
+    return inputEdges.map(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source)
+      return {
+        edge,
+        node: sourceNode,
+        nodeName: sourceNode?.data?.label || sourceNode?.data?.nodeRedType || edge.source
+      }
+    })
+  }, [inputEdges, nodes])
+  
+  const outputNodes = useMemo(() => {
+    return outputEdges.map(edge => {
+      const targetNode = nodes.find(n => n.id === edge.target)
+      return {
+        edge,
+        node: targetNode,
+        nodeName: targetNode?.data?.label || targetNode?.data?.nodeRedType || edge.target
+      }
+    })
+  }, [outputEdges, nodes])
+
+  // Pestañas del panel - si no está en modo edición, solo mostrar estado
+  const [activeTab, setActiveTab] = useState<'config' | 'status'>(
+    isEditMode ? 'config' : 'status'
+  )
+  
+  // Si no está en modo edición, forzar pestaña de estado
+  useEffect(() => {
+    if (!isEditMode) {
+      setActiveTab('status')
+    }
+  }, [isEditMode])
+
   // Return temprano DESPUÉS de todos los hooks
   if (!isOpen || !node) return null
 
   return (
     <div className="absolute right-0 top-0 bottom-0 w-80 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col">
       {/* Header */}
-      <div className="p-3 border-b border-node-border flex items-center justify-between flex-shrink-0">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-text-primary truncate">
-            {nodeName}
-          </h2>
-          <p className="text-xs text-text-tertiary truncate mt-0.5">
-            {nodeType}
-          </p>
+      <div className="border-b border-node-border flex-shrink-0">
+        <div className="p-3 flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-text-primary truncate">
+              {nodeName}
+            </h2>
+            <p className="text-xs text-text-tertiary truncate mt-0.5">
+              {nodeType}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0"
+            aria-label="Cerrar panel"
+          >
+            <X className="w-4 h-4" strokeWidth={2} />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0"
-          aria-label="Cerrar panel"
-        >
-          <X className="w-4 h-4" strokeWidth={2} />
-        </button>
+        
+        {/* Pestañas - solo mostrar si hay más de una pestaña disponible */}
+        {(isEditMode || activeTab === 'status') && (
+          <div className="flex border-t border-node-border">
+            {isEditMode && (
+              <button
+                onClick={() => setActiveTab('config')}
+                className={`
+                  flex-1 px-3 py-2 text-xs font-medium transition-colors
+                  flex items-center justify-center gap-1.5
+                  ${activeTab === 'config'
+                    ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+                  }
+                `}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                Configuración
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('status')}
+              className={`
+                ${isEditMode ? 'flex-1' : 'w-full'} px-3 py-2 text-xs font-medium transition-colors
+                flex items-center justify-center gap-1.5 relative
+                ${activeTab === 'status'
+                  ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+                }
+              `}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Estado
+              {runtimeStateColor && (
+                <span
+                  className="absolute top-1.5 right-2 w-2 h-2 rounded-full"
+                  style={{ backgroundColor: runtimeStateColor }}
+                />
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Contenido scrollable */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {isLoadingSchema ? (
+        {activeTab === 'config' ? (
+          isLoadingSchema ? (
           <div className="p-6 flex flex-col items-center justify-center text-text-secondary">
             <Loader2 className="w-6 h-6 animate-spin mb-2" />
             <p className="text-xs">Cargando propiedades...</p>
@@ -715,6 +844,215 @@ export function NodePropertiesPanel({
                 </p>
               )
             })()}
+          </div>
+        )
+        ) : (
+          /* Pestaña de Estado */
+          <div className="p-3 space-y-4">
+            {/* Estado actual del nodo */}
+            <div className="space-y-2 pb-3 border-b border-node-border">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                Estado de Runtime
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Estado Actual
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {runtimeStateColor ? (
+                      <>
+                        <div
+                          className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                          style={{ backgroundColor: runtimeStateColor }}
+                        />
+                        <span className="text-xs font-medium text-text-primary capitalize">
+                          {runtimeState === 'running' ? 'Ejecutando' :
+                           runtimeState === 'error' ? 'Error' :
+                           runtimeState === 'warning' ? 'Advertencia' :
+                           'Inactivo'}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-text-tertiary">Sin estado activo</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Input/Output Connections (estilo n8n) */}
+            <div className="space-y-3 pb-3 border-b border-node-border">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                Conexiones
+              </h3>
+              
+              {/* Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-text-secondary">
+                  Input ({inputEdges.length})
+                </label>
+                {inputEdges.length > 0 ? (
+                  <div className="space-y-1">
+                    {inputNodes.map(({ edge, nodeName }) => (
+                      <div
+                        key={edge.id}
+                        className="px-2 py-1.5 bg-bg-secondary rounded text-[11px] text-text-secondary border border-node-border/50"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                          <span className="font-medium text-text-primary truncate">{nodeName}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-text-tertiary px-2">Sin conexiones de entrada</p>
+                )}
+              </div>
+              
+              {/* Output */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-text-secondary">
+                  Output ({outputEdges.length})
+                </label>
+                {outputEdges.length > 0 ? (
+                  <div className="space-y-1">
+                    {outputNodes.map(({ edge, nodeName }) => (
+                      <div
+                        key={edge.id}
+                        className="px-2 py-1.5 bg-bg-secondary rounded text-[11px] text-text-secondary border border-node-border/50"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="font-medium text-text-primary truncate">{nodeName}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-text-tertiary px-2">Sin conexiones de salida</p>
+                )}
+              </div>
+            </div>
+
+            {/* Último Payload (estilo n8n) */}
+            {lastLogWithData && lastLogWithData.data && (
+              <div className="space-y-2 pb-3 border-b border-node-border">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Último Payload
+                </h3>
+                <div className="bg-bg-secondary rounded-md p-2 border border-node-border/50">
+                  <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-48 overflow-y-auto">
+                    {JSON.stringify(lastLogWithData.data, null, 2)}
+                  </pre>
+                </div>
+                <p className="text-[10px] text-text-tertiary">
+                  {new Date(lastLogWithData.timestamp).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            {/* Logs de ejecución */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Logs de Ejecución
+                </h3>
+                <span className="text-xs text-text-tertiary">
+                  {nodeLogs.length} {nodeLogs.length === 1 ? 'evento' : 'eventos'}
+                </span>
+              </div>
+              
+              {nodeLogs.length > 0 ? (
+                <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                  {nodeLogs.map((log, index) => {
+                    if (index === 0) {
+                      console.log('📋 [NodePropertiesPanel] Mostrando primer log:', {
+                        logId: log.id,
+                        nodeId: log.nodeId,
+                        message: log.message?.substring(0, 50),
+                        hasData: !!log.data
+                      })
+                    }
+                    const getLogColor = (level: string) => {
+                      switch (level) {
+                        case 'error': return { text: 'text-red-500', border: 'border-red-500' }
+                        case 'warn': return { text: 'text-yellow-500', border: 'border-yellow-500' }
+                        case 'success': return { text: 'text-green-500', border: 'border-green-500' }
+                        default: return { text: 'text-blue-500', border: 'border-blue-500' }
+                      }
+                    }
+                    
+                    const colors = getLogColor(log.level)
+                    
+                    return (
+                      <div
+                        key={log.id}
+                        className={`p-2 bg-bg-secondary rounded-md text-xs border-l-2 ${colors.border}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`font-medium ${colors.text}`}>
+                            {log.level.toUpperCase()}
+                          </span>
+                          <span className="text-text-tertiary text-[10px]">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-text-secondary text-[11px] mb-1">{log.message}</p>
+                        {log.data && (
+                          <details className="mt-1">
+                            <summary className="text-[10px] text-text-tertiary cursor-pointer hover:text-text-secondary">
+                              Ver payload
+                            </summary>
+                            <pre className="mt-1 p-1.5 bg-bg-tertiary rounded text-[10px] text-text-secondary overflow-x-auto max-h-32 overflow-y-auto">
+                              {JSON.stringify(log.data, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                        {log.duration !== undefined && (
+                          <p className="text-text-tertiary text-[10px] mt-1">
+                            Duración: {log.duration}ms
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-text-tertiary text-xs">
+                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>No hay logs de ejecución aún</p>
+                  <p className="text-[10px] mt-1 opacity-75">
+                    Los logs aparecerán cuando el nodo se ejecute
+                  </p>
+                  {/* Debug info */}
+                  {executionLogs.length > 0 && (
+                    <div className="mt-3 p-2 bg-bg-secondary rounded text-[9px] text-left border border-node-border/50">
+                      <p className="font-medium mb-1 text-text-secondary">Debug Info:</p>
+                      <p className="text-text-tertiary">Total logs en store: {executionLogs.length}</p>
+                      <p className="text-text-tertiary">Node ID buscado: {node?.id}</p>
+                      <p className="text-text-tertiary">Logs de otros nodos: {executionLogs.filter(l => l.nodeId !== node?.id).length}</p>
+                      {executionLogs.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-text-tertiary hover:text-text-secondary">
+                            Ver primeros logs (últimos 3)
+                          </summary>
+                          <pre className="mt-1 text-[8px] overflow-x-auto text-text-tertiary">
+                            {JSON.stringify(executionLogs.slice(0, 3).map(l => ({
+                              nodeId: l.nodeId,
+                              nodeName: l.nodeName,
+                              message: l.message?.substring(0, 40)
+                            })), null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

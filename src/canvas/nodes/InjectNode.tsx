@@ -34,13 +34,24 @@ export const InjectNode = memo(({ data, selected }: BaseNodeProps) => {
     
     if (!nodeId || isTriggering) return
     
+    console.log('🖱️ [InjectNode] Intentando activar nodo:', {
+      nodeId,
+      nodeName: nodeRedNode?.name || nodeRedNode?.label,
+      nodeType: nodeRedNode?.type,
+      nodeZ: nodeRedNode?.z // Flow ID
+    })
+    
     setIsTriggering(true)
     try {
       await triggerInjectNode(nodeId)
       // Feedback visual breve
       setTimeout(() => setIsTriggering(false), 500)
-    } catch (err) {
-      console.error('Error al activar nodo inject:', err)
+    } catch (err: any) {
+      console.error('❌ [InjectNode] Error al activar nodo inject:', {
+        nodeId,
+        error: err.message,
+        suggestion: 'Verifica que el nodo esté desplegado en Node-RED'
+      })
       setIsTriggering(false)
     }
   }

@@ -34,8 +34,11 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const nodeExecutionStartTimes = useRef<Map<string, number>>(new Map())
 
   useEffect(() => {
+    // console.log('🎣 [useNodeRedWebSocket] Hook montado, enabled:', enabled)
+    
     if (!enabled) {
       wsLogger('WebSocket deshabilitado')
+      // console.log('⚠️ [useNodeRedWebSocket] WebSocket deshabilitado')
       return
     }
 
@@ -44,6 +47,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     // el WebSocket no estará disponible. La aplicación funcionará sin él.
     const client = getWebSocketClient()
     clientRef.current = client
+    // console.log('🔌 [useNodeRedWebSocket] Cliente WebSocket obtenido:', client)
 
     // Helper para encontrar edges conectados a un nodo
     const findEdgesForNode = (nodeId: string): Edge[] => {
@@ -61,20 +65,65 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
 
     // Handler para eventos de WebSocket
     const handleEvent = (event: NodeRedWebSocketEvent) => {
+      // Log todos los eventos para debugging
+      console.log('🎯 [WebSocket] Evento recibido:', {
+        topic: event.topic,
+        hasPayload: !!event.payload,
+        hasData: !!event.data,
+        payload: event.payload,
+        data: event.data
+      })
+      
       try {
-        // Node-RED envía eventos de status con topic 'status'
-        if (event.topic === 'status' && event.payload) {
-          const nodeId = event.payload.id
+        // Node-RED envía eventos de status con topic 'status/nodeId'
+        // El formato es: topic: 'status/function_running', data: { fill: 'green', ... }
+        if (event.topic.startsWith('status/')) {
+          const nodeId = event.topic.replace('status/', '')
+          const statusData = event.data || event.payload
+          
+          // console.log('📊 [NODO] Estado recibido:', { nodeId, status: statusData })
+          
           if (!nodeId) {
-            wsLogger('Evento de status sin ID de nodo:', event)
             return
           }
 
+          // Crear un objeto compatible con NodeRedStatusEvent
+          const statusEvent = {
+            id: nodeId,
+            status: statusData
+          }
+
           // Mapear el estado de Node-RED a estado visual
-          const runtimeState = mapNodeRedStatusToRuntimeState(event.payload)
+          const runtimeState = mapNodeRedStatusToRuntimeState(statusEvent)
           
           if (runtimeState) {
             setNodeRuntimeState(nodeId, runtimeState)
+            
+            // Si el nodo está en estado "running", activar sus edges de salida
+            if (runtimeState === 'running') {
+              // Marcar inicio de ejecución
+              if (!nodeExecutionStartTimes.current.has(nodeId)) {
+                nodeExecutionStartTimes.current.set(nodeId, Date.now())
+              }
+              
+              // Activar edges de salida del nodo
+              const outgoingEdges = edges.filter(e => e.source === nodeId)
+              if (outgoingEdges.length > 0) {
+                console.log('✨ [WebSocket] Activando edges para nodo running:', {
+                  nodeId,
+                  nodeName: getNodeInfo(nodeId).name,
+                  edgesCount: outgoingEdges.length,
+                  edgeIds: outgoingEdges.map(e => e.id)
+                })
+                outgoingEdges.forEach(edge => {
+                  setActiveEdge(edge.id, true)
+                  // Desactivar después de un tiempo
+                  setTimeout(() => {
+                    setActiveEdge(edge.id, false)
+                  }, 1000) // Aumentar tiempo para mejor visibilidad
+                })
+              }
+            }
             
             // Agregar log de ejecución
             const nodeInfo = getNodeInfo(nodeId)
@@ -88,8 +137,9 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
               level: runtimeState === 'error' ? 'error' : 
                      runtimeState === 'warning' ? 'warning' : 
                      runtimeState === 'running' ? 'info' : 'success',
-              message: event.payload.status?.text || `Estado: ${runtimeState}`,
+              message: statusData?.text || `Estado: ${runtimeState}`,
               duration,
+              data: statusData, // Incluir datos del status
             })
             
             wsLogger(`Estado actualizado para nodo ${nodeId}:`, runtimeState)
@@ -101,31 +151,46 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
         // Eventos de debug (mensajes que pasan por los nodos)
         else if (event.topic === 'debug' && event.data) {
           const debugData = event.data
-          const nodeId = debugData.id || debugData.node?.id
+          // Node-RED envía el ID del nodo que generó el mensaje en debugData.node
+          // El ID del nodo debug está en debugData.id
+          const sourceNodeId = debugData.node || debugData.nodeid
+          const debugNodeId = debugData.id
           
-          if (nodeId) {
-            const nodeInfo = getNodeInfo(nodeId)
-            
+          // Usar el nodo fuente (el que generó el mensaje) para activar edges
+          if (sourceNodeId) {
             // Marcar inicio de ejecución
-            if (!nodeExecutionStartTimes.current.has(nodeId)) {
-              nodeExecutionStartTimes.current.set(nodeId, Date.now())
+            if (!nodeExecutionStartTimes.current.has(sourceNodeId)) {
+              nodeExecutionStartTimes.current.set(sourceNodeId, Date.now())
             }
             
-            // Activar edges de salida del nodo
-            const outgoingEdges = edges.filter(e => e.source === nodeId)
-            outgoingEdges.forEach(edge => {
-              setActiveEdge(edge.id, true)
-              // Desactivar después de un tiempo
-              setTimeout(() => setActiveEdge(edge.id, false), 500)
-            })
+            // Activar edges de salida del nodo fuente
+            const outgoingEdges = edges.filter(e => e.source === sourceNodeId)
+            if (outgoingEdges.length > 0) {
+              console.log('✨ [WebSocket] Activando edges para evento debug:', {
+                sourceNodeId,
+                nodeName: getNodeInfo(sourceNodeId).name,
+                edgesCount: outgoingEdges.length,
+                edgeIds: outgoingEdges.map(e => e.id)
+              })
+              outgoingEdges.forEach(edge => {
+                setActiveEdge(edge.id, true)
+                // Desactivar después de un tiempo
+                setTimeout(() => {
+                  setActiveEdge(edge.id, false)
+                }, 1000) // Aumentar tiempo para mejor visibilidad
+              })
+            }
             
-            // Agregar log de debug
+            // Agregar log de debug - usar sourceNodeId (el nodo que generó el mensaje)
+            const sourceNodeInfo = getNodeInfo(sourceNodeId)
             addExecutionLog({
-              nodeId,
-              nodeName: nodeInfo.name,
-              nodeType: nodeInfo.type,
+              nodeId: sourceNodeId, // Usar el nodo fuente, no el nodo debug
+              nodeName: sourceNodeInfo.name,
+              nodeType: sourceNodeInfo.type,
               level: 'info',
-              message: `Debug: ${JSON.stringify(debugData.msg?.payload || debugData)}`,
+              message: debugData.msg?.payload 
+                ? `Payload: ${typeof debugData.msg.payload === 'string' ? debugData.msg.payload : JSON.stringify(debugData.msg.payload)}`
+                : `Debug: ${JSON.stringify(debugData.msg || debugData)}`,
               data: debugData.msg,
             })
           }
@@ -168,17 +233,21 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
     }
 
-    // Suscribirse a eventos
+    // IMPORTANTE: Registrar el handler ANTES de conectar para no perder mensajes
+    // console.log('📝 [useNodeRedWebSocket] Registrando handler ANTES de conectar...')
     const unsubscribe = client.onEvent(handleEvent)
     unsubscribeRef.current = unsubscribe
+    // console.log('📝 [useNodeRedWebSocket] Handler registrado, unsubscribe disponible:', !!unsubscribe, 'Handlers totales:', clientRef.current ? 'N/A' : 'N/A')
 
-    // Conectar
+    // Conectar DESPUÉS de registrar el handler
+    // console.log('🚀 [useNodeRedWebSocket] Conectando WebSocket...')
     client.connect()
 
     // Actualizar estado de conexión periódicamente
     const connectionCheckInterval = setInterval(() => {
       const isConnected = client.isConnected()
       if (isConnected !== wsConnected) {
+        // console.log('🔄 [useNodeRedWebSocket] Estado de conexión cambió:', wsConnected, '→', isConnected)
         setWsConnected(isConnected)
       }
     }, 1000)

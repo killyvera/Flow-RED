@@ -126,6 +126,7 @@ export class NodeRedWebSocketClient {
 
       this.ws.onopen = () => {
         wsLogger('WebSocket conectado')
+        // console.log('🔌 [WebSocket] ✅ CONECTADO a:', this.url)
         this.connectionState = 'connected'
         this.reconnectAttempts = 0
         this.reconnectDelay = 1000
@@ -134,15 +135,33 @@ export class NodeRedWebSocketClient {
         // Por ahora, no enviamos nada y esperamos que Node-RED envíe eventos automáticamente
         // Si Node-RED requiere autenticación, se manejará en el primer mensaje
         
+        // console.log('🔌 [WebSocket] Llamando onConnect(), handlers registrados:', this.eventHandlers.size)
         this.onConnect()
       }
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          this.handleMessage(data)
+          // console.log('📨 [WebSocket] Mensaje recibido (raw):', data)
+          
+          // Node-RED puede enviar arrays de eventos o un solo evento
+          if (Array.isArray(data)) {
+            // console.log('📦 [WebSocket] Array de eventos recibido, procesando', data.length, 'eventos')
+            data.forEach((item, index) => {
+              // console.log(`📨 [WebSocket] Evento ${index + 1}/${data.length}:`, item)
+              this.handleMessage(item)
+            })
+          } else {
+            // console.log('📨 [WebSocket] Evento único recibido:', {
+            //   topic: data.topic || data.type || 'unknown',
+            //   payload: data.payload || data.data,
+            //   raw: data
+            // })
+            this.handleMessage(data)
+          }
         } catch (error) {
           wsLogger('Error al parsear mensaje WebSocket:', error)
+          console.error('❌ [WebSocket] Error al parsear mensaje:', error, 'Data:', event.data)
         }
       }
 
@@ -305,12 +324,21 @@ export class NodeRedWebSocketClient {
       payload: data.payload || data.data,
     }
 
+    // console.log('🔄 [WebSocket] Procesando evento:', {
+    //   topic: event.topic,
+    //   hasPayload: !!event.payload,
+    //   hasData: !!event.data,
+    //   handlersCount: this.eventHandlers.size
+    // })
+
     // Notificar a todos los handlers
     this.eventHandlers.forEach((handler) => {
       try {
+        // console.log('📤 [WebSocket] Enviando evento a handler:', event.topic)
         handler(event)
       } catch (error) {
         wsLogger('Error en handler de evento:', error)
+        console.error('❌ [WebSocket] Error en handler:', error)
       }
     })
   }
