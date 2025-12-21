@@ -134,6 +134,12 @@
   padding: 0;
 }
 
+html,
+body {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   font-family: var(--font-family-sans);
   color: var(--color-text-primary);
@@ -145,7 +151,7 @@ body {
 
 #root {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
