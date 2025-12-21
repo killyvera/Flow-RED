@@ -1,21 +1,21 @@
 /**
  * Componente raíz de la aplicación
  * 
- * Renderiza el layout básico y la página principal del canvas.
- * Por ahora es minimalista, en el futuro se puede añadir:
- * - Header/Navbar
- * - Sidebar con paleta de nodos
- * - Panel de propiedades
- * - Toolbar
+ * Renderiza el layout básico con Sidebar y CanvasPage usando Grid.
  */
 
+import { ThemeProvider } from '@/context/ThemeContext'
+import { Sidebar } from '@/components/Sidebar'
 import { CanvasPage } from '@/pages/CanvasPage'
 
 export function App() {
   return (
-    <div className="w-full h-full overflow-hidden">
-      <CanvasPage />
-    </div>
+    <ThemeProvider>
+      <div className="w-full h-full overflow-hidden grid grid-cols-[auto_1fr]">
+        <Sidebar />
+        <CanvasPage />
+      </div>
+    </ThemeProvider>
   )
 }
 
