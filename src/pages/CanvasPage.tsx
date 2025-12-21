@@ -28,6 +28,7 @@ import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
+
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 
 import { useCanvasStore } from '@/state/canvasStore'
