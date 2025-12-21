@@ -144,7 +144,9 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
   // Color del grupo - siempre convertir a rgba con opacidad
   const getGroupColorWithOpacity = (color: string | undefined, opacity: number): string => {
     if (!color) {
-      return `rgba(59, 130, 246, ${opacity})`
+      // Usar variable CSS para color de grupo por defecto
+      // Extraer el color base de la variable CSS y aplicar opacidad
+      return `var(--color-group-default)`
     }
     
     // Si el color ya es rgba, extraer RGB y aplicar nueva opacidad
@@ -164,8 +166,8 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
       return `rgba(${rgb.join(', ')}, ${opacity})`
     }
     
-    // Fallback
-    return `rgba(59, 130, 246, ${opacity})`
+    // Fallback a variable CSS
+    return `var(--color-group-default)`
   }
   
   // Color de fondo con opacidad baja (0.1)
@@ -293,9 +295,9 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
               width: '16px',
               height: '16px',
               borderRadius: '50%',
-              backgroundColor: 'var(--color-accent-primary, #ff6d5a)',
-              border: '2px solid var(--color-bg-primary, #ffffff)',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              backgroundColor: 'var(--color-accent-primary)',
+              border: '2px solid var(--color-bg-primary)',
+              boxShadow: 'var(--shadow-node-hover)',
               cursor: 'nwse-resize',
               opacity: 0,
               transition: 'opacity 0.15s ease',
@@ -381,7 +383,7 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
         <span
           className="text-xs font-semibold flex-1 truncate"
           style={{
-            color: titleColor || 'var(--color-text-primary, #1a1a1a)',
+            color: titleColor || 'var(--color-text-primary)',
           }}
         >
           {groupName}
@@ -421,9 +423,9 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
           width: 16px !important;
           height: 16px !important;
           border-radius: 50% !important;
-          background-color: var(--color-accent-primary, #ff6d5a) !important;
-          border: 2px solid var(--color-bg-primary, #ffffff) !important;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+          background-color: var(--color-accent-primary) !important;
+          border: 2px solid var(--color-bg-primary) !important;
+          box-shadow: var(--shadow-node-hover) !important;
           opacity: 1 !important;
           pointer-events: auto !important;
           cursor: nwse-resize !important;

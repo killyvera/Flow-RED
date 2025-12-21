@@ -17,6 +17,8 @@ export default defineConfig({
       '@/theme': path.resolve(__dirname, './src/theme'),
       '@/pages': path.resolve(__dirname, './src/pages'),
       '@/components': path.resolve(__dirname, './src/components'),
+      // Alias para theme.config.ts en la raíz del proyecto
+      '@theme-config': path.resolve(__dirname, './theme.config'),
     },
   },
   server: {

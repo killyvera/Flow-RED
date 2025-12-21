@@ -3,64 +3,15 @@
 @tailwind utilities;
 
 /**
- * Variables CSS personalizadas basadas en tokens de tema
- * Estas variables pueden ser usadas en componentes y estilos CSS
+ * Variables CSS base y estilos globales
+ * 
+ * Las variables CSS de tema se generan dinámicamente desde ThemeContext
+ * usando las funciones de theme/utils.ts. Este archivo solo contiene
+ * estilos base que no dependen del tema.
  */
+
+/* Variables CSS base (tokens que no cambian entre temas) */
 :root {
-  /* Colores de fondo - Modo claro (estilo n8n) */
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8f9fa;
-  --color-bg-tertiary: #e9ecef;
-  
-  /* Colores de texto - Modo claro */
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #6c757d;
-  --color-text-tertiary: #adb5bd;
-  
-  /* Colores del canvas - Modo claro */
-  --color-canvas-bg: #f8f9fa;
-  --color-canvas-grid: #dee2e6;
-  --color-node-default: #ffffff;
-  --color-node-selected: #fff4f2;
-  --color-node-hover: #f8f9fa;
-  --color-node-border: #dee2e6;
-  --color-node-border-hover: #ff6d5a;
-  --color-node-border-selected: #ff6d5a;
-  --color-node-header: #f8f9fa;
-  --color-node-header-accent: #ff6d5a;
-  --color-edge-default: #adb5bd;
-  --color-edge-selected: #ff6d5a;
-  --color-edge-hover: #ff8a7a;
-  --color-edge-active: #10b981;
-  
-  /* Sombras para nodos - Modo claro */
-  --shadow-node: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-node-hover: 0 2px 6px rgba(0, 0, 0, 0.12);
-  --shadow-node-selected: 0 0 0 2px rgba(255, 109, 90, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
-  
-  /* Colores de estado - estilo n8n */
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-  
-  /* Estados de nodos */
-  --node-disabled-opacity: 0.5;
-  --node-status-error: #ef4444;
-  --node-status-warning: #f59e0b;
-  --node-status-info: #3b82f6;
-  --node-status-success: #10b981;
-  
-  /* Colores de acento - Rojo n8n */
-  --color-accent-primary: #ff6d5a;
-  --color-accent-secondary: #ff8a7a;
-  --color-accent-tertiary: #ffa99b;
-  
-  /* Colores de grupos */
-  --color-group-default: rgba(59, 130, 246, 0.1);
-  --color-group-border: rgba(59, 130, 246, 0.3);
-  --color-group-text: #3b82f6;
-  
   /* Espaciado */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -70,7 +21,7 @@
   --spacing-2xl: 3rem;
   --spacing-3xl: 4rem;
   
-  /* Tipografía - estilo n8n */
+  /* Tipografía */
   --font-family-sans: 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif';
   --font-family-mono: 'Fira Code', 'Consolas', 'Monaco', 'monospace';
   
@@ -80,51 +31,21 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-2xl: 1rem;
-}
-
-/* Modo oscuro - estilo n8n */
-.dark {
-  /* Colores de fondo - Modo oscuro */
-  --color-bg-primary: #1a1a1a;
-  --color-bg-secondary: #2d2d2d;
-  --color-bg-tertiary: #3d3d3d;
   
-  /* Colores de texto - Modo oscuro */
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #d1d5db;
-  --color-text-tertiary: #9ca3af;
+  /* Z-index */
+  --z-index-base: 0;
+  --z-index-dropdown: 1000;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal: 1040;
+  --z-index-popover: 1050;
+  --z-index-tooltip: 1060;
   
-  /* Colores del canvas - Modo oscuro */
-  --color-canvas-bg: #1a1a1a;
-  --color-canvas-grid: #2d2d2d;
-  --color-node-default: #2d2d2d;
-  --color-node-selected: #3d2a26;
-  --color-node-hover: #353535;
-  --color-node-border: #404040;
-  --color-node-border-hover: #ff6d5a;
-  --color-node-border-selected: #ff6d5a;
-  --color-node-header: #353535;
-  --color-node-header-accent: #ff6d5a;
-  --color-edge-default: #6b7280;
-  --color-edge-selected: #ff6d5a;
-  --color-edge-hover: #ff8a7a;
-  
-  /* Sombras para nodos - Modo oscuro */
-  --shadow-node: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-node-hover: 0 2px 6px rgba(0, 0, 0, 0.4);
-  --shadow-node-selected: 0 0 0 2px rgba(255, 109, 90, 0.3), 0 2px 6px rgba(0, 0, 0, 0.4);
-  
-  /* Estados de nodos - Modo oscuro (mismos colores) */
-  --node-disabled-opacity: 0.5;
-  --node-status-error: #ef4444;
-  --node-status-warning: #f59e0b;
-  --node-status-info: #3b82f6;
-  --node-status-success: #10b981;
-  
-  /* Colores de grupos - Modo oscuro */
-  --color-group-default: rgba(59, 130, 246, 0.15);
-  --color-group-border: rgba(59, 130, 246, 0.4);
-  --color-group-text: #60a5fa;
+  /* Tokens de accesibilidad - focus rings */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-offset-color: transparent;
+  /* El color del focus ring se establece dinámicamente desde el tema */
 }
 
 /* Estilos globales mínimos */
@@ -408,3 +329,22 @@ body {
   box-shadow: none !important;
 }
 
+/* Estilos de scrollbar personalizados */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-text-tertiary);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}

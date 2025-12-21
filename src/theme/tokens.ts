@@ -3,87 +3,17 @@
  * 
  * Centraliza todas las variables de tema (colores, espaciado, tipografía)
  * para facilitar el mantenimiento y la consistencia visual.
+ * 
+ * Estructura:
+ * - baseTokens: Tokens que no cambian entre temas (spacing, typography, etc.)
+ * - colorTokens: Colores semánticos que no cambian entre temas
+ * - Los colores específicos de tema están en themes.ts
  */
 
-export const themeTokens = {
-  colors: {
-    // Colores base - Modo claro (estilo n8n)
-    background: {
-      primary: '#ffffff',
-      secondary: '#f8f9fa',
-      tertiary: '#e9ecef',
-    },
-    foreground: {
-      primary: '#1a1a1a',
-      secondary: '#6c757d',
-      tertiary: '#adb5bd',
-    },
-    // Colores para el canvas - Modo claro
-    canvas: {
-      background: '#f8f9fa',
-      grid: '#dee2e6',
-      node: {
-        default: '#ffffff',
-        selected: '#fff4f2',
-        hover: '#f8f9fa',
-        border: '#dee2e6',
-        'border-hover': '#ff6d5a',
-        'border-selected': '#ff6d5a',
-        header: '#f8f9fa',
-        'header-accent': '#ff6d5a',
-      },
-      edge: {
-        default: '#adb5bd',
-        selected: '#ff6d5a',
-        hover: '#ff8a7a',
-      },
-    },
-    // Colores de estado - estilo n8n
-    status: {
-      success: '#10b981',
-      warning: '#f59e0b',
-      error: '#ef4444',
-      info: '#3b82f6',
-    },
-    // Colores de acento - Rojo n8n
-    accent: {
-      primary: '#ff6d5a',
-      secondary: '#ff8a7a',
-      tertiary: '#ffa99b',
-    },
-    // Colores modo oscuro
-    dark: {
-      background: {
-        primary: '#1a1a1a',
-        secondary: '#2d2d2d',
-        tertiary: '#3d3d3d',
-      },
-      foreground: {
-        primary: '#ffffff',
-        secondary: '#d1d5db',
-        tertiary: '#9ca3af',
-      },
-      canvas: {
-        background: '#1a1a1a',
-        grid: '#2d2d2d',
-        node: {
-          default: '#2d2d2d',
-          selected: '#3d2a26',
-          hover: '#353535',
-          border: '#404040',
-          'border-hover': '#ff6d5a',
-          'border-selected': '#ff6d5a',
-          header: '#353535',
-          'header-accent': '#ff6d5a',
-        },
-        edge: {
-          default: '#6b7280',
-          selected: '#ff6d5a',
-          hover: '#ff8a7a',
-        },
-      },
-    },
-  },
+/**
+ * Tokens base que no cambian entre temas
+ */
+export const baseTokens = {
   spacing: {
     xs: '0.25rem',   // 4px
     sm: '0.5rem',    // 8px
@@ -152,6 +82,75 @@ export const themeTokens = {
   },
 } as const
 
-// Tipo para TypeScript
-export type ThemeTokens = typeof themeTokens
+/**
+ * Colores semánticos que no cambian entre temas
+ * Estos colores representan estados y significados específicos
+ */
+export const colorTokens = {
+  semantic: {
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444',
+    info: '#3b82f6',
+  },
+} as const
 
+/**
+ * Tokens de accesibilidad
+ * Define estándares y utilidades para cumplir con WCAG
+ */
+export const accessibilityTokens = {
+  // Contrast ratios mínimos según WCAG
+  contrast: {
+    aa: {
+      normal: 4.5,      // Texto normal (WCAG AA)
+      large: 3.0,        // Texto grande (18pt+ o 14pt+ bold) (WCAG AA)
+    },
+    aaa: {
+      normal: 7.0,       // Texto normal (WCAG AAA)
+      large: 4.5,        // Texto grande (WCAG AAA)
+    },
+  },
+  // Focus states
+  focus: {
+    ringWidth: '2px',
+    ringOffset: '2px',
+    ringOffsetColor: 'transparent',
+    // El color del focus ring se toma del accent color del tema
+  },
+  // Estados de interacción
+  interaction: {
+    disabledOpacity: 0.5,
+    hoverOpacity: 0.8,
+    activeOpacity: 0.9,
+  },
+} as const
+
+/**
+ * Tipo para tokens base
+ */
+export type BaseTokens = typeof baseTokens
+
+/**
+ * Tipo para tokens de color semánticos
+ */
+export type ColorTokens = typeof colorTokens
+
+/**
+ * Tipo para tokens de accesibilidad
+ */
+export type AccessibilityTokens = typeof accessibilityTokens
+
+/**
+ * Todos los tokens combinados (para compatibilidad con código existente)
+ */
+export const themeTokens = {
+  ...baseTokens,
+  colors: colorTokens,
+  accessibility: accessibilityTokens,
+} as const
+
+/**
+ * Tipo para todos los tokens
+ */
+export type ThemeTokens = typeof themeTokens
