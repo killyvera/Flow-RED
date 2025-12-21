@@ -64,9 +64,10 @@ export interface NodePaletteProps {
   isOpen: boolean
   onClose: () => void
   onNodeDragStart?: (nodeType: string, event: React.DragEvent) => void
+  onNodeClick?: (nodeType: string) => void
 }
 
-export function NodePalette({ isOpen, onClose, onNodeDragStart }: NodePaletteProps) {
+export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: NodePaletteProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [nodes, setNodes] = useState<Array<{
     id: string
@@ -232,7 +233,12 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart }: NodePalettePro
                       e.dataTransfer.effectAllowed = 'move'
                     }
                   }}
-                  className="px-3 py-1.5 hover:bg-node-hover cursor-move transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    if (onNodeClick) {
+                      onNodeClick(node.type)
+                    }
+                  }}
+                  className="px-3 py-1.5 hover:bg-node-hover cursor-pointer transition-colors flex items-center gap-2"
                 >
                   {(() => {
                     const IconComponent = getNodeIcon(node.type)

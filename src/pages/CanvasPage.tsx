@@ -28,7 +28,7 @@ import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
-
+import { ExecutionLog } from '@/components/ExecutionLog'
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 
 import { useCanvasStore } from '@/state/canvasStore'
@@ -143,7 +143,6 @@ export function CanvasPage() {
   const storeEdges = useCanvasStore((state) => state.edges)
   const storeGroups = useCanvasStore((state) => state.groups)
   const isEditMode = useCanvasStore((state) => state.isEditMode)
-  const toggleEditMode = useCanvasStore((state) => state.toggleEditMode)
   const setNodes = useCanvasStore((state) => state.setNodes)
   const setEdges = useCanvasStore((state) => state.setEdges)
   const setGroups = useCanvasStore((state) => state.setGroups)
@@ -183,6 +182,12 @@ export function CanvasPage() {
   // Estado para paleta de nodos
   const [isPaletteOpen, setIsPaletteOpen] = React.useState(false)
   const [isExecutionLogOpen, setIsExecutionLogOpen] = React.useState(false)
+  // Estado para conexión automática desde handle
+  const [pendingConnection, setPendingConnection] = React.useState<{
+    sourceNodeId: string
+    sourceHandleId: string
+    position: { x: number; y: number }
+  } | null>(null)
   
   // Estado para panel de propiedades
   const [isPropertiesOpen, setIsPropertiesOpen] = React.useState(false)
@@ -742,6 +747,95 @@ export function CanvasPage() {
     setNodes(updatedNodes)
     
   }, [isEditMode, activeFlowId, nodes, setNodesLocal, setNodes, reactFlowInstanceRef])
+
+  // Función para crear nodo desde handle con doble clic
+  const handleCreateNodeFromHandle = useCallback((nodeType: string, connection: { sourceNodeId: string; sourceHandleId: string; position: { x: number; y: number } }) => {
+    if (!activeFlowId || !reactFlowInstanceRef.current) return
+
+    // Convertir posición de pantalla a posición del flow
+    let position = { x: 0, y: 0 }
+    try {
+      position = reactFlowInstanceRef.current.screenToFlowPosition({
+        x: connection.position.x,
+        y: connection.position.y,
+      })
+      // Offset para que el nodo aparezca a la derecha del handle
+      position.x += 150
+    } catch (e) {
+      console.debug('Error al convertir posición:', e)
+      position = { x: 200, y: 100 }
+    }
+
+    // Crear el nuevo nodo
+    const newNodeId = `${nodeType}-${Date.now()}`
+    const newNodeType = getNodeType(nodeType)
+    const newNode: Node = {
+      id: newNodeId,
+      type: newNodeType,
+      position,
+      data: {
+        label: nodeType,
+        nodeRedType: nodeType,
+        flowId: activeFlowId,
+        outputPortsCount: 1,
+        nodeRedNode: {
+          id: newNodeId,
+          type: nodeType,
+          name: nodeType,
+          z: activeFlowId,
+        },
+      },
+    }
+
+    // Agregar el nodo
+    const updatedNodes = [...nodes, newNode]
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+
+    // Crear la conexión automáticamente
+    const newEdge: Edge = {
+      id: `${connection.sourceNodeId}-${connection.sourceHandleId}-${newNodeId}-input`,
+      source: connection.sourceNodeId,
+      sourceHandle: connection.sourceHandleId,
+      target: newNodeId,
+      targetHandle: 'input',
+      type: 'smoothstep',
+      style: {
+        strokeWidth: 2,
+        stroke: 'var(--color-edge-default)',
+      },
+      markerEnd: {
+        type: 'arrowclosed' as MarkerType,
+        color: 'var(--color-edge-default)',
+      },
+    }
+
+    const updatedEdges = [...edges, newEdge]
+    setEdgesLocal(updatedEdges)
+    setEdges(updatedEdges)
+  }, [activeFlowId, nodes, edges, setNodesLocal, setEdgesLocal, setNodes, setEdges, reactFlowInstanceRef])
+
+  // Listener para doble clic en handles
+  useEffect(() => {
+    const handleDoubleClick = (event: CustomEvent) => {
+      const { nodeId, handleId, handleType, position } = event.detail
+      
+      // Solo procesar handles de salida (source)
+      if (handleType === 'source') {
+        setPendingConnection({
+          sourceNodeId: nodeId,
+          sourceHandleId: handleId,
+          position,
+        })
+        setIsPaletteOpen(true)
+      }
+    }
+
+    window.addEventListener('handleDoubleClick', handleDoubleClick as EventListener)
+    return () => {
+      window.removeEventListener('handleDoubleClick', handleDoubleClick as EventListener)
+    }
+  }, [])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -1368,25 +1462,10 @@ export function CanvasPage() {
 
   return (
     <div className="w-full h-full bg-canvas-bg flex flex-col">
-      {/* Barra superior con selector de flow, modo edición y estado */}
+      {/* Barra superior con selector de flow y estado */}
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center gap-4">
 
-        {/* Toggle de modo edición */}
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isEditMode}
-              onChange={toggleEditMode}
-              className="w-4 h-4 text-accent-primary border-node-border rounded focus:ring-accent-primary focus:ring-2"
-            />
-            <span className="text-xs font-medium text-text-secondary">
-              Modo Edición
-            </span>
-          </label>
-        </div>
-
-        {/* Botón de paleta (solo en modo edición) */}
+        {/* Botón de paleta */}
         {isEditMode && (
           <>
             <div className="w-px h-6 bg-canvas-grid" />
@@ -1531,7 +1610,18 @@ export function CanvasPage() {
       {isEditMode && (
         <NodePalette
           isOpen={isPaletteOpen}
-          onClose={() => setIsPaletteOpen(false)}
+          onClose={() => {
+            setIsPaletteOpen(false)
+            setPendingConnection(null)
+          }}
+          onNodeClick={(nodeType) => {
+            if (pendingConnection) {
+              // Crear nodo y conectarlo automáticamente
+              handleCreateNodeFromHandle(nodeType, pendingConnection)
+              setPendingConnection(null)
+              setIsPaletteOpen(false)
+            }
+          }}
         />
       )}
 
@@ -1651,6 +1741,10 @@ export function CanvasPage() {
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => {
+              setSelectedNode(node)
+              // No abrir panel automáticamente en click simple, solo seleccionar
+            }}
+            onNodeDoubleClick={(_, node) => {
               setSelectedNode(node)
               setIsPropertiesOpen(true)
             }}
