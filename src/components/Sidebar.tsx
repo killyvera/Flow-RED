@@ -7,8 +7,9 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
+import { useFlowManager } from '@/context/FlowManagerContext'
 
 interface SidebarItem {
   id: string
@@ -28,6 +29,7 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarProps) {
   const [currentView, setCurrentView] = useState<SidebarView>('menu')
   const { isDarkMode, toggleDarkMode } = useTheme()
+  const { openFlowManager } = useFlowManager()
 
   // Resetear al menú principal cuando se colapsa
   React.useEffect(() => {
@@ -40,6 +42,18 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
   }, [isCollapsed, currentView, onCollapse])
 
   const sidebarItems: SidebarItem[] = [
+    {
+      id: 'create-flow',
+      icon: Plus,
+      label: 'Crear flujo',
+      onClick: () => {
+        openFlowManager()
+        // Si está colapsado, expandir al abrir
+        if (isCollapsed) {
+          onToggleCollapse()
+        }
+      },
+    },
     {
       id: 'settings',
       icon: Settings,
@@ -65,10 +79,10 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
       }`}
     >
       {/* Contenido del sidebar */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative">
         {currentView === 'menu' ? (
           /* Vista del menú principal */
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full absolute inset-0">
             <div className="flex-1 py-4">
               <div className="flex flex-col gap-2 px-2">
                 {sidebarItems.map((item) => {
@@ -106,9 +120,9 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
           </div>
         ) : (
           /* Vista de configuración */
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full absolute inset-0">
             {/* Header de configuración */}
-            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid">
+            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid flex-shrink-0">
               <button
                 onClick={handleBackToMenu}
                 className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"

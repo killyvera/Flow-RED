@@ -60,6 +60,7 @@ import { saveDraft, loadDraft, deleteDraft } from '@/utils/draftStorage'
 import { DeployConflictModal } from '@/components/DeployConflictModal'
 import { DraftRestoreModal } from '@/components/DraftRestoreModal'
 import { FlowManager } from '@/components/FlowManager'
+import { useFlowManager } from '@/context/FlowManagerContext'
 
 // Registrar los tipos de nodos personalizados
 import { InjectNode } from '@/canvas/nodes/InjectNode'
@@ -133,6 +134,7 @@ const canvasConfig = {
 
 export function CanvasPage() {
   // Theme context available if needed
+  const { isFlowManagerOpen, closeFlowManager } = useFlowManager()
 
   // Memoizar nodeTypes y edgeTypes para evitar recreaciones en cada render
   // Esto es necesario para evitar warnings de React Flow
@@ -3196,6 +3198,9 @@ export function CanvasPage() {
           await importFlowFromJson(json, options)
         }}
         onConvertToSubflow={handleConvertFlowToSubflow}
+        isOpen={isFlowManagerOpen}
+        onClose={closeFlowManager}
+        showFloatingButton={false}
       />
 
       {/* Breadcrumb de navegación de subflows */}

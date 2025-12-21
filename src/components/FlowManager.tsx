@@ -23,6 +23,9 @@ export interface FlowManagerProps {
   onDeleteFlow: (flowId: string) => Promise<void>
   onImportFlow: (json: string | object, options?: { name?: string }) => Promise<void>
   onConvertToSubflow?: (flowId: string) => Promise<void>
+  isOpen?: boolean // Control externo del estado abierto/cerrado
+  onClose?: () => void // Callback cuando se cierra
+  showFloatingButton?: boolean // Si se muestra el botón flotante (por defecto true para compatibilidad)
 }
 
 export function FlowManager({
@@ -37,8 +40,23 @@ export function FlowManager({
   onDeleteFlow,
   onImportFlow,
   onConvertToSubflow,
+  isOpen: externalIsOpen,
+  onClose: externalOnClose,
+  showFloatingButton = true,
 }: FlowManagerProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  // Estado interno para controlar si el panel está abierto (solo si no se controla externamente)
+  const [internalIsOpen, setInternalIsOpen] = useState(false)
+  
+  // Si isOpen es controlado externamente, usar ese valor, sino usar el interno
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
+  const handleClose = () => {
+    if (externalOnClose) {
+      externalOnClose()
+    } else {
+      setInternalIsOpen(false)
+    }
+  }
+
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; flowId: string | null; flowName: string }>({
     isOpen: false,
     flowId: null,
@@ -92,16 +110,27 @@ export function FlowManager({
     }
   }
 
-  if (!isOpen) {
+  // Si el panel no está abierto y se debe mostrar el botón flotante, mostrarlo
+  if (!isOpen && showFloatingButton) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed left-4 top-20 z-40 p-3 bg-bg-primary border border-node-border rounded-lg shadow-lg hover:bg-node-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+        onClick={() => {
+          if (externalIsOpen === undefined) {
+            setInternalIsOpen(true)
+          }
+        }}
+        className="fixed left-4 top-20 z-40 flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 justify-center"
         title="Gestionar flows"
+        aria-label="Gestionar flows"
       >
-        <Plus className="w-5 h-5 text-text-primary" />
+        <Plus className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
       </button>
     )
+  }
+
+  // Si no está abierto y no se debe mostrar el botón flotante, no renderizar nada
+  if (!isOpen) {
+    return null
   }
 
   return (
@@ -111,7 +140,7 @@ export function FlowManager({
         <div className="flex items-center justify-between p-4 border-b border-node-border">
           <h2 className="text-lg font-semibold text-text-primary">Flows</h2>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             className="p-1.5 rounded hover:bg-node-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             title="Cerrar"
           >

@@ -178,7 +178,7 @@ body {
   background-color: var(--color-bg-primary) !important;
   border: 1px solid var(--color-node-border) !important;
   border-radius: var(--radius-md) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: var(--shadow-node) !important;
   padding: 4px !important;
   gap: 2px !important;
   display: flex !important;
@@ -238,9 +238,7 @@ body {
 }
 
 
-.dark .react-flow__controls {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-}
+/* La sombra se adapta automáticamente mediante var(--shadow-node) */
 
 .react-flow__controls-button {
   background-color: transparent !important;
