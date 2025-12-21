@@ -63,11 +63,11 @@ export function getRuntimeStateColor(state: NodeRuntimeState | null): string | u
 
   switch (state) {
     case 'running':
-      return 'var(--node-status-success, #10b981)'
+      return 'var(--node-status-success)'
     case 'error':
-      return 'var(--node-status-error, #ef4444)'
+      return 'var(--node-status-error)'
     case 'warning':
-      return 'var(--node-status-warning, #f59e0b)'
+      return 'var(--node-status-warning)'
     default:
       return undefined
   }

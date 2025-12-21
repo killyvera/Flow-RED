@@ -142,7 +142,7 @@ export function GroupSelector({
             <div className="p-2">
               {filteredGroups.map((group) => {
                 const groupName = group.name || group.label || `Grupo ${group.id.slice(0, 8)}`
-                const groupColor = group.color || '#3b82f6'
+                const groupColor = group.color || 'var(--color-group-text)'
                 
                 return (
                   <button

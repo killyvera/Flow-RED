@@ -41,6 +41,7 @@ export interface Theme {
         selected: string
         hover: string
         active: string
+        'active-glow': string
       }
     }
     accent: {
@@ -101,6 +102,7 @@ export const lightTheme: Theme = {
         selected: '#ff6d5a',
         hover: '#ff8a7a',
         active: '#10b981',
+        'active-glow': 'rgba(16, 185, 129, 0.8)',
       },
     },
     accent: {
@@ -161,6 +163,7 @@ export const darkTheme: Theme = {
         selected: '#ff6d5a',
         hover: '#ff8a7a',
         active: '#10b981',
+        'active-glow': 'rgba(16, 185, 129, 0.8)',
       },
     },
     accent: {
@@ -222,6 +225,7 @@ export const highContrastTheme: Theme = {
         selected: '#0066cc',
         hover: '#0088ff',
         active: '#00aa00',
+        'active-glow': 'rgba(0, 170, 0, 0.8)',
       },
     },
     accent: {
@@ -283,6 +287,7 @@ export const corporateTheme: Theme = {
         selected: '#0066cc',
         hover: '#0088ff',
         active: '#00aa00',
+        'active-glow': 'rgba(0, 170, 0, 0.8)',
       },
     },
     accent: {

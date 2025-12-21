@@ -44,6 +44,7 @@ export function generateCSSVariables(theme: Theme): string {
   variables.push(`  --color-edge-selected: ${colors.canvas.edge.selected};`)
   variables.push(`  --color-edge-hover: ${colors.canvas.edge.hover};`)
   variables.push(`  --color-edge-active: ${colors.canvas.edge.active};`)
+  variables.push(`  --color-edge-active-glow: ${colors.canvas.edge['active-glow']};`)
 
   // Colores de acento
   variables.push(`  --color-accent-primary: ${colors.accent.primary};`)

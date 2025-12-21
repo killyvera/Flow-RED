@@ -45,16 +45,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const applyTheme = async () => {
       try {
-        const theme = await getConfiguredTheme(currentTheme)
-        
-        // Si es light o dark, usar el método estándar
-        if (currentTheme === 'light' || currentTheme === 'dark') {
-          applyLightDarkTheme(theme, currentTheme === 'dark')
-          setIsDarkMode(currentTheme === 'dark')
-        } else {
-          // Para temas personalizados, usar clase CSS
-          applyThemeWithClass(theme, `theme-${currentTheme}`)
-          setIsDarkMode(false) // Temas personalizados no son "dark mode"
+        // Aplicar tema base inmediatamente para evitar flash de contenido sin estilo
+        const baseTheme = getTheme(currentTheme)
+        if (baseTheme) {
+          if (currentTheme === 'light' || currentTheme === 'dark') {
+            applyLightDarkTheme(baseTheme, currentTheme === 'dark')
+            setIsDarkMode(currentTheme === 'dark')
+          } else {
+            applyThemeWithClass(baseTheme, `theme-${currentTheme}`)
+            setIsDarkMode(false)
+          }
+        }
+
+        // Luego intentar cargar configuración personalizada (si existe)
+        try {
+          const theme = await getConfiguredTheme(currentTheme)
+          if (currentTheme === 'light' || currentTheme === 'dark') {
+            applyLightDarkTheme(theme, currentTheme === 'dark')
+            setIsDarkMode(currentTheme === 'dark')
+          } else {
+            applyThemeWithClass(theme, `theme-${currentTheme}`)
+            setIsDarkMode(false)
+          }
+        } catch (configError) {
+          // Si falla la carga de configuración, el tema base ya está aplicado
+          // No hacer nada, solo loguear en desarrollo
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('No se encontró configuración personalizada de tema, usando tema base')
+          }
         }
       } catch (error) {
         console.error('Error al cargar tema:', error)
@@ -62,6 +80,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const lightTheme = getTheme('light')
         if (lightTheme) {
           applyLightDarkTheme(lightTheme, false)
+          setIsDarkMode(false)
         }
       }
     }
@@ -122,6 +141,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   const context = useContext(ThemeContext)
   if (context === undefined) {
+    // Durante el desarrollo, puede haber un problema con hot reload
+    // Proporcionar valores por defecto en lugar de lanzar error
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('useTheme: ThemeProvider no encontrado, usando valores por defecto')
+      return {
+        currentTheme: 'light',
+        availableThemes: ['light', 'dark'],
+        setTheme: () => {},
+        isDarkMode: false,
+        toggleDarkMode: () => {},
+      }
+    }
     throw new Error('useTheme debe ser usado dentro de un ThemeProvider')
   }
   return context

@@ -10,7 +10,7 @@
  * - Muestra estados de carga y errores
  */
 
-import React, { useCallback, useEffect } from 'react'
+import React, { useCallback, useEffect, useMemo } from 'react'
 import type { Node, MarkerType } from 'reactflow'
 import ReactFlow, {
   Controls,
@@ -56,15 +56,13 @@ import { InjectNode } from '@/canvas/nodes/InjectNode'
 import { DebugNode } from '@/canvas/nodes/DebugNode'
 import { GroupNode } from '@/canvas/nodes/GroupNode'
 
-const nodeTypes = {
+// Definir tipos de nodos fuera del componente para referencia
+const baseNodeTypes = {
   baseNode: BaseNode,
   inject: InjectNode,
   debug: DebugNode,
   group: GroupNode,
 }
-
-// Configurar los tipos de edges
-const edgeTypes = modernEdgeTypes
 
 /**
  * Configuración del canvas de React Flow
@@ -121,6 +119,11 @@ const canvasConfig = {
 export function CanvasPage() {
   // Obtener tema actual
   const { isDarkMode } = useTheme()
+
+  // Memoizar nodeTypes y edgeTypes para evitar recreaciones en cada render
+  // Esto es necesario para evitar warnings de React Flow
+  const nodeTypes = useMemo(() => baseNodeTypes, [])
+  const edgeTypes = useMemo(() => modernEdgeTypes, [])
 
   // Cargar flows de Node-RED automáticamente
   const {
@@ -1445,6 +1448,8 @@ export function CanvasPage() {
   const handleChangeGroupColor = useCallback((groupId: string) => {
     // Abrir un prompt simple para cambiar color (mejorar con modal de color picker)
     const currentGroup = storeGroups.find(g => g.id === groupId)
+    // Usar color por defecto del tema (azul) como fallback para el prompt
+    // El prompt requiere un valor hexadecimal, no una variable CSS
     const currentColor = currentGroup?.color || '#3b82f6'
     
     const newColor = window.prompt('Ingrese el color hexadecimal (ej: #3b82f6):', currentColor)
@@ -2005,9 +2010,7 @@ export function CanvasPage() {
               backgroundColor: 'var(--color-bg-primary)',
               border: '1px solid var(--color-node-border)',
               borderRadius: 'var(--radius-md)',
-              boxShadow: isDarkMode 
-                ? '0 2px 8px rgba(0, 0, 0, 0.3)' 
-                : '0 2px 8px rgba(0, 0, 0, 0.1)',
+              boxShadow: 'var(--shadow-node)',
             }}
           />
 
@@ -2018,7 +2021,7 @@ export function CanvasPage() {
               // Color de los nodos en el minimap
               return 'var(--color-accent-primary)'
             }}
-            maskColor="rgba(0, 0, 0, 0.1)"
+            maskColor="var(--color-bg-tertiary)"
             style={{
               backgroundColor: 'var(--color-bg-primary)',
               border: '1px solid var(--color-node-border)',

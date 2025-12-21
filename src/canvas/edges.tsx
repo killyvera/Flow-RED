@@ -61,12 +61,12 @@ const AnimatedEdge = memo(function AnimatedEdge({
           ...style,
           strokeWidth: isActive ? 4 : (style.strokeWidth as number) || 2,
           stroke: isActive 
-            ? '#10b981' // Verde brillante cuando está activo
-            : (style.stroke as string) || '#adb5bd', // Gris por defecto
+            ? 'var(--color-edge-active)' // Color activo del tema
+            : (style.stroke as string) || 'var(--color-edge-default)', // Color por defecto del tema
           fill: 'none',
           transition: 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
           filter: isActive 
-            ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' 
+            ? 'drop-shadow(0 0 6px var(--color-edge-active-glow))' 
             : 'none',
         }}
         className={isActive ? 'edge-active' : ''}
@@ -81,16 +81,16 @@ const AnimatedEdge = memo(function AnimatedEdge({
             path={edgePath}
             style={{
               strokeWidth: 6,
-              stroke: '#10b981',
+              stroke: 'var(--color-edge-active)',
               fill: 'none',
               opacity: 0.4,
-              filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))',
+              filter: 'drop-shadow(0 0 4px var(--color-edge-active-glow))',
             }}
             className="edge-pulse"
           />
           
           {/* Punto animado que se mueve por el edge usando SVG animateMotion */}
-          <circle r="8" fill="#10b981" className="edge-moving-dot" opacity="1">
+          <circle r="8" fill="var(--color-edge-active)" className="edge-moving-dot" opacity="1">
             <animateMotion
               dur="1.5s"
               repeatCount="indefinite"

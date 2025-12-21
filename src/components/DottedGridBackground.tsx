@@ -10,13 +10,8 @@ import React from 'react'
 import { useTheme } from '@/context/ThemeContext'
 
 export function DottedGridBackground() {
-  const { isDarkMode } = useTheme()
-  
-  // Colores más llamativos según el tema
-  // Modo oscuro: gris medio (#8b92a0) - un poco más oscuro
-  // Modo claro: gris más oscuro (#6c757d)
-  const dotColor = isDarkMode ? '#8b92a0' : '#6c757d'
-  
+  // Usar variable CSS del tema para el color del grid
+  // El color se ajusta automáticamente según el tema activo
   return (
     <div
       className="react-flow__background"
@@ -26,7 +21,7 @@ export function DottedGridBackground() {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundImage: `radial-gradient(circle, ${dotColor} 1px, transparent 1px)`,
+        backgroundImage: 'radial-gradient(circle, var(--color-canvas-grid) 1px, transparent 1px)',
         backgroundSize: '20px 20px',
         backgroundPosition: '0 0',
         opacity: 0.6,
