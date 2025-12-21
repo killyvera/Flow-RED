@@ -56,6 +56,10 @@ import { getNodeType } from '@/canvas/nodes/nodeFactory'
 import { saveFlow, type SaveFlowError } from '@/api/client'
 import { transformReactFlowToNodeRed } from '@/canvas/mappers'
 import type { NodeRedGroup } from '@/api/types'
+import { hasUnsavedChanges, createFlowSnapshot, type SavedFlowState } from '@/utils/dirtyState'
+import { saveDraft, loadDraft, deleteDraft } from '@/utils/draftStorage'
+import { DeployConflictModal } from '@/components/DeployConflictModal'
+import { DraftRestoreModal } from '@/components/DraftRestoreModal'
 
 // Registrar los tipos de nodos personalizados
 import { InjectNode } from '@/canvas/nodes/InjectNode'
@@ -199,8 +203,21 @@ export function CanvasPage() {
   const [saveSuccess, setSaveSuccess] = React.useState(false)
 
   // Estado para rastrear cambios no guardados
-  const [savedNodes, setSavedNodes] = React.useState<Node[]>([])
-  const [savedEdges, setSavedEdges] = React.useState<Edge[]>([])
+  const [savedState, setSavedState] = React.useState<SavedFlowState | null>(null)
+  
+  // Estado para modales
+  const [conflictModal, setConflictModal] = React.useState<{
+    isOpen: boolean
+    conflictType: 'version' | 'rev_mismatch'
+    localFlow: any[]
+  } | null>(null)
+  const [draftRestoreModal, setDraftRestoreModal] = React.useState<{
+    isOpen: boolean
+    draftTimestamp: number
+  } | null>(null)
+  
+  // Ref para almacenar el flow local actual (para export en caso de conflicto)
+  const localFlowRef = React.useRef<any[]>([])
 
   // Estado para paleta de nodos
   const [isPaletteOpen, setIsPaletteOpen] = React.useState(false)
@@ -366,13 +383,38 @@ export function CanvasPage() {
 
   // Guardar estado inicial cuando cambia el flow activo o se cargan nuevos nodos
   const prevActiveFlowIdRef = React.useRef<string | null>(null)
+  const hasCheckedDraftRef = React.useRef<Set<string>>(new Set())
+  
   useEffect(() => {
     // Solo actualizar cuando cambia el flow activo o cuando se cargan nodos por primera vez
     if (activeFlowId && storeNodes.length > 0) {
       // Si cambió el flow activo o es la primera carga
       if (prevActiveFlowIdRef.current !== activeFlowId) {
-        setSavedNodes(JSON.parse(JSON.stringify(storeNodes))) // Deep copy
-        setSavedEdges(JSON.parse(JSON.stringify(storeEdges))) // Deep copy
+        // Verificar si hay un draft guardado para este flow
+        const checkDraft = async () => {
+          const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+          if (!hasCheckedDraftRef.current.has(activeFlowId)) {
+            hasCheckedDraftRef.current.add(activeFlowId)
+            const draft = await loadDraft(activeFlowId)
+            if (draft) {
+              // Mostrar modal de restauración
+              setDraftRestoreModal({
+                isOpen: true,
+                draftTimestamp: draft.timestamp,
+              })
+            } else {
+              // No hay draft, guardar estado inicial
+              const snapshot = createFlowSnapshot(storeNodes, storeEdges, currentNodeRedNodes)
+              setSavedState(snapshot)
+            }
+          } else {
+            // Ya se verificó el draft, solo actualizar estado guardado
+            const snapshot = createFlowSnapshot(storeNodes, storeEdges, currentNodeRedNodes)
+            setSavedState(snapshot)
+          }
+        }
+        
+        checkDraft()
         prevActiveFlowIdRef.current = activeFlowId
       }
     }
@@ -604,10 +646,34 @@ export function CanvasPage() {
         throw new Error(errorMessage)
       }
       
+      // Guardar el flow local en ref para export en caso de conflicto
+      localFlowRef.current = allNodesToSave
+      
       // Guardar usando la API (la validación se hace dentro de saveFlow)
       console.log('[handleSave] Guardando flow en Node-RED...')
-      await saveFlow(activeFlowId, allNodesToSave)
-      console.log('[handleSave] ✅ Flow guardado exitosamente')
+      let currentRev: string | undefined
+      try {
+        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev)
+        currentRev = result.rev
+        console.log('[handleSave] ✅ Flow guardado exitosamente')
+      } catch (saveErr: any) {
+        // Manejar conflictos (HTTP 409 o rev mismatch)
+        if (saveErr && typeof saveErr === 'object' && 'code' in saveErr) {
+          const saveError = saveErr as SaveFlowError
+          if (saveError.httpStatus === 409 || saveError.code === 'SAVE_ERROR') {
+            // Mostrar modal de conflictos
+            setConflictModal({
+              isOpen: true,
+              conflictType: saveError.httpStatus === 409 ? 'version' : 'rev_mismatch',
+              localFlow: allNodesToSave,
+            })
+            setIsSaving(false)
+            return // Salir sin actualizar estado guardado
+          }
+        }
+        // Re-lanzar error si no es un conflicto
+        throw saveErr
+      }
       
       // #region agent log
       const flowsAfterSave = useCanvasStore.getState().flows
@@ -623,8 +689,14 @@ export function CanvasPage() {
       
       // Actualizar estado guardado después de guardar exitosamente
       // Usar los nodos y edges actuales del estado local (que acabamos de guardar)
-      setSavedNodes(JSON.parse(JSON.stringify(nodes))) // Deep copy
-      setSavedEdges(JSON.parse(JSON.stringify(edges))) // Deep copy
+      const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const newSavedState = createFlowSnapshot(nodes, edges, currentNodeRedNodes)
+      setSavedState(newSavedState)
+      
+      // Eliminar draft ya que se guardó exitosamente
+      await deleteDraft(activeFlowId).catch(err => {
+        console.warn('Error al eliminar draft:', err)
+      })
       
       console.log('[handleSave] ✅ Store actualizado con estado guardado')
       
@@ -1571,54 +1643,31 @@ export function CanvasPage() {
     onClipboardChange: setHasClipboard,
   })
 
-  // Función para comparar si hay cambios no guardados
-  const hasUnsavedChanges = useCallback(() => {
-    if (!isEditMode) return false
+  // Función para comparar si hay cambios no guardados (usando nueva utilidad)
+  const isDirty = useMemo(() => {
+    if (!isEditMode || !savedState) return false
+    return hasUnsavedChanges(nodes, edges, savedState)
+  }, [isEditMode, nodes, edges, savedState])
+  
+  // Autosave: guardar draft periódicamente si hay cambios
+  useEffect(() => {
+    if (!activeFlowId || !isEditMode || !isDirty) return
     
-    // Comparar nodos (solo posición y propiedades relevantes)
-    const nodesChanged = nodes.length !== savedNodes.length ||
-      nodes.some((node, index) => {
-        const saved = savedNodes[index]
-        if (!saved) return true
-        return (
-          node.id !== saved.id ||
-          node.position.x !== saved.position.x ||
-          node.position.y !== saved.position.y ||
-          node.data.label !== saved.data.label ||
-          JSON.stringify(node.data.nodeRedNode) !== JSON.stringify(saved.data.nodeRedNode)
-        )
-      }) ||
-      savedNodes.some((saved, index) => {
-        const node = nodes[index]
-        if (!node) return true
-        return node.id !== saved.id
-      })
-
-    // Comparar edges
-    const edgesChanged = edges.length !== savedEdges.length ||
-      edges.some((edge, index) => {
-        const saved = savedEdges[index]
-        if (!saved) return true
-        return (
-          edge.id !== saved.id ||
-          edge.source !== saved.source ||
-          edge.target !== saved.target ||
-          edge.sourceHandle !== saved.sourceHandle ||
-          edge.targetHandle !== saved.targetHandle
-        )
-      }) ||
-      savedEdges.some((saved, index) => {
-        const edge = edges[index]
-        if (!edge) return true
-        return edge.id !== saved.id
-      })
-
-    return nodesChanged || edgesChanged
-  }, [isEditMode, nodes, edges, savedNodes, savedEdges])
+    const autosaveInterval = setInterval(async () => {
+      try {
+        const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+        await saveDraft(activeFlowId, nodes, edges, currentNodeRedNodes)
+      } catch (error) {
+        console.warn('Error en autosave:', error)
+      }
+    }, 30000) // Autosave cada 30 segundos
+    
+    return () => clearInterval(autosaveInterval)
+  }, [activeFlowId, isEditMode, isDirty, nodes, edges])
 
   // Función wrapper para switchFlow que verifica cambios no guardados
   const handleSwitchFlow = useCallback((newFlowId: string) => {
-    if (hasUnsavedChanges()) {
+    if (isDirty) {
       const confirm = window.confirm(
         'Tienes cambios sin guardar. ¿Estás seguro de que quieres cambiar de flow? Los cambios se perderán.'
       )
@@ -1627,7 +1676,7 @@ export function CanvasPage() {
       }
     }
     switchFlow(newFlowId)
-  }, [hasUnsavedChanges, switchFlow])
+  }, [isDirty, switchFlow])
 
   // Navegación entre flows con teclado (Ctrl+[ y Ctrl+])
   useEffect(() => {
@@ -1760,7 +1809,7 @@ export function CanvasPage() {
               )}
             </button>
             {/* Indicador de cambios no guardados */}
-            {hasUnsavedChanges() && !isSaving && (
+            {isDirty && !isSaving && (
               <span className="text-xs text-status-warning flex items-center gap-1" title="Tienes cambios sin guardar">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -2343,6 +2392,108 @@ export function CanvasPage() {
       
       {/* Performance Readout (dev-only) */}
       <PerfReadout />
+      
+      {/* Modal de conflictos de deploy */}
+      {conflictModal && (
+        <DeployConflictModal
+          isOpen={conflictModal.isOpen}
+          onClose={() => setConflictModal(null)}
+          onReload={async () => {
+            setConflictModal(null)
+            // Recargar flow desde servidor
+            await loadFlows()
+            await renderFlow(activeFlowId!)
+            // Actualizar estado guardado
+            const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+            const snapshot = createFlowSnapshot(storeNodes, storeEdges, currentNodeRedNodes)
+            setSavedState(snapshot)
+          }}
+          onExport={() => {
+            // El export ya se maneja dentro del modal
+            setConflictModal(null)
+          }}
+          onForceOverwrite={async () => {
+            setConflictModal(null)
+            // Intentar guardar forzando (sin rev)
+            try {
+              setIsSaving(true)
+              const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+              const allFlows = allNodeRedNodes.filter(n => n.type === 'tab')
+              const nodesFromOtherFlows = allNodeRedNodes.filter(
+                n => n.z !== activeFlowId && n.type !== 'tab'
+              )
+              const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId!)
+              const allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
+              
+              // Guardar sin rev (force overwrite)
+              await saveFlow(activeFlowId!, allNodesToSave, '')
+              
+            // Actualizar estado guardado
+            const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+            const snapshot = createFlowSnapshot(nodes, edges, currentNodeRedNodes)
+            setSavedState(snapshot)
+              await deleteDraft(activeFlowId!).catch(() => {})
+              
+              setSaveSuccess(true)
+              setTimeout(() => setSaveSuccess(false), 3000)
+            } catch (err) {
+              console.error('Error al forzar sobrescritura:', err)
+              setSaveError('Error al forzar sobrescritura. Intenta recargar desde el servidor.')
+            } finally {
+              setIsSaving(false)
+            }
+          }}
+          localFlow={conflictModal.localFlow}
+          conflictType={conflictModal.conflictType}
+        />
+      )}
+      
+      {/* Modal de restauración de draft */}
+      {draftRestoreModal && (
+        <DraftRestoreModal
+          isOpen={draftRestoreModal.isOpen}
+          onClose={() => {
+            setDraftRestoreModal(null)
+            // Si se cierra sin restaurar, eliminar el draft
+            if (activeFlowId) {
+              deleteDraft(activeFlowId).catch(() => {})
+            }
+          }}
+          onRestore={async () => {
+            if (!activeFlowId) return
+            
+            const draft = await loadDraft(activeFlowId)
+            if (draft) {
+              // Restaurar nodos y edges desde el draft
+              setNodesLocal(draft.nodes)
+              setEdgesLocal(draft.edges)
+              setNodes(draft.nodes)
+              setEdges(draft.edges)
+              
+              // Actualizar nodeRedNodes en el store
+              useCanvasStore.getState().setNodeRedNodes(draft.nodeRedNodes)
+              
+              // Actualizar estado guardado
+              const snapshot = createFlowSnapshot(draft.nodes, draft.edges, draft.nodeRedNodes)
+              setSavedState(snapshot)
+              
+              setDraftRestoreModal(null)
+            }
+          }}
+          onDiscard={async () => {
+            if (activeFlowId) {
+              await deleteDraft(activeFlowId).catch(() => {})
+            }
+            // Guardar estado actual como guardado (descartar draft)
+            const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+            const snapshot = createFlowSnapshot(storeNodes, storeEdges, currentNodeRedNodes)
+            setSavedState(snapshot)
+            setDraftRestoreModal(null)
+          }}
+          draftTimestamp={draftRestoreModal.draftTimestamp}
+          flowName={flows.find(f => f.id === activeFlowId)?.label}
+        />
+      )}
     </div>
   )
 }
