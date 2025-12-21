@@ -8,7 +8,6 @@
  */
 
 import { memo, useState } from 'react'
-import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { BaseNode } from './BaseNode'
 import { triggerInjectNode } from '@/api/client'
