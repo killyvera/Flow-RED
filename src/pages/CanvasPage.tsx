@@ -10,7 +10,7 @@
  * - Muestra estados de carga y errores
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import type { Node, MarkerType } from 'reactflow'
 import ReactFlow, {
   Background,
@@ -26,7 +26,6 @@ import ReactFlow, {
   applyEdgeChanges,
 } from 'reactflow'
 import type { Edge } from 'reactflow'
-import { Moon, Sun } from 'lucide-react'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
@@ -116,30 +115,6 @@ const canvasConfig = {
 }
 
 export function CanvasPage() {
-  // Estado para modo oscuro con persistencia en localStorage
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('darkMode')
-      return saved === 'true'
-    }
-    return false
-  })
-
-  // Aplicar/remover clase dark del elemento raíz
-  useEffect(() => {
-    const root = document.documentElement
-    if (isDarkMode) {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-    localStorage.setItem('darkMode', String(isDarkMode))
-  }, [isDarkMode])
-
-  const toggleDarkMode = useCallback(() => {
-    setIsDarkMode((prev) => !prev)
-  }, [])
-
   // Cargar flows de Node-RED automáticamente
   const {
     flows,
@@ -225,6 +200,7 @@ export function CanvasPage() {
     isOpen: false,
     nodeId: null,
   })
+
 
   // Estados locales de React Flow para manejar cambios en tiempo real
   const [nodes, setNodesLocal, onNodesChange] = useNodesState(storeNodes)
@@ -1364,21 +1340,6 @@ export function CanvasPage() {
     <div className="w-full h-full bg-canvas-bg flex flex-col">
       {/* Barra superior con selector de flow, modo edición y estado */}
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center gap-4">
-        {/* Toggle de modo oscuro */}
-        <button
-          onClick={toggleDarkMode}
-          className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors"
-          aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-          title={isDarkMode ? 'Modo oscuro' : 'Modo claro'}
-        >
-          {isDarkMode ? (
-            <Sun className="w-4 h-4" strokeWidth={2} />
-          ) : (
-            <Moon className="w-4 h-4" strokeWidth={2} />
-          )}
-        </button>
-
-        <div className="w-px h-6 bg-canvas-grid" />
 
         {/* Toggle de modo edición */}
         <div className="flex items-center gap-2">
@@ -1957,6 +1918,7 @@ export function CanvasPage() {
             }}
           />
         )}
+
       </div>
     </div>
   )
