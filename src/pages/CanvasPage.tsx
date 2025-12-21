@@ -31,6 +31,7 @@ import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
+import { useTheme } from '@/context/ThemeContext'
 
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
@@ -118,6 +119,9 @@ const canvasConfig = {
 }
 
 export function CanvasPage() {
+  // Obtener tema actual
+  const { isDarkMode } = useTheme()
+
   // Cargar flows de Node-RED automáticamente
   const {
     flows,
@@ -751,6 +755,166 @@ export function CanvasPage() {
     setNodes(updatedNodes)
     
   }, [isEditMode, activeFlowId, nodes, setNodesLocal, setNodes, reactFlowInstanceRef])
+
+  // Función para organizar nodos de manera compacta (Tidy up)
+  const handleTidyUp = useCallback(() => {
+    if (!nodes.length || !reactFlowInstanceRef.current) return
+
+    // Constantes de espaciado (mitad de la distancia anterior)
+    const HORIZONTAL_SPACING = 270 // Espacio horizontal entre niveles (mitad de 540)
+    const VERTICAL_SPACING = 180 // Espacio vertical entre nodos del mismo nivel (mitad de 360)
+    const START_X = 50 // Posición X inicial
+    const START_Y = 50 // Posición Y inicial
+
+    // Crear mapas para acceso rápido
+    const edgesBySource = new Map<string, Edge[]>()
+    const edgesByTarget = new Map<string, Edge[]>()
+    
+    edges.forEach(edge => {
+      if (!edgesBySource.has(edge.source)) {
+        edgesBySource.set(edge.source, [])
+      }
+      edgesBySource.get(edge.source)!.push(edge)
+      
+      if (!edgesByTarget.has(edge.target)) {
+        edgesByTarget.set(edge.target, [])
+      }
+      edgesByTarget.get(edge.target)!.push(edge)
+    })
+
+    // Identificar nodos fuente (sin conexiones de entrada)
+    const sourceNodes = nodes.filter(node => {
+      const incomingEdges = edgesByTarget.get(node.id) || []
+      return incomingEdges.length === 0
+    })
+
+    if (sourceNodes.length === 0) {
+      // Si no hay nodos fuente, usar todos los nodos
+      sourceNodes.push(...nodes)
+    }
+
+    // Asignar niveles usando BFS
+    const nodeLevels = new Map<string, number>()
+    const visited = new Set<string>()
+    const queue: Array<{ id: string; level: number }> = []
+
+    // Inicializar cola con nodos fuente
+    sourceNodes.forEach(node => {
+      nodeLevels.set(node.id, 0)
+      visited.add(node.id)
+      queue.push({ id: node.id, level: 0 })
+    })
+
+    // BFS para asignar niveles
+    while (queue.length > 0) {
+      const { id, level } = queue.shift()!
+      const outgoingEdges = edgesBySource.get(id) || []
+      
+      outgoingEdges.forEach(edge => {
+        if (!visited.has(edge.target)) {
+          const nextLevel = level + 1
+          nodeLevels.set(edge.target, nextLevel)
+          visited.add(edge.target)
+          queue.push({ id: edge.target, level: nextLevel })
+        }
+      })
+    }
+
+    // Asignar nivel 0 a nodos no visitados (nodos aislados)
+    nodes.forEach(node => {
+      if (!nodeLevels.has(node.id)) {
+        nodeLevels.set(node.id, 0)
+      }
+    })
+
+    // Agrupar nodos por nivel
+    const nodesByLevel = new Map<number, Node[]>()
+    nodes.forEach(node => {
+      const level = nodeLevels.get(node.id) || 0
+      if (!nodesByLevel.has(level)) {
+        nodesByLevel.set(level, [])
+      }
+      nodesByLevel.get(level)!.push(node)
+    })
+
+    // Calcular posiciones
+    const updatedNodes = nodes.map(node => {
+      const level = nodeLevels.get(node.id) || 0
+      const nodesInLevel = nodesByLevel.get(level) || []
+      const indexInLevel = nodesInLevel.findIndex(n => n.id === node.id)
+      
+      const x = START_X + (level * HORIZONTAL_SPACING)
+      const y = START_Y + (indexInLevel * VERTICAL_SPACING)
+      
+      return {
+        ...node,
+        position: { x, y },
+      }
+    })
+
+    // Actualizar nodos
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+
+    // Ajustar vista inmediatamente (React Flow 12.5.0+ soporta fitView inmediatamente después de cambios)
+    if (reactFlowInstanceRef.current) {
+      // Usar requestAnimationFrame para asegurar que los nodos se hayan renderizado
+      requestAnimationFrame(() => {
+        if (reactFlowInstanceRef.current) {
+          reactFlowInstanceRef.current.fitView({ 
+            padding: 0.2, 
+            duration: 300,
+            includeHiddenNodes: false,
+            maxZoom: 1.5,
+            minZoom: 0.1
+          })
+        }
+      })
+    }
+  }, [nodes, edges, setNodesLocal, setNodes, reactFlowInstanceRef])
+
+  // Inyectar botón Tidy Up dentro del panel de controles
+  useEffect(() => {
+    const injectTidyUpButton = () => {
+      const controlsPanel = document.querySelector('.react-flow__controls.react-flow__controls-minimal')
+      if (controlsPanel && !controlsPanel.querySelector('.react-flow__tidy-up-button')) {
+        // Crear botón (solo icono, sin texto, sin separador)
+        const button = document.createElement('button')
+        button.className = 'react-flow__tidy-up-button'
+        button.title = 'Tidy up - Organizar nodos de manera compacta'
+        // Establecer color inline para asegurar que se aplique correctamente (blanco en dark, negro en light)
+        button.style.setProperty('color', 'var(--color-text-primary)', 'important')
+        button.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: inherit;">
+            <rect width="7" height="7" x="3" y="3" rx="1"/>
+            <rect width="7" height="7" x="14" y="3" rx="1"/>
+            <rect width="7" height="7" x="14" y="14" rx="1"/>
+            <rect width="7" height="7" x="3" y="14" rx="1"/>
+          </svg>
+        `
+        button.addEventListener('click', handleTidyUp)
+        
+        // Agregar botón al panel de controles (sin separador)
+        controlsPanel.appendChild(button)
+      }
+    }
+
+    // Intentar inyectar inmediatamente
+    injectTidyUpButton()
+
+    // También intentar después de un pequeño delay por si el panel aún no está renderizado
+    const timeout = setTimeout(injectTidyUpButton, 100)
+
+    return () => {
+      clearTimeout(timeout)
+      // Limpiar al desmontar
+      const controlsPanel = document.querySelector('.react-flow__controls.react-flow__controls-minimal')
+      if (controlsPanel) {
+        const button = controlsPanel.querySelector('.react-flow__tidy-up-button')
+        if (button) button.remove()
+      }
+    }
+  }, [handleTidyUp])
 
   // Función para crear nodo desde handle con doble clic
   const handleCreateNodeFromHandle = useCallback((nodeType: string, connection: { sourceNodeId: string; sourceHandleId: string; position: { x: number; y: number } }) => {
@@ -1831,16 +1995,22 @@ export function CanvasPage() {
           {/* Grid de puntos personalizado */}
           <DottedGridBackground />
 
-          {/* Controles de zoom y pan */}
+          {/* Controles de zoom y pan - Diseño minimalista */}
           <Controls
             showZoom={true}
             showFitView={true}
             showInteractive={false}
+            className="react-flow__controls-minimal react-flow__controls-with-tidy"
             style={{
               backgroundColor: 'var(--color-bg-primary)',
               border: '1px solid var(--color-node-border)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: isDarkMode 
+                ? '0 2px 8px rgba(0, 0, 0, 0.3)' 
+                : '0 2px 8px rgba(0, 0, 0, 0.1)',
             }}
           />
+
 
           {/* Mini mapa del canvas */}
           <MiniMap
