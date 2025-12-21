@@ -9,7 +9,7 @@
  * - Estilos modernos con Tailwind
  */
 
-import { memo, useState, useEffect, useRef, useMemo } from 'react'
+import { memo, useState, useEffect, useMemo } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
@@ -32,9 +32,6 @@ import { Link } from 'lucide-react'
  * - Handles: puertos de entrada (izquierda) y salida (derecha)
  */
 export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) => {
-  // Refs para detectar doble clic en handles
-  const handleDoubleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
   // Obtener zoom level para LOD
   const { getViewport } = useReactFlow()
   const perfMode = useCanvasStore((state) => state.perfMode)
@@ -43,7 +40,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const shouldUseLOD = perfMode && zoom < 0.5
   
   // Estado para detectar cambios de tema
-  const [isDark, setIsDark] = useState(() => {
+  const [, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return document.documentElement.classList.contains('dark')
     }
@@ -66,15 +63,14 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   }, [])
 
   // Extraer datos del nodo
-  const {
-    label,
-    nodeRedType,
-    bodyContent,
-    headerColor,
-    icon,
-    outputPortsCount = 1,
-    nodeRedNode,
-  } = data
+  const nodeData = data.data || data as any
+  const label = nodeData.label || ''
+  const nodeRedType = nodeData.nodeRedType || 'unknown'
+  const bodyContent = nodeData.bodyContent
+  const headerColor = nodeData.headerColor
+  const icon = nodeData.icon
+  const outputPortsCount = nodeData.outputPortsCount || 1
+  const nodeRedNode = nodeData.nodeRedNode
 
   // Obtener icono y color automáticamente si no se proporcionan
   // Si icon es un componente Lucide, usarlo directamente; si es string (legacy), usar getNodeIcon

@@ -39,7 +39,7 @@ export interface GroupContainerProps {
 export function GroupContainer({
   group,
   nodes,
-  edges,
+  edges: _edges,
   isCollapsed: externalCollapsed,
   onToggleCollapse,
   onResize,
@@ -48,7 +48,7 @@ export function GroupContainer({
   draggable = false,
 }: GroupContainerProps) {
   // Usar hook de React Flow para obtener transformaciones del viewport
-  const { flowToScreenPosition, getViewport, screenToFlowPosition } = useReactFlow()
+  const { flowToScreenPosition, getViewport } = useReactFlow()
   
   // Usar hook interno si no se proporciona estado externo
   const [internalCollapsed, setInternalCollapsed] = useGroupCollapse(group.id)
@@ -197,7 +197,7 @@ export function GroupContainer({
   }, [isDragging, handleDragMove, handleDragEnd])
 
   // Handlers para redimensionamiento
-  const handleResizeStart = useCallback((e: React.MouseEvent, handle: 'se' | 'sw' | 'ne' | 'nw' | 'e' | 'w' | 'n' | 's') => {
+  const handleResizeStart = useCallback((e: React.MouseEvent, _handle: 'se' | 'sw' | 'ne' | 'nw' | 'e' | 'w' | 'n' | 's') => {
     if (!resizable || isCollapsed || isDragging) return
     
     e.preventDefault()
@@ -251,8 +251,6 @@ export function GroupContainer({
   // Nombre del grupo
   const groupName = group.name || group.label || `Group ${group.id.slice(0, 8)}`
 
-  useEffect(() => {
-  }, [group.id, groupName, x, y, width, height, currentScreenPosition, isCollapsed, nodes.length, draggable, resizable]);
 
   return (
     <div

@@ -45,15 +45,16 @@ export async function nodeRedRequest<T = any>(
   
   try {
       // Preparar headers: Content-Type para requests con body, Accept para indicar formato deseado
-      const defaultHeaders: HeadersInit = {}
+      const defaultHeaders: Record<string, string> = {}
       
       // Solo agregar Content-Type si hay body y no está ya especificado
-      if (options?.body && !options?.headers?.['Content-Type']) {
+      const existingHeaders = options?.headers as Record<string, string> | undefined
+      if (options?.body && !existingHeaders?.['Content-Type']) {
         defaultHeaders['Content-Type'] = 'application/json'
       }
       
       // Si no hay Accept header, agregarlo por defecto para JSON
-      if (!options?.headers?.['Accept'] && !options?.headers?.['accept']) {
+      if (!existingHeaders?.['Accept'] && !existingHeaders?.['accept']) {
         defaultHeaders['Accept'] = 'application/json'
       }
       
@@ -242,7 +243,8 @@ export async function getAvailableNodes(): Promise<Array<{
       : Object.entries(nodesResponse)
     
     
-    entries.forEach(([moduleId, moduleInfo]: [string, any]) => {
+    entries.forEach((entry: [string, any] | any[]) => {
+      const [moduleId, moduleInfo] = Array.isArray(entry) && entry.length >= 2 ? entry : [String(entry[0]), entry[1]]
       
       if (moduleInfo && moduleInfo.types && Array.isArray(moduleInfo.types)) {
         moduleInfo.types.forEach((nodeType: string) => {
@@ -329,46 +331,248 @@ export interface SaveFlowError extends Error {
 export async function triggerInjectNode(nodeId: string): Promise<void> {
   apiLogger(`🖱️ Activando nodo inject: ${nodeId}`)
   
+  // #region agent log
+  const triggerStartTime = Date.now()
+  fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Iniciando activación de nodo inject',data:{nodeId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   try {
+    // Verificar primero si el nodo existe en Node-RED obteniendo todos los flows
+    // Esto nos ayuda a diagnosticar si el problema es que el nodo no existe o el ID no coincide
+    let nodeExists = false
+    let nodeDisabled = false
+    let availableInjectNodes: Array<{ id: string; name?: string; z?: string; disabled?: boolean }> = []
+    try {
+      const allFlows = await getFlows('v2')
+      apiLogger(`🔍 [triggerInjectNode] Verificando nodo "${nodeId}" en ${allFlows.length} nodos totales`)
+      
+      const targetNode = allFlows.find(node => node.id === nodeId && node.type === 'inject')
+      nodeExists = !!targetNode
+      
+      // #region agent log
+      const allInjectNodes = allFlows.filter(n => n.type === 'inject')
+      const injectNodeIds = allInjectNodes.map(n => n.id)
+      const injectNodesInSameFlow = targetNode ? allFlows.filter(n => n.type === 'inject' && n.z === targetNode.z) : []
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Verificación de nodo en flow JSON',data:{nodeId,totalNodes:allFlows.length,totalInjectNodes:allInjectNodes.length,injectNodeIds,nodeExists:!!targetNode,targetNodeDetails:targetNode?{id:targetNode.id,z:targetNode.z,disabled:targetNode.disabled,type:targetNode.type}:null,injectNodesInSameFlow:injectNodesInSameFlow.length,injectNodesInSameFlowIds:injectNodesInSameFlow.map(n=>n.id),timeSinceTrigger:Date.now()-triggerStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      if (targetNode) {
+        nodeDisabled = targetNode.disabled === true
+        apiLogger(`✅ [triggerInjectNode] Nodo encontrado en flow JSON:`, {
+          id: targetNode.id,
+          type: targetNode.type,
+          name: targetNode.name || targetNode.label,
+          z: targetNode.z,
+          disabled: targetNode.disabled,
+        })
+      } else {
+        apiLogger(`❌ [triggerInjectNode] Nodo "${nodeId}" NO encontrado en flow JSON`)
+      }
+      
+      availableInjectNodes = allFlows
+        .filter(n => n.type === 'inject')
+        .map(n => ({ id: n.id, name: n.name || n.label, z: n.z, disabled: n.disabled }))
+      
+      apiLogger(`📋 [triggerInjectNode] Total de nodos inject en flow JSON: ${availableInjectNodes.length}`)
+      apiLogger(`📋 [triggerInjectNode] Primeros 10 nodos inject:`, availableInjectNodes.slice(0, 10))
+      
+      if (!nodeExists) {
+        apiLogger(`⚠️ Nodo inject con ID "${nodeId}" no encontrado en los flows de Node-RED`)
+        apiLogger(`📋 Nodos inject disponibles:`, availableInjectNodes)
+        // Si el nodo no existe en el flow JSON, no intentar activarlo
+        // Pero permitir que continúe el polling por si acaso el nodo se despliega después
+        // El polling fallará con un mensaje más claro
+        apiLogger(`⚠️ [triggerInjectNode] Nodo no encontrado en flow JSON, pero continuando con polling por si se despliega...`)
+      } else if (nodeDisabled) {
+        apiLogger(`⚠️ Nodo inject con ID "${nodeId}" está deshabilitado`)
+        throw new Error(`El nodo inject con ID "${nodeId}" está deshabilitado. Habilítalo en el panel de propiedades antes de activarlo.`)
+      } else if (targetNode) {
+        apiLogger(`✅ [triggerInjectNode] Nodo existe y está habilitado en flow JSON, intentando activar en runtime...`)
+        
+        // CRÍTICO: Verificar si el flow está deshabilitado
+        const flowTab = allFlows.find(n => n.type === 'tab' && n.id === targetNode.z)
+        if (flowTab) {
+          apiLogger(`📋 [triggerInjectNode] Estado del flow:`, {
+            id: flowTab.id,
+            label: flowTab.label,
+            disabled: flowTab.disabled,
+          })
+          if (flowTab.disabled === true) {
+            apiLogger(`⚠️ [triggerInjectNode] El flow "${targetNode.z}" está deshabilitado`)
+            throw new Error(`El flow "${flowTab.label || flowTab.id}" está deshabilitado. Habilítalo antes de activar nodos inject.`)
+          }
+        } else {
+          apiLogger(`⚠️ [triggerInjectNode] No se encontró el flow tab "${targetNode.z}" para el nodo`)
+        }
+      }
+    } catch (verifyErr) {
+      // Si es un error que lanzamos nosotros (nodo deshabilitado), re-lanzarlo
+      if (verifyErr instanceof Error && verifyErr.message.includes('deshabilitado')) {
+        throw verifyErr
+      }
+      apiLogger(`⚠️ No se pudo verificar si el nodo existe:`, verifyErr)
+      // Continuar de todos modos - el polling intentará activar el nodo
+      // Si el nodo no existe, el polling fallará con un mensaje claro
+    }
+    
     // Node-RED API para activar un nodo inject: POST /inject/:id
     // El endpoint está bajo el admin API, que por defecto está en la raíz
     // pero puede estar en /admin/ si httpAdminRoot está configurado
     const baseUrl = getNodeRedBaseUrl()
     
-    // Intentar primero en la raíz (comportamiento por defecto)
-    let url = `${baseUrl}/inject/${nodeId}`
-    let response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    // HIPÓTESIS: El problema podría ser que el nodo se guarda pero no se despliega correctamente.
+    // Verificar si el nodo está disponible en el runtime ANTES de intentar activarlo.
+    // Si el nodo no está disponible después de guardar, podría ser un problema con el despliegue.
+    // 
+    // CRÍTICO: El despliegue en Node-RED es completamente asíncrono
+    // Si el nodo existe en el flow JSON pero no está disponible en el runtime,
+    // puede ser que el despliegue aún no haya terminado. 
+    // 
+    // SOLUCIÓN: Hacer polling del endpoint con retry exponencial hasta que esté disponible
+    // o hasta alcanzar el tiempo máximo. Esto es más robusto que esperar un tiempo fijo.
+    // 
+    // NOTA: El despliegue puede tardar más de 10 segundos en flows complejos o con muchos nodos.
+    // Aumentamos el tiempo máximo a 30 segundos para dar más margen.
+    const maxPollingAttempts = 60 // Máximo 60 intentos (para flows complejos)
+    const initialPollingInterval = 200 // 200ms inicial
+    const maxPollingInterval = 1500 // 1.5 segundos máximo entre intentos
+    const maxPollingTime = 60000 // 60 segundos máximo total (el despliegue puede tardar hasta 15-20 segundos en flows complejos)
     
-    // Si falla con 404, intentar con /admin/
-    if (!response.ok && response.status === 404) {
-      apiLogger(`⚠️ Endpoint /inject/${nodeId} no encontrado, intentando /admin/inject/${nodeId}`)
-      url = `${baseUrl}/admin/inject/${nodeId}`
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+    // #region agent log
+    // Verificar si el nodo está disponible en el runtime ANTES de intentar activarlo
+    // Esto nos ayudará a diagnosticar si el problema es que el nodo no se está desplegando
+    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Antes de iniciar polling - verificando estado del nodo',data:{nodeId,nodeExists,nodeDisabled,availableInjectNodesCount:availableInjectNodes.length,timeSinceTrigger:Date.now()-triggerStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    
+    // URLs posibles para el endpoint (dependiendo de la configuración de httpAdminRoot)
+    // Según la documentación de Node-RED, el endpoint está registrado como:
+    // RED.httpAdmin.post("/inject/:id", ...)
+    // Esto significa que está bajo httpAdminRoot, que por defecto es "/"
+    // Pero si httpAdminRoot está configurado como "/admin", el endpoint completo sería "/admin/inject/:id"
+    // IMPORTANTE: El orden importa - intentar primero la URL más común
+    const possibleUrls = [
+      `${baseUrl}/inject/${nodeId}`,      // URL por defecto (httpAdminRoot = "/")
+      `${baseUrl}/admin/inject/${nodeId}`, // URL alternativa (httpAdminRoot = "/admin")
+    ]
+    
+    let response: Response | null = null
+    let lastError: string | null = null
+    
+    // Intentar activar el nodo con polling inteligente
+    // Si recibimos 404, esperamos y volvemos a intentar hasta que el endpoint esté disponible
+    const pollingStartTime = Date.now()
+    let pollingInterval = initialPollingInterval
+    
+    for (let attempt = 1; attempt <= maxPollingAttempts; attempt++) {
+      // Verificar si hemos excedido el tiempo máximo
+      if (Date.now() - pollingStartTime > maxPollingTime) {
+        apiLogger(`⏱️ [triggerInjectNode] Tiempo máximo de polling excedido (${maxPollingTime}ms)`)
+        break
+      }
+      
+      if (attempt > 1) {
+        apiLogger(`🔄 [triggerInjectNode] Reintentando activación (intento ${attempt}/${maxPollingAttempts})...`)
+        await new Promise(resolve => setTimeout(resolve, pollingInterval))
+        // Aumentar el intervalo exponencialmente, pero con un máximo
+        pollingInterval = Math.min(pollingInterval * 1.2, maxPollingInterval)
+      }
+      
+      // Intentar ambas URLs posibles en cada intento
+      // Esto es necesario porque no sabemos cuál es la configuración de httpAdminRoot
+      let foundWorkingUrl = false
+      
+      for (const url of possibleUrls) {
+        // #region agent log
+        const attemptStartTime = Date.now()
+        fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Intento de activación con polling',data:{nodeId,attempt,url,nodeExists,timeSinceTrigger:Date.now()-triggerStartTime,timeSincePollingStart:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+        
+        apiLogger(`📡 [triggerInjectNode] Intentando activar nodo en: ${url} (intento ${attempt}/${maxPollingAttempts})`)
+        
+        try {
+          response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+          
+          // #region agent log
+          const attemptEndTime = Date.now()
+          fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Respuesta de intento de activación',data:{nodeId,attempt,status:response.status,statusText:response.statusText,url,nodeExists,attemptDuration:attemptEndTime-attemptStartTime,timeSinceTrigger:Date.now()-triggerStartTime,timeSincePollingStart:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
+          
+          apiLogger(`📡 [triggerInjectNode] Respuesta del servidor: ${response.status} ${response.statusText}`)
+          
+          // Si es exitoso, salir de ambos loops
+          if (response.ok) {
+            apiLogger(`✅ [triggerInjectNode] Nodo activado exitosamente después de ${attempt} intentos en ${url}`)
+            foundWorkingUrl = true
+            break
+          }
+          
+          // Si es 404, el endpoint aún no está disponible o esta URL no es la correcta
+          // Continuar con la siguiente URL o con el siguiente intento
+          if (response.status === 404) {
+            lastError = `${response.status} ${response.statusText}`
+            // Continuar con la siguiente URL si hay más
+            continue
+          }
+          
+          // Si es otro error (no 404), el endpoint está disponible pero hay un problema
+          // Salir del loop de URLs
+          lastError = `${response.status} ${response.statusText}`
+          foundWorkingUrl = true
+          break
+        } catch (fetchErr: any) {
+          lastError = fetchErr.message || 'Error de red'
+          apiLogger(`⚠️ [triggerInjectNode] Error en intento ${attempt} con URL ${url}:`, lastError)
+          // Continuar con la siguiente URL si hay más
+          continue
+        }
+      }
+      
+      // Si encontramos una URL que funciona (aunque haya dado error), salir del loop de intentos
+      if (foundWorkingUrl && response && response.ok) {
+        break
+      }
+      
+      // Si encontramos una URL que funciona pero dio error (no 404), también salir
+      // porque el endpoint está disponible pero hay otro problema
+      if (foundWorkingUrl && response && !response.ok && response.status !== 404) {
+        break
+      }
+      
+      // Si todas las URLs dieron 404, continuar con el siguiente intento de polling
+      // (el delay ya se aplicó arriba si attempt > 1)
     }
     
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error')
+    // Si después de todos los intentos no hay respuesta exitosa, procesar el error
+    if (!response || !response.ok) {
+      const errorText = lastError || (response ? await response.text().catch(() => 'Unknown error') : 'No response')
+      const statusCode = response?.status || 404
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:triggerInjectNode',message:'Todos los intentos de polling fallaron',data:{nodeId,statusCode,nodeExists,nodeDisabled,availableInjectNodesCount:availableInjectNodes.length,availableInjectNodeIds:availableInjectNodes.slice(0,10).map(n=>n.id),timeSinceTrigger:Date.now()-triggerStartTime,totalPollingTime:Date.now()-pollingStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       
       // Mensajes de error más descriptivos
-      if (response.status === 404) {
-        throw new Error(`Nodo no encontrado (404). Verifica que el nodo con ID "${nodeId}" existe y está desplegado.`)
-      } else if (response.status === 403) {
+      if (statusCode === 404) {
+        // Si verificamos que el nodo no existe en el flow JSON, dar un mensaje más específico
+        if (!nodeExists) {
+          const availableIds = availableInjectNodes.slice(0, 5).map(n => n.id).join(', ')
+          throw new Error(`Nodo no encontrado (404). El nodo con ID "${nodeId}" no existe en Node-RED.\n\nPosibles causas:\n1. El nodo no se guardó correctamente. Guarda el flow usando "Save & Deploy".\n2. El ID del nodo cambió después de guardar. Recarga los flows para sincronizar.\n\nNodos inject disponibles (primeros 5): ${availableIds || 'ninguno'}`)
+        }
+        // Si el nodo existe en el flow JSON pero el endpoint devuelve 404, puede ser que no esté desplegado
+        // o que el ID haya cambiado después de guardar
+        throw new Error(`Nodo no encontrado (404). El nodo con ID "${nodeId}" existe en el flow pero no está desplegado en el runtime después de ${maxPollingAttempts} intentos (${maxPollingTime}ms).\n\nPosibles causas:\n1. El despliegue está tomando más tiempo del esperado. Espera unos segundos y vuelve a intentar.\n2. El ID del nodo cambió después de guardar. Recarga los flows para sincronizar.\n3. El flow no se desplegó correctamente. Guarda el flow nuevamente usando "Save & Deploy".`)
+      } else if (statusCode === 403) {
         throw new Error(`Acceso denegado (403). Verifica la autenticación de Node-RED.`)
-      } else if (response.status === 500) {
+      } else if (statusCode === 500) {
         throw new Error(`Error del servidor (500). El nodo puede no estar desplegado o tener un error.`)
       }
       
-      throw new Error(`HTTP ${response.status}: ${errorText}`)
+      throw new Error(`HTTP ${statusCode}: ${errorText}`)
     }
     
     apiLogger(`✅ Nodo inject activado: ${nodeId}`)
@@ -378,6 +582,17 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
   }
 }
 
+/**
+ * Guarda un flow en Node-RED
+ * 
+ * Versión simplificada: envía solo los nodos necesarios sin lógica compleja de preservación.
+ * Después de guardar, SIEMPRE se debe recargar desde la API para obtener los IDs correctos.
+ * 
+ * @param flowId ID del flow a guardar
+ * @param nodes Array de nodos del flow en formato Node-RED
+ * @param rev Versión/revisión actual del flow (opcional, se obtiene automáticamente si no se proporciona)
+ * @returns Promise con la respuesta del servidor (incluye rev actualizado)
+ */
 export async function saveFlow(
   flowId: string,
   nodes: NodeRedNode[],
@@ -427,13 +642,13 @@ export async function saveFlow(
       label: `Flow ${flowId.slice(0, 8)}`,
       disabled: false,
       info: '',
-      x: 0,  // Los tabs necesitan x e y para pasar la validación
-      y: 0,  // aunque no los usen visualmente
+      x: 0,
+      y: 0,
     } as NodeRedNode,
     ...nodes,
   ]
   
-  // Preparar el payload para la API v2
+  // Preparar el payload simple para la API v2
   const payload = {
     rev: currentRev || '',
     flows: nodesToSave,
@@ -445,18 +660,61 @@ export async function saveFlow(
   })
   
   try {
+    // #region agent log - Verificar nodos inject en el payload antes de enviar
+    const injectNodesInPayload = nodesToSave.filter(n => n.type === 'inject').map(n => {
+      const nodeDetails = {
+        id: n.id,
+        z: n.z,
+        name: n.name || n.label,
+        hasProps: !!n.props,
+        hasPayloadType: !!n.payloadType,
+        hasCron: !!n.cron,
+        hasCrontab: !!n.crontab,
+        hasRepeat: !!n.repeat,
+        hasOnce: n.once !== undefined,
+        props: n.props,
+        payloadType: n.payloadType,
+        cron: n.cron,
+        crontab: n.crontab,
+        repeat: n.repeat,
+        once: n.once,
+        keys: Object.keys(n),
+      }
+      return nodeDetails
+    })
+    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:saveFlow',message:'Antes de enviar payload a Node-RED',data:{flowId,rev:currentRev,totalNodes:nodesToSave.length,injectNodesInPayload,injectNodesCount:injectNodesInPayload.length},timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
     const response = await nodeRedRequest<{ rev: string }>('/flows', {
-      method: 'POST', // Node-RED usa POST para actualizar flows
+      method: 'POST',
       headers: {
         'Node-RED-API-Version': 'v2',
+        'Node-RED-Deployment-Type': 'full',
       },
       body: JSON.stringify(payload),
     })
     
+    // #region agent log - Verificar respuesta después de guardar
+    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:saveFlow',message:'Flow guardado exitosamente',data:{flowId,rev:response.rev,injectNodesInPayload,injectNodesCount:injectNodesInPayload.length},timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
     apiLogger('✅ Flow guardado exitosamente:', { rev: response.rev })
+    
+    // CRÍTICO: El despliegue en Node-RED es completamente asíncrono
+    // La función start() se ejecuta pero no se espera antes de devolver la respuesta
+    // Si el despliegue falla, el error se captura pero no se propaga al cliente
+    // Por lo tanto, no podemos verificar si el despliegue fue exitoso inmediatamente después de guardar
+    // El polling en triggerInjectNode manejará el caso donde el usuario intenta activar el nodo
+    // 
+    // NOTA: No hacemos polling aquí porque:
+    // 1. El despliegue puede tardar varios segundos en flows complejos
+    // 2. El usuario no está esperando activamente, así que no tiene sentido esperar aquí
+    // 3. Si el despliegue falla, el usuario lo notará cuando intente activar el nodo
+    // 4. El polling en triggerInjectNode es más robusto y maneja mejor los errores
+    
     return response
   } catch (err: any) {
-    // Mejorar el manejo de errores con información específica
+    // Manejo de errores con información específica
     const error: SaveFlowError = new Error(
       err.message || 'Error al guardar el flow en Node-RED'
     )
@@ -492,6 +750,232 @@ export async function saveFlow(
 }
 
 /**
+ * Obtiene un flow específico por ID
+ * 
+ * @param flowId ID del flow a obtener
+ * @returns Promise con el flow completo y todos sus nodos
+ */
+export async function getFlow(flowId: string): Promise<NodeRedNode> {
+  apiLogger('📥 Obteniendo flow:', { flowId })
+  
+  try {
+    const response = await nodeRedRequest<NodeRedNode>(`/flow/${flowId}`, {
+      headers: {
+        'Node-RED-API-Version': 'v2',
+      },
+    })
+    
+    apiLogger('✅ Flow obtenido:', { flowId, hasNodes: !!response })
+    return response
+  } catch (err) {
+    apiLogger('❌ Error al obtener flow:', err)
+    throw err
+  }
+}
+
+/**
+ * Crea un nuevo flow vacío
+ * 
+ * @param name Nombre del flow
+ * @param options Opciones adicionales (disabled, info)
+ * @returns Promise con el ID del flow creado
+ */
+export async function createFlow(
+  name: string,
+  options?: { disabled?: boolean; info?: string }
+): Promise<{ id: string }> {
+  apiLogger('➕ Creando flow:', { name, options })
+  
+  try {
+    const flowPayload = {
+      label: name,
+      nodes: [],
+      ...(options?.disabled !== undefined && { disabled: options.disabled }),
+      ...(options?.info && { info: options.info }),
+    }
+    
+    const response = await nodeRedRequest<{ id: string }>('/flow', {
+      method: 'POST',
+      headers: {
+        'Node-RED-API-Version': 'v2',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(flowPayload),
+    })
+    
+    apiLogger('✅ Flow creado:', { id: response.id, name })
+    return response
+  } catch (err) {
+    apiLogger('❌ Error al crear flow:', err)
+    throw err
+  }
+}
+
+/**
+ * Elimina un flow y todos sus nodos
+ * 
+ * @param flowId ID del flow a eliminar
+ * @returns Promise que se resuelve cuando el flow se elimina
+ */
+export async function deleteFlow(flowId: string): Promise<void> {
+  apiLogger('🗑️ Eliminando flow:', { flowId })
+  
+  try {
+    await nodeRedRequest(`/flow/${flowId}`, {
+      method: 'DELETE',
+      headers: {
+        'Node-RED-API-Version': 'v2',
+      },
+    })
+    
+    apiLogger('✅ Flow eliminado:', { flowId })
+  } catch (err) {
+    apiLogger('❌ Error al eliminar flow:', err)
+    throw err
+  }
+}
+
+/**
+ * Duplica un flow existente
+ * 
+ * @param flowId ID del flow a duplicar
+ * @param newName Nombre para el flow duplicado (opcional)
+ * @returns Promise con el ID del flow duplicado
+ */
+export async function duplicateFlow(
+  flowId: string,
+  newName?: string
+): Promise<{ id: string }> {
+  apiLogger('📋 Duplicando flow:', { flowId, newName })
+  
+  try {
+    // Obtener el flow original
+    const originalFlow = await getFlow(flowId)
+    
+    // Obtener todos los nodos del flow original (excepto el tab)
+    const allNodes = await getFlows('v2')
+    const flowNodes = allNodes.filter(n => n.z === flowId && n.type !== 'tab')
+    
+    // Crear nuevo flow con el mismo contenido pero nuevo nombre
+    const flowName = newName || `${originalFlow.label || 'Flow'} (copia)`
+    
+    // Crear el flow completo con sus nodos desde el inicio
+    // Node-RED generará nuevos IDs automáticamente para el flow y todos los nodos
+    const flowPayload = {
+      label: flowName,
+      nodes: flowNodes.map(node => {
+        // Remover el ID para que Node-RED genere uno nuevo
+        const { id, ...nodeWithoutId } = node
+        return nodeWithoutId
+      }),
+      ...(originalFlow.disabled !== undefined && { disabled: originalFlow.disabled }),
+      ...(originalFlow.info && { info: originalFlow.info }),
+    }
+    
+    // Crear el flow con todos sus nodos
+    const response = await nodeRedRequest<{ id: string }>('/flow', {
+      method: 'POST',
+      headers: {
+        'Node-RED-API-Version': 'v2',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(flowPayload),
+    })
+    
+    apiLogger('✅ Flow duplicado:', { originalId: flowId, newId: response.id })
+    return response
+  } catch (err) {
+    apiLogger('❌ Error al duplicar flow:', err)
+    throw err
+  }
+}
+
+/**
+ * Exporta un flow a JSON
+ * 
+ * @param flowId ID del flow a exportar
+ * @returns Promise con el JSON del flow
+ */
+export async function exportFlow(flowId: string): Promise<string> {
+  apiLogger('📤 Exportando flow:', { flowId })
+  
+  try {
+    const flow = await getFlow(flowId)
+    const allNodes = await getFlows('v2')
+    const flowNodes = allNodes.filter(n => n.z === flowId)
+    
+    const exportData = {
+      flow: {
+        ...flow,
+        nodes: flowNodes,
+      },
+      exportedAt: new Date().toISOString(),
+    }
+    
+    const json = JSON.stringify(exportData, null, 2)
+    apiLogger('✅ Flow exportado:', { flowId, size: json.length })
+    
+    return json
+  } catch (err) {
+    apiLogger('❌ Error al exportar flow:', err)
+    throw err
+  }
+}
+
+/**
+ * Importa un flow desde JSON
+ * 
+ * @param json JSON del flow a importar (string o objeto)
+ * @param options Opciones de importación (name, duplicate)
+ * @returns Promise con el ID del flow importado
+ */
+export async function importFlow(
+  json: string | object,
+  options?: { name?: string; duplicate?: boolean }
+): Promise<{ id: string }> {
+  apiLogger('📥 Importando flow:', { hasName: !!options?.name, duplicate: options?.duplicate })
+  
+  try {
+    // Parsear JSON si es string
+    const flowData = typeof json === 'string' ? JSON.parse(json) : json
+    
+    // Extraer el flow del objeto (puede estar en flow.flow o directamente)
+    const flow = flowData.flow || flowData
+    
+    // Validar estructura básica
+    if (!flow.label && !flow.name) {
+      throw new Error('El flow importado debe tener un nombre (label o name)')
+    }
+    
+    // Usar nombre proporcionado o del JSON
+    const flowName = options?.name || flow.label || flow.name || 'Flow importado'
+    
+    // Si duplicate es true, generar nuevos IDs (Node-RED lo hace automáticamente)
+    const flowPayload = {
+      label: flowName,
+      nodes: flow.nodes || [],
+      ...(flow.disabled !== undefined && { disabled: flow.disabled }),
+      ...(flow.info && { info: flow.info }),
+    }
+    
+    const response = await nodeRedRequest<{ id: string }>('/flow', {
+      method: 'POST',
+      headers: {
+        'Node-RED-API-Version': 'v2',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(flowPayload),
+    })
+    
+    apiLogger('✅ Flow importado:', { id: response.id, name: flowName })
+    return response
+  } catch (err) {
+    apiLogger('❌ Error al importar flow:', err)
+    throw err
+  }
+}
+
+/**
  * Configuración del cliente API
  * Se puede extender con más opciones en el futuro
  */
@@ -501,5 +985,11 @@ export const apiClient = {
   getNodes,
   getAvailableNodes,
   saveFlow,
+  getFlow,
+  createFlow,
+  deleteFlow,
+  duplicateFlow,
+  exportFlow,
+  importFlow,
 }
 

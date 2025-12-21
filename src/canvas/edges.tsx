@@ -5,8 +5,8 @@
  */
 
 import React, { memo, useState } from 'react'
-import type { Edge, EdgeProps } from 'reactflow'
-import { BaseEdge, SmoothStepEdge, BezierEdge, getSmoothStepPath, EdgeLabelRenderer } from 'reactflow'
+import type { Edge, EdgeProps, MarkerType } from 'reactflow'
+import { BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from 'reactflow'
 import { useCanvasStore } from '@/state/canvasStore'
 
 /**
@@ -26,7 +26,6 @@ const AnimatedEdge = memo(function AnimatedEdge({
   targetPosition,
   style = {},
   markerEnd,
-  ...props
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
   const explainMode = useCanvasStore((state) => state.explainMode)
@@ -61,24 +60,23 @@ const AnimatedEdge = memo(function AnimatedEdge({
   return (
     <>
       {/* Edge base usando BaseEdge de React Flow */}
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        style={{
-          ...style,
-          strokeWidth: isActive && !perfMode ? 4 : (style.strokeWidth as number) || 2,
-          stroke: isActive && !perfMode
-            ? 'var(--color-edge-active)' // Color activo del tema
-            : (style.stroke as string) || 'var(--color-edge-default)', // Color por defecto del tema
-          fill: 'none',
-          transition: perfMode ? 'none' : 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
-          filter: perfMode || !isActive ? 'none' : 'drop-shadow(0 0 6px var(--color-edge-active-glow))',
-        }}
-        className={isActive && !perfMode ? 'edge-active' : ''}
-        markerEnd={markerEnd}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      />
+      <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          style={{
+            ...style,
+            strokeWidth: isActive && !perfMode ? 4 : (style.strokeWidth as number) || 2,
+            stroke: isActive && !perfMode
+              ? 'var(--color-edge-active)' // Color activo del tema
+              : (style.stroke as string) || 'var(--color-edge-default)', // Color por defecto del tema
+            fill: 'none',
+            transition: perfMode ? 'none' : 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
+            filter: perfMode || !isActive ? 'none' : 'drop-shadow(0 0 6px var(--color-edge-active-glow))',
+          }}
+          markerEnd={markerEnd}
+        />
+      </g>
       
       {/* Capa de pulso cuando está activo (solo si no está en perf mode) */}
       {isActive && !perfMode && (
@@ -93,7 +91,6 @@ const AnimatedEdge = memo(function AnimatedEdge({
               opacity: 0.4,
               filter: 'drop-shadow(0 0 4px var(--color-edge-active-glow))',
             }}
-            className="edge-pulse"
           />
           
           {/* Punto animado que se mueve por el edge usando SVG animateMotion */}
@@ -147,7 +144,7 @@ const AnimatedEdge = memo(function AnimatedEdge({
 export const modernEdgeTypes = {
   default: AnimatedEdge,
   smoothstep: AnimatedEdge,
-  bezier: BezierEdge,
+  bezier: AnimatedEdge, // Usar AnimatedEdge en lugar de BezierEdge
   animated: AnimatedEdge,
 }
 
@@ -166,10 +163,9 @@ export function applyModernEdgeStyles(edges: Edge[]): Edge[] {
       stroke: 'var(--color-edge-default)',
       ...edge.style,
     },
-    markerEnd: {
-      type: 'arrowclosed',
+    markerEnd: edge.markerEnd || {
+      type: 'arrowclosed' as MarkerType,
       color: 'var(--color-edge-default)',
-      ...edge.markerEnd,
     },
   }))
 }

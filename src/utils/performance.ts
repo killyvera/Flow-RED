@@ -22,7 +22,7 @@ export interface PerformanceMetrics {
 export class PerformanceMonitor {
   private renderStartTime: number = 0
   private eventCount: number = 0
-  private eventWindowStart: number = Date.now()
+  // private _eventWindowStart: number = Date.now() // No usado actualmente
   private eventWindowDuration: number = 1000 // 1 segundo
   private eventTimestamps: number[] = []
 
@@ -106,7 +106,7 @@ export class PerformanceMonitor {
   reset(): void {
     this.renderStartTime = 0
     this.eventCount = 0
-    this.eventWindowStart = Date.now()
+    // this._eventWindowStart = Date.now() // No usado actualmente
     this.eventTimestamps = []
   }
 }

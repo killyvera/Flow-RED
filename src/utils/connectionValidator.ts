@@ -147,6 +147,9 @@ export function wouldCreateCycle(
 
   // Validación de ciclo simple: verificar si target tiene un camino a source
   // Esto es una implementación básica, puede mejorarse con DFS/BFS
+  if (!connection.target) {
+    return true // Si no hay target, no se puede crear ciclo
+  }
   const visited = new Set<string>()
   const stack: string[] = [connection.target]
 

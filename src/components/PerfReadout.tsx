@@ -14,7 +14,6 @@
 import { useEffect, useState } from 'react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { getPerformanceMonitor } from '@/utils/performance'
-import { BoundedQueue } from '@/utils/backpressure'
 
 export function PerfReadout() {
   // Solo mostrar en dev mode

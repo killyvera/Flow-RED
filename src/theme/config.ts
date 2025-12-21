@@ -45,13 +45,13 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
 
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach((key) => {
-      const sourceValue = source[key]
-      const targetValue = target[key]
+      const sourceValue = (source as Record<string, any>)[key]
+      const targetValue = (target as Record<string, any>)[key]
 
       if (isObject(sourceValue) && isObject(targetValue)) {
-        output[key] = deepMerge(targetValue, sourceValue)
+        (output as Record<string, any>)[key] = deepMerge(targetValue, sourceValue)
       } else if (sourceValue !== undefined) {
-        output[key] = sourceValue as T[Extract<keyof T, string>]
+        (output as Record<string, any>)[key] = sourceValue
       }
     })
   }
@@ -70,7 +70,7 @@ function isObject(item: any): item is Record<string, any> {
  * Aplica overrides a un tema base
  */
 export function applyThemeOverrides(baseTheme: Theme, overrides: ThemeOverride): Theme {
-  const merged = deepMerge(baseTheme, overrides)
+  const merged = deepMerge(baseTheme, overrides as any) as Theme
 
   // Validar que el tema resultante sea válido
   if (!validateTheme(merged)) {

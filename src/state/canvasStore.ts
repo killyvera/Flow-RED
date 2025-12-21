@@ -129,10 +129,22 @@ export interface CanvasState {
   setPerfMode: (enabled: boolean) => void
   togglePerfMode: () => void
   
+  // Acciones para WebSocket
+  setWsEventQueueSize: (size: number) => void
+  
   reset: () => void
 }
 
-const initialState: CanvasState = {
+const initialState: Omit<CanvasState, 
+  'setNodes' | 'setEdges' | 'setGroups' | 'setCollapsedGroupIds' | 'toggleGroupCollapsed' |
+  'setNodeRuntimeState' | 'clearNodeRuntimeState' | 'clearAllRuntimeStates' | 'setWsConnected' |
+  'setActiveEdge' | 'clearActiveEdges' | 'addExecutionLog' | 'clearExecutionLogs' |
+  'setSelectedNodeId' | 'setSelectedEdgeId' | 'setEditMode' | 'toggleEditMode' |
+  'setLoading' | 'setError' | 'setNodeRedNodes' | 'setFlows' | 'setActiveFlowId' |
+  'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'setExecutionFramesEnabled' | 'clearFrames' |
+  'setExplainMode' | 'toggleExplainMode' | 'setPerfMode' | 'togglePerfMode' |
+  'setWsEventQueueSize' | 'reset' | 'setSubflowDefinitions' | 'setCurrentSubflowId'
+> = {
   nodes: [],
   edges: [],
   groups: [],

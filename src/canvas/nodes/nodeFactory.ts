@@ -5,13 +5,11 @@
  * Si no hay un componente específico, usa BaseNode como fallback.
  */
 
-import type { Node } from 'reactflow'
 import { BaseNode } from './BaseNode'
 import { InjectNode } from './InjectNode'
 import { DebugNode } from './DebugNode'
 import { GroupNode } from './GroupNode'
 import { SubflowNode } from './SubflowNode'
-import type { BaseNodeData } from './types'
 import { isSubflowInstance } from '@/utils/subflowUtils'
 
 /**

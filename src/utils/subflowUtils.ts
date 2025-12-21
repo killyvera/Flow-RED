@@ -57,3 +57,35 @@ export function getSubflowOutputs(subflow: NodeRedSubflowDefinition): number {
   return subflow.out?.length || subflow.outputs || 0
 }
 
+/**
+ * Cuenta cuántas instancias de un subflow existen en todos los flows
+ */
+export function countSubflowInstances(
+  subflowId: string,
+  allNodes: NodeRedNode[]
+): number {
+  return allNodes.filter(node => {
+    if (typeof node.type === 'string' && node.type.startsWith('subflow:')) {
+      const instanceSubflowId = extractSubflowIdFromType(node.type)
+      return instanceSubflowId === subflowId
+    }
+    return false
+  }).length
+}
+
+/**
+ * Obtiene todas las instancias de un subflow
+ */
+export function getSubflowInstances(
+  subflowId: string,
+  allNodes: NodeRedNode[]
+): NodeRedSubflowInstance[] {
+  return allNodes.filter((node): node is NodeRedSubflowInstance => {
+    if (typeof node.type === 'string' && node.type.startsWith('subflow:')) {
+      const instanceSubflowId = extractSubflowIdFromType(node.type)
+      return instanceSubflowId === subflowId
+    }
+    return false
+  })
+}
+

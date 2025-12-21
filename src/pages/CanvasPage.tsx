@@ -52,13 +52,14 @@ import { useKeyboardShortcuts } from '@/utils/keyboardShortcuts'
 import { pasteFromClipboard, copyToClipboard } from '@/utils/clipboard'
 import { validateConnectionComplete } from '@/utils/connectionValidator'
 import { getNodeType } from '@/canvas/nodes/nodeFactory'
-import { saveFlow, type SaveFlowError } from '@/api/client'
+import { saveFlow, type SaveFlowError, nodeRedRequest } from '@/api/client'
 import { transformReactFlowToNodeRed } from '@/canvas/mappers'
-import type { NodeRedGroup } from '@/api/types'
+import type { NodeRedGroup, NodeRedSubflowDefinition, NodeRedNode } from '@/api/types'
 import { hasUnsavedChanges, createFlowSnapshot, type SavedFlowState } from '@/utils/dirtyState'
 import { saveDraft, loadDraft, deleteDraft } from '@/utils/draftStorage'
 import { DeployConflictModal } from '@/components/DeployConflictModal'
 import { DraftRestoreModal } from '@/components/DraftRestoreModal'
+import { FlowManager } from '@/components/FlowManager'
 
 // Registrar los tipos de nodos personalizados
 import { InjectNode } from '@/canvas/nodes/InjectNode'
@@ -140,14 +141,30 @@ export function CanvasPage() {
 
   // Cargar flows de Node-RED automáticamente
   const {
-    flows,
+    flows: rawFlows,
     activeFlowId,
     isLoading,
     error,
+    nodeRedNodes,
     switchFlow,
     loadFlows,
     renderFlow,
+    createNewFlow,
+    removeFlow,
+    duplicateExistingFlow,
+    importFlowFromJson,
   } = useNodeRedFlow(true)
+
+  // Deduplicar flows para evitar claves duplicadas en React
+  const flows = useMemo(() => {
+    const flowsMap = new Map<string, typeof rawFlows[0]>()
+    rawFlows.forEach(flow => {
+      if (flow.id && !flowsMap.has(flow.id)) {
+        flowsMap.set(flow.id, flow)
+      }
+    })
+    return Array.from(flowsMap.values())
+  }, [rawFlows])
 
   // Conectar a WebSocket para recibir eventos de runtime
   // Inicializar conexión WebSocket para estados de runtime
@@ -173,6 +190,7 @@ export function CanvasPage() {
   const setNodes = useCanvasStore((state) => state.setNodes)
   const setEdges = useCanvasStore((state) => state.setEdges)
   const setGroups = useCanvasStore((state) => state.setGroups)
+  // const setLoading = useCanvasStore((state) => state.setLoading) // No usado actualmente
   const collapsedGroupIds = useCanvasStore((state) => state.collapsedGroupIds)
   const setCollapsedGroupIds = useCanvasStore((state) => state.setCollapsedGroupIds)
   const explainMode = useCanvasStore((state) => state.explainMode)
@@ -656,10 +674,48 @@ export function CanvasPage() {
           subflowIds.add(node.id)
         }
       })
+      
+      // CRÍTICO: Obtener IDs de los nodos transformados del flow activo
+      // Estos nodos reemplazarán a los nodos existentes del flow activo
+      const transformedNodeIds = new Set(nodeRedNodes.map(n => n.id))
+      
+      // CRÍTICO: Similar a seed-test.js, mantener nodos existentes de otros flows
+      // y del flow activo que NO están en los transformados
+      // Los nodos transformados reemplazarán a los nodos existentes del flow activo
+      // IMPORTANTE: Preservar TODOS los subflows existentes (son definiciones, no instancias)
+      // Los subflows deben preservarse porque son definiciones reutilizables
       const nodesFromOtherFlows = allNodeRedNodes.filter(
-        n => n.z !== activeFlowId && 
-             n.type !== 'tab' && 
-             !(n.z && subflowIds.has(n.z)) // Excluir nodos internos de subflows
+        n => {
+          // Preservar definiciones de subflow (type === 'subflow' sin x, y, z)
+          if (n.type === 'subflow' && !n.x && !n.y && !n.z) {
+            return true // SIEMPRE preservar definiciones de subflow
+          }
+          // CRÍTICO: Excluir instancias de subflow del flow activo si ya están en nodeRedNodes
+          // Esto previene duplicados cuando se guarda un flow que contiene instancias de subflow
+          if (typeof n.type === 'string' && n.type.startsWith('subflow:') && n.z === activeFlowId) {
+            // Si la instancia está en los transformados, excluirla (será reemplazada)
+            if (transformedNodeIds.has(n.id)) {
+              return false
+            }
+          }
+          // Preservar instancias de subflow de otros flows (type === 'subflow:ID' con z diferente al flow activo)
+          if (typeof n.type === 'string' && n.type.startsWith('subflow:') && n.z && n.z !== activeFlowId) {
+            return true // Preservar instancias de subflow de otros flows
+          }
+          // Excluir tabs
+          if (n.type === 'tab') {
+            return false
+          }
+          // Excluir nodos internos de subflows (tienen z = subflowId de una definición)
+          if (n.z && subflowIds.has(n.z)) {
+            return false
+          }
+          // Excluir nodos que están en los transformados (serán reemplazados)
+          if (transformedNodeIds.has(n.id)) {
+            return false
+          }
+          return true
+        }
       )
       
       // #region agent log
@@ -677,27 +733,370 @@ export function CanvasPage() {
       fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Nodos de otros flows identificados',data:{activeFlowId,groupsInTransformed:groupsInTransformed.length,groupsInTransformedIds:groupsInTransformed,nodesFromOtherFlowsCount:nodesFromOtherFlows.length,nodesFromOtherFlowsByType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
+      // CRÍTICO: Asegurar que los subflows preservados tengan la propiedad 'flow' (array)
+      // Node-RED puede devolver subflows sin 'flow' porque los convierte internamente a 'nodes' (objeto)
+      // Pero cuando guardamos, necesitamos 'flow' (array) para que Node-RED los procese correctamente
+      const nodesFromOtherFlowsWithFlow = nodesFromOtherFlows.map(node => {
+        if (node.type === 'subflow') {
+          const subflow = node as NodeRedSubflowDefinition
+          
+          // Log para depuración
+          console.log('[handleSave] Procesando subflow:', {
+            id: subflow.id,
+            name: subflow.name,
+            hasFlow: !!subflow.flow,
+            flowIsArray: Array.isArray(subflow.flow),
+            flowLength: Array.isArray(subflow.flow) ? subflow.flow.length : 0,
+            hasIn: !!subflow.in,
+            inLength: Array.isArray(subflow.in) ? subflow.in.length : 0,
+            hasOut: !!subflow.out,
+            outLength: Array.isArray(subflow.out) ? subflow.out.length : 0,
+          })
+          
+          // Si el subflow no tiene 'flow', buscar nodos internos en allNodeRedNodes
+          if (!subflow.flow || !Array.isArray(subflow.flow)) {
+            const internalNodes = allNodeRedNodes.filter(
+              n => n.z === subflow.id && n.type !== 'subflow' && n.type !== 'tab'
+            )
+            
+            console.log('[handleSave] Nodos internos encontrados para subflow:', {
+              subflowId: subflow.id,
+              internalNodesCount: internalNodes.length,
+              internalNodeIds: internalNodes.map(n => n.id),
+            })
+            
+            if (internalNodes.length > 0) {
+              // Crear una copia del subflow con los nodos internos en 'flow'
+              // CRÍTICO: Los nodos internos en subflow.flow[] DEBEN tener z = subflowId
+              // Esto es necesario para que Node-RED los procese correctamente
+              // CRÍTICO: Los nodos internos DEBEN tener x y y para que Node-RED los agregue a subflowDef.nodes
+              // Si no tienen x y y, Node-RED los agregará a subflowDef.configs y no estarán disponibles en node_map
+              const subflowWithFlow: NodeRedSubflowDefinition = {
+                ...subflow,
+                flow: internalNodes.map(n => {
+                  // CRÍTICO: Preservar TODAS las propiedades del nodo original
+                  // Node-RED necesita todas las propiedades para crear el nodo correctamente
+                  const nodeWithAllProps = {
+                    ...n, // Preservar todas las propiedades originales
+                    x: n.x || 0, // Asegurar x
+                    y: n.y || 0, // Asegurar y
+                    // CRÍTICO: Los nodos internos en flow[] DEBEN tener z = subflowId
+                    z: subflow.id,
+                  } as NodeRedNode
+                  
+                  // Log para depuración
+                  if (n.type === 'function') {
+                    console.log('[handleSave] Preservando nodo function interno:', {
+                      id: nodeWithAllProps.id,
+                      hasFunc: !!nodeWithAllProps.func,
+                      hasOutputs: nodeWithAllProps.outputs !== undefined,
+                      hasWires: !!nodeWithAllProps.wires,
+                      z: nodeWithAllProps.z,
+                    })
+                  }
+                  
+                  return nodeWithAllProps
+                }),
+              }
+              
+              // CRÍTICO: Validar y limpiar wires en in/out
+              // Los wires deben apuntar a nodos que existen en flow[]
+              // Node-RED usa estos IDs para buscar nodos en node_map, así que deben coincidir exactamente
+              const internalNodeIds = new Set(subflowWithFlow.flow.map(n => n.id))
+              
+              // Log para debug
+              console.log(`[handleSave] Validando wires del subflow ${subflow.id}:`, {
+                internalNodeIds: Array.from(internalNodeIds),
+                inPorts: subflowWithFlow.in?.length || 0,
+                outPorts: subflowWithFlow.out?.length || 0,
+              })
+              
+              if (subflowWithFlow.in && Array.isArray(subflowWithFlow.in)) {
+                subflowWithFlow.in = subflowWithFlow.in.map((inPort: { x: number; y: number; wires?: Array<{ id: string }> }, portIndex: number) => {
+                  const validWires = inPort.wires 
+                    ? inPort.wires
+                        .filter((w: any) => w != null && w.id != null)
+                        .filter((w: any) => {
+                          const isValid = internalNodeIds.has(w.id)
+                          if (!isValid) {
+                            console.error(`[handleSave] ERROR: Subflow ${subflow.id}: in[${portIndex}] referencia nodo ${w.id} que no existe en flow[]`)
+                            console.error(`[handleSave] Nodos disponibles en flow[]:`, Array.from(internalNodeIds))
+                          }
+                          return isValid
+                        })
+                    : []
+                  
+                  if (validWires.length === 0 && inPort.wires && inPort.wires.length > 0) {
+                    console.error(`[handleSave] ERROR: Subflow ${subflow.id}: in[${portIndex}] no tiene wires válidos después del filtrado`)
+                  }
+                  
+                  return {
+                    ...inPort,
+                    wires: validWires
+                  }
+                })
+              }
+              
+              if (subflowWithFlow.out && Array.isArray(subflowWithFlow.out)) {
+                subflowWithFlow.out = subflowWithFlow.out.map((outPort: { x: number; y: number; wires?: Array<{ id: string; port?: number }> }, portIndex: number) => {
+                  const validWires = outPort.wires
+                    ? outPort.wires
+                        .filter((w: any) => w != null && w.id != null)
+                        .filter((w: any) => {
+                          const isValid = internalNodeIds.has(w.id)
+                          if (!isValid) {
+                            console.error(`[handleSave] ERROR: Subflow ${subflow.id}: out[${portIndex}] referencia nodo ${w.id} que no existe en flow[]`)
+                            console.error(`[handleSave] Nodos disponibles en flow[]:`, Array.from(internalNodeIds))
+                          }
+                          return isValid
+                        })
+                    : []
+                  
+                  if (validWires.length === 0 && outPort.wires && outPort.wires.length > 0) {
+                    console.error(`[handleSave] ERROR: Subflow ${subflow.id}: out[${portIndex}] no tiene wires válidos después del filtrado`)
+                  }
+                  
+                  return {
+                    ...outPort,
+                    wires: validWires
+                  }
+                })
+              }
+              
+              return subflowWithFlow
+            }
+          } else {
+            // Si el subflow ya tiene 'flow', validar y limpiar wires en in/out
+            const subflowWithCleanWires: NodeRedSubflowDefinition = {
+              ...subflow,
+            }
+            
+            // Validar que los wires apunten a nodos que existen en flow[]
+            const internalNodeIds = new Set(
+              Array.isArray(subflowWithCleanWires.flow) 
+                ? subflowWithCleanWires.flow.map(n => n.id)
+                : []
+            )
+            
+            if (subflowWithCleanWires.in && Array.isArray(subflowWithCleanWires.in)) {
+              subflowWithCleanWires.in = subflowWithCleanWires.in.map((inPort: { x: number; y: number; wires?: Array<{ id: string }> }, portIndex: number) => {
+                const validWires = inPort.wires 
+                  ? inPort.wires
+                      .filter((w: any) => w != null && w.id != null)
+                      .filter((w: any) => {
+                        const isValid = internalNodeIds.has(w.id)
+                        if (!isValid) {
+                          console.warn(`[handleSave] Subflow ${subflow.id}: in[${portIndex}] referencia nodo ${w.id} que no existe en flow[]`)
+                        }
+                        return isValid
+                      })
+                  : []
+                return {
+                  ...inPort,
+                  wires: validWires
+                }
+              })
+            }
+            
+            if (subflowWithCleanWires.out && Array.isArray(subflowWithCleanWires.out)) {
+              subflowWithCleanWires.out = subflowWithCleanWires.out.map((outPort: { x: number; y: number; wires?: Array<{ id: string; port?: number }> }, portIndex: number) => {
+                const validWires = outPort.wires
+                  ? outPort.wires
+                      .filter((w: any) => w != null && w.id != null)
+                      .filter((w: any) => {
+                        const isValid = internalNodeIds.has(w.id)
+                        if (!isValid) {
+                          console.warn(`[handleSave] Subflow ${subflow.id}: out[${portIndex}] referencia nodo ${w.id} que no existe en flow[]`)
+                        }
+                        return isValid
+                      })
+                  : []
+                return {
+                  ...outPort,
+                  wires: validWires
+                }
+              })
+            }
+            
+            return subflowWithCleanWires
+          }
+        }
+        return node
+      })
+      
       // Construir el payload final:
+      // CRÍTICO: El orden importa - Node-RED necesita que los tabs estén primero
+      // Luego los nodos, en el mismo orden que seed-test.js: flows existentes + nodos nuevos
       // 1. Todos los flows (tabs) para preservarlos
-      // 2. Nodos transformados del flow activo (incluye grupos del flow activo)
-      // 3. TODOS los nodos de otros flows para preservarlos (grupos y nodos normales)
-      let allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
+      // 2. TODOS los nodos de otros flows para preservarlos (grupos y nodos normales)
+      // 3. Nodos transformados del flow activo (incluye grupos del flow activo) - AL FINAL
+      // Esto asegura que los nodos nuevos se agreguen después de los existentes, como en seed-test.js
+      let allNodesToSave = [...allFlows, ...nodesFromOtherFlowsWithFlow, ...nodeRedNodes]
       
-      // Verificar y filtrar nodos internos de subflows que puedan estar como nodos separados
-      // Estos nodos deben estar en subflow.flow, no como nodos separados
-      const subflowIdsInPayload = new Set(
-        allNodesToSave.filter(n => n.type === 'subflow' && n.x && n.y && n.z).map(n => n.id)
+      // CRÍTICO: Identificar correctamente definiciones de subflow vs instancias
+      // - Definiciones de subflow: type === 'subflow' (NO tienen x, y, z)
+      // - Instancias de subflow: type === 'subflow:ID' (SÍ tienen x, y, z)
+      const subflowDefinitionIds = new Set(
+        allNodesToSave.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z).map(n => n.id)
       )
       
-      // Filtrar nodos internos de subflows (tienen z = subflowId)
-      const internalNodesInPayload = allNodesToSave.filter(
-        n => n.z && subflowIdsInPayload.has(n.z) && n.type !== 'subflow' && n.type !== 'tab'
-      )
+      // CRÍTICO: Node-RED necesita que los nodos internos de subflows estén en el array principal
+      // con z = subflowId, además de estar en subflow.flow[]
+      // Cuando Node-RED recibe el payload:
+      // 1. Procesa los nodos con z = subflowId y los coloca en flow.subflows[subflowId].nodes
+      // 2. También procesa subflow.flow[] si existe (para compatibilidad con módulos)
+      // Ambos formatos son necesarios para que funcione correctamente
       
-      // Filtrar subflows duplicados sin propiedades requeridas (x, y, z)
+      // CRÍTICO: Asegurar que los nodos internos en subflow.flow[] NO tengan z
+      // Los nodos internos en flow[] deben estar sin z, pero cuando se agregan al array principal SÍ deben tener z
+      allNodesToSave.forEach(node => {
+        if (node.type === 'subflow' && !node.x && !node.y && !node.z) {
+          const subflow = node as NodeRedSubflowDefinition
+          if (subflow.flow && Array.isArray(subflow.flow) && subflow.flow.length > 0) {
+            // Remover z de los nodos internos en flow[] (deben estar sin z en flow[])
+            subflow.flow = subflow.flow.map(internalNode => {
+              const { z, ...nodeWithoutZ } = internalNode
+              return nodeWithoutZ as NodeRedNode
+            })
+          }
+        }
+      })
+      
+      // Extraer nodos internos de subflow.flow[] y agregarlos al array principal con z = subflowId
+      // CRÍTICO: Los nodos internos DEBEN estar en el array principal ANTES de la definición del subflow
+      // para que Node-RED pueda encontrarlos en node_map cuando procesa el subflow
+      const internalNodesToAdd: NodeRedNode[] = []
+      allNodesToSave.forEach(node => {
+        if (node.type === 'subflow' && !node.x && !node.y && !node.z) {
+          const subflow = node as NodeRedSubflowDefinition
+          if (subflow.flow && Array.isArray(subflow.flow) && subflow.flow.length > 0) {
+            // Agregar cada nodo interno al array principal con z = subflowId
+            subflow.flow.forEach(internalNode => {
+              // Asegurar que el nodo tenga todas las propiedades necesarias
+              const completeInternalNode: NodeRedNode = {
+                ...internalNode,
+                z: subflow.id, // CRÍTICO: Los nodos internos en el array principal DEBEN tener z = subflowId
+                x: internalNode.x ?? 0, // Asegurar que tenga x
+                y: internalNode.y ?? 0, // Asegurar que tenga y
+              } as NodeRedNode
+              
+              // Para nodos function, asegurar que tengan todas las propiedades necesarias
+              if (completeInternalNode.type === 'function') {
+                if (!completeInternalNode.func) {
+                  console.warn(`[handleSave] Nodo function interno ${completeInternalNode.id} sin func`)
+                  completeInternalNode.func = 'return msg;'
+                }
+                if (completeInternalNode.outputs === undefined) {
+                  completeInternalNode.outputs = 1
+                }
+                if (completeInternalNode.noerr === undefined) {
+                  completeInternalNode.noerr = 0
+                }
+              }
+              
+              internalNodesToAdd.push(completeInternalNode)
+            })
+          }
+        }
+      })
+      
+      // Agregar los nodos internos al payload (solo si no están ya presentes)
+      // CRÍTICO: Verificar que no haya duplicados antes de agregar
+      if (internalNodesToAdd.length > 0) {
+        const existingNodeIds = new Set(allNodesToSave.map(n => n.id))
+        const newInternalNodes = internalNodesToAdd.filter(n => {
+          // Filtrar nodos que ya existen en el payload
+          if (existingNodeIds.has(n.id)) {
+            return false
+          }
+          // Asegurar que el nodo tenga todas las propiedades necesarias
+          if (!n.x || !n.y) {
+            console.warn(`[handleSave] Nodo interno ${n.id} sin x o y, usando valores por defecto`)
+            n.x = n.x || 0
+            n.y = n.y || 0
+          }
+          return true
+        })
+        
+        if (newInternalNodes.length > 0) {
+          console.log('[handleSave] Agregando nodos internos de subflows al payload:', {
+            count: newInternalNodes.length,
+            nodes: newInternalNodes.map(n => ({ 
+              id: n.id, 
+              type: n.type, 
+              z: n.z, 
+              x: n.x, 
+              y: n.y,
+              hasWires: !!n.wires,
+              wiresLength: Array.isArray(n.wires) ? n.wires.length : 0,
+              // Verificar propiedades críticas para nodos function
+              hasFunc: n.type === 'function' ? !!n.func : 'N/A',
+              hasOutputs: n.type === 'function' ? n.outputs !== undefined : 'N/A',
+            }))
+          })
+          // CRÍTICO: Insertar los nodos internos ANTES de las definiciones de subflow
+          // Node-RED necesita que los nodos internos estén en node_map antes de procesar el subflow
+          // PERO también necesitan estar en el array principal con z = subflowId para que Node-RED los procese
+          const subflowDefinitions: NodeRedNode[] = []
+          const otherNodes: NodeRedNode[] = []
+          
+          allNodesToSave.forEach(n => {
+            if (n.type === 'subflow' && !n.x && !n.y && !n.z) {
+              subflowDefinitions.push(n)
+            } else {
+              otherNodes.push(n)
+            }
+          })
+          
+          // Validar que todos los nodos internos tengan z correcto
+          newInternalNodes.forEach(n => {
+            if (!n.z) {
+              console.error(`[handleSave] ERROR: Nodo interno ${n.id} no tiene z`)
+            }
+            if (!n.x || !n.y) {
+              console.error(`[handleSave] ERROR: Nodo interno ${n.id} no tiene x o y`)
+            }
+            if (n.type === 'function' && !n.func) {
+              console.error(`[handleSave] ERROR: Nodo function interno ${n.id} no tiene func`)
+            }
+          })
+          
+          // Log detallado de los nodos internos que se están agregando
+          console.log(`[handleSave] Nodos internos agregados al payload:`, {
+            count: newInternalNodes.length,
+            nodes: newInternalNodes.map(n => ({
+              id: n.id,
+              type: n.type,
+              z: n.z,
+              x: n.x,
+              y: n.y,
+              hasWires: !!n.wires,
+            })),
+            subflowDefinitions: subflowDefinitions.map(sf => ({
+              id: sf.id,
+              hasFlow: !!(sf as NodeRedSubflowDefinition).flow,
+              flowLength: Array.isArray((sf as NodeRedSubflowDefinition).flow) ? (sf as NodeRedSubflowDefinition).flow.length : 0,
+              inPorts: (sf as NodeRedSubflowDefinition).in?.length || 0,
+              outPorts: (sf as NodeRedSubflowDefinition).out?.length || 0,
+            })),
+          })
+          
+          // Orden: otros nodos + nodos internos + definiciones de subflow
+          // Los nodos internos deben estar ANTES de las definiciones de subflow
+          // para que Node-RED pueda encontrarlos cuando procesa el subflow
+          allNodesToSave = [...otherNodes, ...newInternalNodes, ...subflowDefinitions]
+        } else {
+          console.log('[handleSave] Todos los nodos internos ya están en el payload')
+        }
+      }
+      
+      // Filtrar subflows duplicados
+      // Las definiciones de subflow NO deben tener x, y, z
+      // Si hay múltiples definiciones del mismo subflow, mantener solo una (la que tiene flow[])
       const subflowsById = new Map<string, (typeof allNodesToSave[number])[]>()
       allNodesToSave.forEach(n => {
-        if (n.type === 'subflow') {
+        if (n.type === 'subflow' && !n.x && !n.y && !n.z) {
+          // Solo procesar definiciones de subflow (sin x, y, z)
           if (!subflowsById.has(n.id)) {
             subflowsById.set(n.id, [])
           }
@@ -708,32 +1107,105 @@ export function CanvasPage() {
       const duplicateSubflows = Array.from(subflowsById.entries())
         .filter(([, nodes]) => nodes.length > 1)
         .flatMap(([, nodes]) => {
-          // Mantener solo el subflow con x, y, z válidos
-          const validSubflow = nodes.find(n => n.x && n.y && n.z)
+          // Mantener solo el subflow que tiene flow[] definido o el primero
+          const validSubflow = nodes.find(n => {
+            const subflow = n as NodeRedSubflowDefinition
+            return subflow.flow && Array.isArray(subflow.flow) && subflow.flow.length > 0
+          }) || nodes[0]
           return nodes.filter(n => n !== validSubflow)
         })
       
-      if (internalNodesInPayload.length > 0 || duplicateSubflows.length > 0) {
-        console.warn('[handleSave] ⚠️ Filtrando nodos problemáticos:', {
-          internalNodes: internalNodesInPayload.map(n => ({ id: n.id, type: n.type, z: n.z })),
-          duplicateSubflows: duplicateSubflows.map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y, z: n.z }))
+      if (duplicateSubflows.length > 0) {
+        console.warn('[handleSave] ⚠️ Filtrando subflows duplicados:', {
+          duplicateSubflows: duplicateSubflows.map(n => ({ id: n.id, type: n.type, hasFlow: !!(n as NodeRedSubflowDefinition).flow }))
         })
-        // Filtrar estos nodos del payload final
-        allNodesToSave = allNodesToSave.filter(
-          n => !(n.z && subflowIdsInPayload.has(n.z) && n.type !== 'subflow' && n.type !== 'tab') &&
-               !duplicateSubflows.includes(n)
-        )
+        // Filtrar subflows duplicados del payload final
+        allNodesToSave = allNodesToSave.filter(n => !duplicateSubflows.includes(n))
       }
       
-      console.log('[handleSave] Payload final:', {
+      // CRÍTICO: Deduplicación final del payload antes de validar
+      // Usar un Map para rastrear nodos únicos por ID
+      // Si hay duplicados, mantener el primero encontrado (o el que tiene más propiedades)
+      const uniqueNodesMap = new Map<string, NodeRedNode>()
+      const duplicateIds: string[] = []
+      
+      allNodesToSave.forEach(node => {
+        if (!node.id) {
+          console.warn('[handleSave] Nodo sin ID encontrado, omitiendo:', node)
+          return
+        }
+        
+        if (uniqueNodesMap.has(node.id)) {
+          // Nodo duplicado encontrado
+          duplicateIds.push(node.id)
+          const existingNode = uniqueNodesMap.get(node.id)!
+          
+          // Decidir cuál mantener: preferir el que tiene más propiedades o el que es una definición de subflow
+          const existingPropsCount = Object.keys(existingNode).length
+          const newPropsCount = Object.keys(node).length
+          
+          // Si el nuevo nodo es una definición de subflow con flow[], preferirlo
+          if (node.type === 'subflow' && !node.x && !node.y && !node.z) {
+            const newSubflow = node as NodeRedSubflowDefinition
+            const existingSubflow = existingNode as NodeRedSubflowDefinition
+            if (newSubflow.flow && Array.isArray(newSubflow.flow) && newSubflow.flow.length > 0) {
+              if (!existingSubflow.flow || !Array.isArray(existingSubflow.flow) || existingSubflow.flow.length === 0) {
+                uniqueNodesMap.set(node.id, node)
+                console.warn(`[handleSave] Reemplazando nodo duplicado ${node.id} con versión que tiene flow[]`)
+                return
+              }
+            }
+          }
+          
+          // Si el nuevo nodo tiene más propiedades, preferirlo
+          if (newPropsCount > existingPropsCount) {
+            uniqueNodesMap.set(node.id, node)
+            console.warn(`[handleSave] Reemplazando nodo duplicado ${node.id} con versión que tiene más propiedades (${newPropsCount} vs ${existingPropsCount})`)
+          } else {
+            // Mantener el existente
+            console.warn(`[handleSave] Manteniendo nodo duplicado ${node.id} existente (${existingPropsCount} propiedades)`)
+          }
+        } else {
+          uniqueNodesMap.set(node.id, node)
+        }
+      })
+      
+      if (duplicateIds.length > 0) {
+        const uniqueDuplicateIds = [...new Set(duplicateIds)]
+        console.warn('[handleSave] ⚠️ IDs duplicados encontrados y resueltos:', {
+          count: uniqueDuplicateIds.length,
+          ids: uniqueDuplicateIds,
+        })
+        // Reconstruir allNodesToSave desde el Map de nodos únicos
+        allNodesToSave = Array.from(uniqueNodesMap.values())
+      }
+      
+      // Log detallado de subflows en el payload
+      const subflowsInPayload = allNodesToSave.filter(n => n.type === 'subflow')
+      const subflowInstancesInPayload = allNodesToSave.filter(n => typeof n.type === 'string' && n.type.startsWith('subflow:'))
+      
+      console.log('[handleSave] Payload final (después de deduplicación):', {
         totalNodes: allNodesToSave.length,
         flows: allNodesToSave.filter(n => n.type === 'tab').length,
+        subflowDefinitions: subflowsInPayload.length,
+        subflowInstances: subflowInstancesInPayload.length,
         activeFlowNodes: nodeRedNodes.length,
         otherFlowNodes: nodesFromOtherFlows.length,
+        duplicatesResolved: duplicateIds.length > 0 ? [...new Set(duplicateIds)].length : 0,
         byType: allNodesToSave.reduce((acc, n) => {
           acc[n.type] = (acc[n.type] || 0) + 1
           return acc
         }, {} as Record<string, number>),
+        subflowsDetail: subflowsInPayload.map(sf => ({
+          id: sf.id,
+          name: (sf as NodeRedSubflowDefinition).name,
+          hasFlow: !!(sf as NodeRedSubflowDefinition).flow,
+          flowLength: Array.isArray((sf as NodeRedSubflowDefinition).flow) ? (sf as NodeRedSubflowDefinition).flow!.length : 0,
+          hasIn: !!(sf as NodeRedSubflowDefinition).in,
+          inLength: Array.isArray((sf as NodeRedSubflowDefinition).in) ? (sf as NodeRedSubflowDefinition).in!.length : 0,
+          hasOut: !!(sf as NodeRedSubflowDefinition).out,
+          outLength: Array.isArray((sf as NodeRedSubflowDefinition).out) ? (sf as NodeRedSubflowDefinition).out!.length : 0,
+        })),
       })
       
       // #region agent log
@@ -780,23 +1252,18 @@ export function CanvasPage() {
         throw saveErr
       }
       
-      // #region agent log
-      const flowsAfterSave = useCanvasStore.getState().flows
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Guardado exitoso',data:{activeFlowId,flowsAfterSaveCount:flowsAfterSave.length,flowIdsAfterSave:flowsAfterSave.map(f=>f.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
+      // COMENTADO: Recarga innecesaria que solo alenta la app
+      // El polling en triggerInjectNode manejará el caso donde el nodo aún no está desplegado
+      // No necesitamos recargar flows después de guardar - los datos ya están en el store
       
-      // CRÍTICO: Actualizar el store con los nodos y edges actuales (que acabamos de guardar)
-      // No recargar desde Node-RED porque acabamos de guardar, el estado local es el correcto
-      // Solo actualizamos el store para sincronizar con otros componentes
-      console.log('[handleSave] Actualizando store con nodos y edges guardados...')
-      setNodes(nodes)
-      setEdges(edges)
-      
-      // Actualizar estado guardado después de guardar exitosamente
-      // Usar los nodos y edges actuales del estado local (que acabamos de guardar)
+      // Actualizar estado guardado con los datos actuales (sin recargar)
+      const currentNodes = useCanvasStore.getState().nodes
+      const currentEdges = useCanvasStore.getState().edges
       const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
-      const newSavedState = createFlowSnapshot(nodes, edges, currentNodeRedNodes)
+      const newSavedState = createFlowSnapshot(currentNodes, currentEdges, currentNodeRedNodes)
       setSavedState(newSavedState)
+      
+      console.log('[handleSave] ✅ Flow guardado exitosamente')
       
       // Eliminar draft ya que se guardó exitosamente
       await deleteDraft(activeFlowId).catch(err => {
@@ -844,6 +1311,20 @@ export function CanvasPage() {
       setIsSaving(false)
     }
   }, [activeFlowId, isEditMode, nodes, edges, loadFlows, renderFlow])
+
+  // Recarga manual para sincronizar IDs con Node-RED después de cambios externos (seed, etc.)
+  // TEMPORALMENTE COMENTADO: Función de recargar flows - innecesaria y solo alenta la app
+  // const handleReloadFlows = useCallback(async () => {
+  //   try {
+  //     setLoading(true)
+  //     await loadFlows()
+  //     if (activeFlowId) {
+  //       renderFlow(activeFlowId)
+  //     }
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }, [activeFlowId, loadFlows, renderFlow, setLoading])
 
   // Manejar drag & drop desde la paleta
   const onDrop = useCallback((event: React.DragEvent) => {
@@ -924,6 +1405,47 @@ export function CanvasPage() {
       return
     }
 
+    // Verificar si es una instancia de subflow (tipo subflow:ID)
+    if (nodeType.startsWith('subflow:')) {
+      const subflowId = nodeType.replace('subflow:', '')
+      const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const subflowDefinition = allNodeRedNodes.find(
+        (n): n is NodeRedSubflowDefinition => n.type === 'subflow' && n.id === subflowId
+      )
+      
+      if (subflowDefinition) {
+        const newNodeId = `subflow-instance-${Date.now()}`
+        const inputs = subflowDefinition.in?.length || 1
+        const outputs = subflowDefinition.out?.length || 1
+        const newNodeType = getNodeType(nodeType)
+        const newNode: Node = {
+          id: newNodeId,
+          type: newNodeType,
+          position,
+          data: {
+            label: subflowDefinition.name || subflowDefinition.label || 'Subflow',
+            nodeRedType: nodeType,
+            flowId: activeFlowId,
+            outputPortsCount: outputs,
+            nodeRedNode: {
+              id: newNodeId,
+              type: nodeType,
+              name: subflowDefinition.name || 'Subflow',
+              z: activeFlowId,
+              x: position.x,
+              y: position.y,
+            },
+            subflowDefinition,
+          },
+        }
+        
+        const updatedNodes = [...nodes, newNode]
+        setNodesLocal(updatedNodes)
+        setNodes(updatedNodes)
+        return
+      }
+    }
+    
     // Para otros tipos de nodos, crear normalmente
     const newNodeId = `${nodeType}-${Date.now()}`
     const newNodeType = getNodeType(nodeType)
@@ -1694,6 +2216,218 @@ export function CanvasPage() {
     }
   }, [nodes])
 
+  // Función para comparar si hay cambios no guardados (usando nueva utilidad)
+  const isDirty = useMemo(() => {
+    if (!isEditMode || !savedState) return false
+    return hasUnsavedChanges(nodes, edges, savedState)
+  }, [isEditMode, nodes, edges, savedState])
+
+  // Función wrapper para switchFlow que verifica cambios no guardados
+  const handleSwitchFlow = useCallback((newFlowId: string) => {
+    if (isDirty) {
+      const confirm = window.confirm(
+        'Tienes cambios sin guardar. ¿Estás seguro de que quieres cambiar de flow? Los cambios se perderán.'
+      )
+      if (!confirm) {
+        return
+      }
+    }
+    
+    // Verificar si el nuevo flowId es un subflow
+    const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+    const targetFlow = allNodeRedNodes.find(n => n.id === newFlowId)
+    const isSubflow = targetFlow?.type === 'subflow'
+    
+    if (isSubflow) {
+      // Si navegamos a un subflow, agregar al breadcrumb
+      const currentFlow = flows.find(f => f.id === activeFlowId)
+      setSubflowBreadcrumb(prev => {
+        // Verificar si ya está en el breadcrumb
+        const alreadyExists = prev.some(item => item.subflowId === newFlowId)
+        if (alreadyExists) {
+          return prev
+        }
+        // Agregar al breadcrumb
+        return [...prev, {
+          flowId: activeFlowId || '',
+          flowName: currentFlow?.label || currentFlow?.name || 'Flow',
+          subflowId: newFlowId,
+          subflowName: targetFlow?.name || targetFlow?.label || newFlowId,
+        }]
+      })
+    } else {
+      // Si navegamos a un flow normal (tab), limpiar el breadcrumb
+      setSubflowBreadcrumb([])
+    }
+    
+    switchFlow(newFlowId)
+  }, [isDirty, switchFlow, activeFlowId, flows])
+
+  // Función para convertir un flow (tab) en un subflow (estilo n8n)
+  const handleConvertFlowToSubflow = useCallback(async (flowId: string) => {
+    try {
+      // Obtener el flow (tab) y todos sus nodos
+      const flowTab = nodeRedNodes.find(n => n.type === 'tab' && n.id === flowId)
+      if (!flowTab) {
+        alert('Flow no encontrado')
+        return
+      }
+
+      // Obtener todos los nodos del flow (excluyendo el tab y subflows)
+      const flowNodes = nodeRedNodes.filter(n => 
+        n.z === flowId && 
+        n.type !== 'tab' && 
+        n.type !== 'subflow' &&
+        !n.type.startsWith('subflow:')
+      )
+
+      if (flowNodes.length === 0) {
+        alert('El flow no tiene nodos para convertir en subflow')
+        return
+      }
+
+      // Identificar nodos de entrada (sin conexiones entrantes) y salida (sin conexiones salientes)
+      // Construir un mapa de conexiones desde los wires
+      const incomingConnections = new Map<string, string[]>() // target -> [sources]
+      const outgoingConnections = new Map<string, string[]>() // source -> [targets]
+
+      flowNodes.forEach(node => {
+        if (node.wires && Array.isArray(node.wires)) {
+          node.wires.forEach((targetIds, outputPort) => {
+            if (Array.isArray(targetIds)) {
+              targetIds.forEach(targetId => {
+                if (!outgoingConnections.has(node.id)) {
+                  outgoingConnections.set(node.id, [])
+                }
+                outgoingConnections.get(node.id)!.push(targetId)
+
+                if (!incomingConnections.has(targetId)) {
+                  incomingConnections.set(targetId, [])
+                }
+                incomingConnections.get(targetId)!.push(node.id)
+              })
+            }
+          })
+        }
+      })
+
+      // Nodos de entrada: sin conexiones entrantes o nodos tipo inject
+      const inputNodes = flowNodes.filter(node => {
+        const hasIncoming = incomingConnections.has(node.id) && incomingConnections.get(node.id)!.length > 0
+        const isInject = node.type === 'inject'
+        return !hasIncoming || isInject
+      })
+
+      // Nodos de salida: sin conexiones salientes o nodos tipo debug/complete
+      const outputNodes = flowNodes.filter(node => {
+        const hasOutgoing = outgoingConnections.has(node.id) && outgoingConnections.get(node.id)!.length > 0
+        const isOutput = node.type === 'debug' || node.type === 'complete'
+        return !hasOutgoing || isOutput
+      })
+
+      // Si no hay nodos de entrada o salida, usar todos los nodos
+      if (inputNodes.length === 0) {
+        inputNodes.push(...flowNodes.slice(0, 1)) // Usar el primer nodo como entrada
+      }
+      if (outputNodes.length === 0) {
+        outputNodes.push(...flowNodes.slice(-1)) // Usar el último nodo como salida
+      }
+
+      // Crear el subflow
+      const subflowId = `subflow-${flowId}`
+      const subflowName = flowTab.label || flowTab.name || `Subflow ${flowId.slice(0, 8)}`
+      
+      // Crear arrays in y out basados en los nodos de entrada/salida
+      const inPorts = inputNodes.map((node, index) => ({
+        x: 120,
+        y: 100 + (index * 40),
+        wires: [{
+          id: node.id
+        }]
+      }))
+
+      const outPorts = outputNodes.map((node, index) => ({
+        x: 560,
+        y: 100 + (index * 40),
+        wires: [{
+          id: node.id,
+          port: 0
+        }]
+      }))
+
+      // Crear el subflow con los nodos internos
+      // Los nodos internos NO deben tener z cuando están en flow[]
+      const subflow: NodeRedSubflowDefinition = {
+        id: subflowId,
+        type: 'subflow',
+        name: subflowName,
+        info: `Subflow convertido desde ${subflowName}`,
+        category: 'common',
+        color: '#A6BBCF',
+        icon: 'font-awesome/fa-cog',
+        env: [], // CRÍTICO: Los subflows deben tener env definido
+        in: inPorts,
+        out: outPorts,
+        inputs: inPorts.length,
+        outputs: outPorts.length,
+        flow: flowNodes.map(n => {
+          // Remover z de los nodos internos cuando están en flow[]
+          const { z, ...nodeWithoutZ } = n
+          return nodeWithoutZ as NodeRedNode
+        }),
+      }
+
+      // Guardar el subflow y eliminar el tab original
+      // Primero, obtener todos los flows y nodos actuales
+      const allFlows = nodeRedNodes.filter(n => n.type === 'tab')
+      const allOtherNodes = nodeRedNodes.filter(n => 
+        n.type !== 'tab' && 
+        n.z !== flowId && 
+        !(n.z && nodeRedNodes.some(sf => sf.type === 'subflow' && sf.id === n.z))
+      )
+
+      // Construir el payload: flows restantes + subflow + nodos de otros flows
+      const payload = [
+        ...allFlows.filter(f => f.id !== flowId), // Excluir el flow que se convierte
+        subflow, // Agregar el nuevo subflow
+        ...allOtherNodes, // Preservar nodos de otros flows
+      ]
+
+      // Guardar usando la API
+      const currentRev = useCanvasStore.getState().rev || ''
+      const result = await nodeRedRequest<{ rev: string }>('/flows', {
+        method: 'POST',
+        headers: {
+          'Node-RED-API-Version': 'v2',
+          'Node-RED-Deployment-Type': 'full',
+        },
+        body: JSON.stringify({
+          rev: currentRev,
+          flows: payload,
+        }),
+      })
+      
+      // Actualizar el rev
+      useCanvasStore.getState().setRev(result.rev)
+
+      // Recargar flows para actualizar la lista
+      await loadFlows()
+
+      // Si el flow convertido era el activo, cambiar al primer flow disponible
+      if (activeFlowId === flowId) {
+        const updatedFlows = useCanvasStore.getState().flows
+        if (updatedFlows.length > 0) {
+          handleSwitchFlow(updatedFlows[0].id)
+        }
+      }
+
+      alert(`Flow "${subflowName}" convertido a subflow exitosamente`)
+    } catch (err) {
+      console.error('Error al convertir flow a subflow:', err)
+      alert(`Error al convertir flow a subflow: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+    }
+  }, [nodeRedNodes, activeFlowId, loadFlows, handleSwitchFlow])
+
   // Agregar handlers a nodos de grupo cuando se cargan o cambia el modo edición
   useEffect(() => {
     // Usar setter funcional para evitar dependencia de 'nodes'
@@ -1748,12 +2482,6 @@ export function CanvasPage() {
     onClipboardChange: setHasClipboard,
   })
 
-  // Función para comparar si hay cambios no guardados (usando nueva utilidad)
-  const isDirty = useMemo(() => {
-    if (!isEditMode || !savedState) return false
-    return hasUnsavedChanges(nodes, edges, savedState)
-  }, [isEditMode, nodes, edges, savedState])
-  
   // Autosave: guardar draft periódicamente si hay cambios
   useEffect(() => {
     if (!activeFlowId || !isEditMode || !isDirty) return
@@ -1769,19 +2497,6 @@ export function CanvasPage() {
     
     return () => clearInterval(autosaveInterval)
   }, [activeFlowId, isEditMode, isDirty, nodes, edges])
-
-  // Función wrapper para switchFlow que verifica cambios no guardados
-  const handleSwitchFlow = useCallback((newFlowId: string) => {
-    if (isDirty) {
-      const confirm = window.confirm(
-        'Tienes cambios sin guardar. ¿Estás seguro de que quieres cambiar de flow? Los cambios se perderán.'
-      )
-      if (!confirm) {
-        return
-      }
-    }
-    switchFlow(newFlowId)
-  }, [isDirty, switchFlow])
 
   // Navegación entre flows con teclado (Ctrl+[ y Ctrl+])
   useEffect(() => {
@@ -1913,6 +2628,18 @@ export function CanvasPage() {
                 </>
               )}
             </button>
+            {/* TEMPORALMENTE COMENTADO: Botón de recargar flows - innecesario y solo alenta la app */}
+            {/* <button
+              onClick={handleReloadFlows}
+              disabled={isLoading}
+              className="px-3 py-1.5 text-xs bg-bg-secondary text-text-primary rounded-md hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              title="Recargar flows desde Node-RED para sincronizar IDs (útil tras seed o redeploy)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 016.623 15M20 20h-4" />
+              </svg>
+              <span>{isLoading ? 'Recargando...' : 'Recargar flows'}</span>
+            </button> */}
             {/* Indicador de cambios no guardados */}
             {isDirty && !isSaving && (
               <span className="text-xs text-status-warning flex items-center gap-1" title="Tienes cambios sin guardar">
@@ -2030,6 +2757,23 @@ export function CanvasPage() {
           }}
         />
       )}
+
+      {/* Flow Manager */}
+      <FlowManager
+        flows={flows}
+        activeFlowId={activeFlowId}
+        allNodes={nodeRedNodes}
+        isLoading={isLoading}
+        onSelectFlow={handleSwitchFlow}
+        onCreateFlow={createNewFlow}
+        onEditFlow={switchFlow}
+        onDuplicateFlow={duplicateExistingFlow}
+        onDeleteFlow={removeFlow}
+        onImportFlow={async (json, options) => {
+          await importFlowFromJson(json, options)
+        }}
+        onConvertToSubflow={handleConvertFlowToSubflow}
+      />
 
       {/* Breadcrumb de navegación de subflows */}
       {subflowBreadcrumb.length > 0 && (
@@ -2184,17 +2928,32 @@ export function CanvasPage() {
                 const subflowNode = node.data.nodeRedNode
                 const subflowId = extractSubflowIdFromType(subflowNode.type)
                 if (subflowId) {
-                  // Agregar al breadcrumb
-                  const currentFlow = flows.find(f => f.id === activeFlowId)
-                  setSubflowBreadcrumb(prev => [...prev, {
-                    flowId: activeFlowId || '',
-                    flowName: currentFlow?.label || currentFlow?.name || 'Flow',
-                    subflowId,
-                    subflowName: subflowNode.name || subflowId,
-                  }])
-                  // TODO: Implementar navegación al subflow (cargar nodos del subflow)
-                  // Por ahora, solo mostrar mensaje
-                  console.log('Navegar a subflow:', subflowId)
+                  // CRÍTICO: Guardar edges actuales antes de cambiar de flow
+                  // Esto previene que se pierdan edges al navegar
+                  const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+                  const currentSnapshot = createFlowSnapshot(nodes, edges, currentNodeRedNodes)
+                  setSavedState(currentSnapshot)
+                  
+                  // Verificar que el subflow no esté ya en el breadcrumb para evitar duplicados
+                  setSubflowBreadcrumb(prev => {
+                    // Si el subflow ya está en el breadcrumb, no agregarlo de nuevo
+                    const alreadyExists = prev.some(item => item.subflowId === subflowId)
+                    if (alreadyExists) {
+                      console.log('Subflow ya está en el breadcrumb, no se agregará duplicado:', subflowId)
+                      return prev
+                    }
+                    
+                    // Agregar al breadcrumb solo si no existe
+                    const currentFlow = flows.find(f => f.id === activeFlowId)
+                    return [...prev, {
+                      flowId: activeFlowId || '',
+                      flowName: currentFlow?.label || currentFlow?.name || 'Flow',
+                      subflowId,
+                      subflowName: subflowNode.name || subflowId,
+                    }]
+                  })
+                  // Navegar al subflow usando handleSwitchFlow para preservar edges
+                  handleSwitchFlow(subflowId)
                 }
               } else {
                 setSelectedNode(node)
@@ -2341,21 +3100,31 @@ export function CanvasPage() {
             onClose={() => setContextMenu(null)}
             allNodes={nodes}
             onOpenSubflow={(subflowId) => {
-              // Agregar al breadcrumb
-              const currentFlow = flows.find(f => f.id === activeFlowId)
-              const subflowNode = nodes.find(n => 
-                n.data?.nodeRedNode && 
-                isSubflowInstance(n.data.nodeRedNode) &&
-                extractSubflowIdFromType(n.data.nodeRedNode.type) === subflowId
-              )
-              setSubflowBreadcrumb(prev => [...prev, {
-                flowId: activeFlowId || '',
-                flowName: currentFlow?.label || currentFlow?.name || 'Flow',
-                subflowId,
-                subflowName: subflowNode?.data?.label || subflowNode?.data?.nodeRedNode?.name || subflowId,
-              }])
-              // TODO: Implementar navegación real al subflow
-              console.log('Abrir subflow:', subflowId)
+              // Verificar que el subflow no esté ya en el breadcrumb para evitar duplicados
+              setSubflowBreadcrumb(prev => {
+                // Si el subflow ya está en el breadcrumb, no agregarlo de nuevo
+                const alreadyExists = prev.some(item => item.subflowId === subflowId)
+                if (alreadyExists) {
+                  console.log('Subflow ya está en el breadcrumb, no se agregará duplicado:', subflowId)
+                  return prev
+                }
+                
+                // Agregar al breadcrumb solo si no existe
+                const currentFlow = flows.find(f => f.id === activeFlowId)
+                const subflowNode = nodes.find(n => 
+                  n.data?.nodeRedNode && 
+                  isSubflowInstance(n.data.nodeRedNode) &&
+                  extractSubflowIdFromType(n.data.nodeRedNode.type) === subflowId
+                )
+                return [...prev, {
+                  flowId: activeFlowId || '',
+                  flowName: currentFlow?.label || currentFlow?.name || 'Flow',
+                  subflowId,
+                  subflowName: subflowNode?.data?.label || subflowNode?.data?.nodeRedNode?.name || subflowId,
+                }]
+              })
+              // Navegar al subflow usando switchFlow
+              switchFlow(subflowId)
             }}
             onNavigateToLink={(nodeId) => {
               jumpToNode(nodeId)

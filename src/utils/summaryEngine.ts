@@ -177,7 +177,7 @@ function analyzePayload(payload: any): { title: string; subtitle?: string } {
 export function generateNodeSummary(input: SummaryInput): NodeSummary {
   const {
     nodeType,
-    nodeName,
+    // nodeName, // No usado actualmente
     runtimeState,
     payloadPreview,
     payload,

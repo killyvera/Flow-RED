@@ -147,8 +147,8 @@ export class NodeRedWebSocketClient {
           // Node-RED puede enviar arrays de eventos o un solo evento
           if (Array.isArray(data)) {
             // console.log('📦 [WebSocket] Array de eventos recibido, procesando', data.length, 'eventos')
-            data.forEach((item, index) => {
-              // console.log(`📨 [WebSocket] Evento ${index + 1}/${data.length}:`, item)
+            data.forEach((item) => {
+              // console.log(`📨 [WebSocket] Evento recibido:`, item)
               this.handleMessage(item)
             })
           } else {
@@ -165,7 +165,7 @@ export class NodeRedWebSocketClient {
         }
       }
 
-      this.ws.onerror = (error) => {
+      this.ws.onerror = () => {
         // Solo loguear el error, no hacer nada más aquí
         // El onclose se encargará de la reconexión
         wsLogger('Error en WebSocket (se intentará reconectar automáticamente):', this.url)

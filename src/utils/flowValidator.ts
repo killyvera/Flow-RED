@@ -44,7 +44,11 @@ function validateNode(node: any, nodeIndex: number): { isValid: boolean; errors:
   // Si el nodo está dentro de un subflow.flow, saltar validación de posición
   const isSubflowInternalNode = node._isSubflowInternal || false
   
-  if (!isSubflowInternalNode) {
+  // CRÍTICO: Las definiciones de subflow (type === 'subflow' sin x, y, z) NO requieren x, y, z
+  // Solo las instancias de subflow (type === 'subflow:ID' con x, y, z) los requieren
+  const isSubflowDefinition = node.type === 'subflow' && !node.x && !node.y && !node.z
+  
+  if (!isSubflowInternalNode && !isSubflowDefinition) {
     // Validar x
     if (typeof node.x !== 'number' || isNaN(node.x)) {
       errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'x' es requerido y debe ser un número`)
@@ -55,7 +59,7 @@ function validateNode(node: any, nodeIndex: number): { isValid: boolean; errors:
       errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'y' es requerido y debe ser un número`)
     }
 
-    // Validar z (flowId) - requerido para nodos que no son tabs ni subflows
+    // Validar z (flowId) - requerido para nodos que no son tabs ni definiciones de subflow
     if (node.type !== 'tab' && node.type !== 'subflow' && (!node.z || typeof node.z !== 'string' || node.z.trim() === '')) {
       errors.push(`Nodo ${nodeIndex} (${node.id || 'sin id'}): 'z' (flowId) es requerido para nodos que no son tabs`)
     }
@@ -116,24 +120,34 @@ export function validateFlow(nodes: NodeRedNode[]): ValidationResult {
     }
   })
 
-  // Filtrar nodos internos de subflows (tienen z = subflowId)
-  // Estos nodos NO deben estar en el array principal, deben estar en subflow.flow
-  // También filtrar nodos que son subflows pero no tienen las propiedades requeridas (x, y, z)
+  // CRÍTICO: Node-RED necesita que los nodos internos de subflows estén en el array principal
+  // con z = subflowId, además de estar en subflow.flow[]
+  // Cuando Node-RED recibe el payload, procesa los nodos con z = subflowId y los coloca
+  // en flow.subflows[subflowId].nodes, que luego se usan para crear las instancias
+  // Por lo tanto, los nodos internos con z = subflowId SON válidos en el array principal
+  
   const nodesToValidate = nodes.filter((node, index) => {
-    // Si el nodo tiene z que es un ID de subflow, es un nodo interno
-    if (node.z && subflowIds.has(node.z)) {
-      // Este nodo debería estar en subflow.flow, no en el array principal
-      errors.push(`Nodo ${index} (${node.id || 'sin id'}): Los nodos internos de subflows deben estar en la propiedad 'flow' del subflow, no como nodos separados`)
-      return false // Excluir de validación (ya se reportó el error)
-    }
-    // Si el nodo es un subflow pero no tiene x, y, z, puede ser un nodo interno mal formado
-    if (node.type === 'subflow' && (!node.x || !node.y || !node.z)) {
-      // Verificar si hay un subflow con el mismo ID que tenga las propiedades correctas
-      const validSubflow = nodes.find(n => n.type === 'subflow' && n.id === node.id && n.x && n.y && n.z)
-      if (validSubflow && validSubflow !== node) {
-        // Este es un duplicado del subflow sin propiedades, excluirlo
-        errors.push(`Nodo ${index} (${node.id || 'sin id'}): Subflow duplicado sin propiedades requeridas (x, y, z)`)
-        return false
+    // Los nodos internos de subflows (con z = subflowId) SON válidos en el array principal
+    // Node-RED los necesita ahí para procesarlos correctamente
+    // No los filtramos, solo los validamos normalmente
+    // CRÍTICO: Las definiciones de subflow (type === 'subflow' sin x, y, z) son válidas
+    // Solo las instancias de subflow (type === 'subflow:ID' con x, y, z) requieren esas propiedades
+    // Si hay múltiples definiciones del mismo subflow, mantener solo una
+    if (node.type === 'subflow' && !node.x && !node.y && !node.z) {
+      // Es una definición de subflow válida, verificar si hay duplicados
+      const duplicateDefinitions = nodes.filter(n => 
+        n.type === 'subflow' && 
+        n.id === node.id && 
+        !n.x && !n.y && !n.z &&
+        n !== node
+      )
+      if (duplicateDefinitions.length > 0) {
+        // Hay definiciones duplicadas, mantener solo la primera
+        const isFirst = nodes.findIndex(n => n === node) === index
+        if (!isFirst) {
+          errors.push(`Nodo ${index} (${node.id || 'sin id'}): Definición de subflow duplicada`)
+          return false
+        }
       }
     }
     return true
@@ -155,7 +169,7 @@ export function validateFlow(nodes: NodeRedNode[]): ValidationResult {
   // Validar IDs únicos
   const nodeIds = new Set<string>()
   const duplicateIds: string[] = []
-  nodes.forEach((node, index) => {
+  nodes.forEach((node) => {
     if (node.id) {
       if (nodeIds.has(node.id)) {
         duplicateIds.push(node.id)

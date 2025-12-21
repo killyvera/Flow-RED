@@ -87,7 +87,7 @@ export function JSONField({
     }
 
     try {
-      const parsed = JSON.parse(newValue)
+      JSON.parse(newValue) // Validar JSON
       setError(null)
       setIsValid(true)
       // Pasar el valor parseado o el string según corresponda

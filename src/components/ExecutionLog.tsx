@@ -59,7 +59,7 @@ export function ExecutionLog({ isOpen, onClose }: ExecutionLogProps) {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      fractionalSecondDigits: 3,
+        // fractionalSecondDigits: 3, // No soportado en todos los navegadores
     })
   }
 

@@ -33,31 +33,31 @@ import {
   Circle,
   // Iconos de entrada/salida
   ArrowRight,
-  ArrowLeft,
-  ArrowDown,
-  ArrowUp,
+  // ArrowLeft, // No usado actualmente
+  // ArrowDown, // No usado actualmente
+  // ArrowUp, // No usado actualmente
   Download,
-  Upload,
+  // Upload, // No usado actualmente
   // Iconos de procesamiento
   Zap,
   Settings,
   Filter,
-  Search,
-  Wrench,
-  Cog,
+  // Search, // No usado actualmente
+  // Wrench, // No usado actualmente
+  // Cog, // No usado actualmente
   // Iconos de datos
   Table,
   FileJson,
   FileCode,
-  Braces,
+  // Braces, // No usado actualmente
   Hash,
-  Lock,
+  // Lock, // No usado actualmente
   // Iconos de red
-  Server,
-  Cloud,
+  // Server, // No usado actualmente
+  // Cloud, // No usado actualmente
   // Iconos de tiempo
   Calendar,
-  AlarmClock,
+  // AlarmClock, // No usado actualmente
   // Iconos de lógica
   GitMerge,
   Workflow,
@@ -67,18 +67,18 @@ import {
   Package,
   Layers,
   Grid,
-  List,
+  // List, // No usado actualmente
   // Iconos de UI
   MessageSquare,
   Bell,
   ToggleLeft,
-  ToggleRight,
+  // ToggleRight, // No usado actualmente
   SlidersHorizontal,
   Type,
   Keyboard,
   ChevronDown,
   Gauge,
-  LineChart,
+  // LineChart, // No usado actualmente
   Square,
   type LucideIcon,
 } from 'lucide-react'

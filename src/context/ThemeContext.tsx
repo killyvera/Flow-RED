@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { getTheme, getAvailableThemes, type Theme } from '@/theme/themes'
+import { getTheme, getAvailableThemes } from '@/theme/themes'
 import { getConfiguredTheme } from '@/theme/config'
 import { applyLightDarkTheme, applyThemeWithClass } from '@/theme/utils'
 

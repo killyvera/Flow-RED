@@ -18,7 +18,7 @@ export interface ContextMenuOption {
   id: string
   label: string
   icon?: React.ReactNode
-  onClick: () => void
+  onClick?: () => void
   disabled?: boolean
   separator?: boolean
 }
@@ -91,7 +91,7 @@ export function ContextMenu({
     if (!position) return
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(event.target as HTMLElement | null)) {
         onClose()
       }
     }

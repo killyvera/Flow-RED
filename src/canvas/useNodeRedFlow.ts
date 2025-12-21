@@ -9,9 +9,8 @@
  */
 
 import { useEffect, useCallback, useRef } from 'react'
-import { getFlows } from '@/api/client'
+import { getFlows, createFlow, deleteFlow, duplicateFlow, importFlow } from '@/api/client'
 import { extractFlows, transformNodeRedFlow } from './mappers'
-import { useCanvasStore } from '@/state/canvasStore'
 import { useCanvasStore } from '@/state/canvasStore'
 import { flowLogger, appLogger } from '@/utils/logger'
 
@@ -217,6 +216,136 @@ export function useNodeRedFlow(autoLoad: boolean = true) {
     }
   }, [activeFlowId, nodeRedNodes, renderFlow])
 
+  /**
+   * Crea un nuevo flow vacío
+   * Después de crear, recarga flows desde la API
+   */
+  const createNewFlow = useCallback(async (name: string, options?: { disabled?: boolean; info?: string }) => {
+    flowLogger('➕ Creando nuevo flow:', { name, options })
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const result = await createFlow(name, options)
+      
+      // COMENTADO: Recarga innecesaria que solo alenta la app
+      // await loadFlows()
+      
+      // Seleccionar el nuevo flow
+      setActiveFlowId(result.id)
+      renderFlow(result.id)
+      
+      flowLogger('✅ Flow creado:', { id: result.id, name })
+      return result
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al crear flow'
+      flowLogger('❌ Error al crear flow:', errorMessage)
+      setError(errorMessage)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [loadFlows, renderFlow, setLoading, setError, setActiveFlowId])
+
+  /**
+   * Elimina un flow
+   * Después de eliminar, recarga flows desde la API
+   */
+  const removeFlow = useCallback(async (flowId: string) => {
+    flowLogger('🗑️ Eliminando flow:', { flowId })
+    setLoading(true)
+    setError(null)
+    
+    try {
+      await deleteFlow(flowId)
+      
+      // COMENTADO: Recarga innecesaria que solo alenta la app
+      // await loadFlows()
+      
+      // Si se eliminó el flow activo, seleccionar el primero disponible
+      if (activeFlowId === flowId) {
+        const currentFlows = useCanvasStore.getState().flows
+        if (currentFlows.length > 0) {
+          setActiveFlowId(currentFlows[0].id)
+          renderFlow(currentFlows[0].id)
+        } else {
+          setActiveFlowId(null)
+        }
+      }
+      
+      flowLogger('✅ Flow eliminado:', { flowId })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar flow'
+      flowLogger('❌ Error al eliminar flow:', errorMessage)
+      setError(errorMessage)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [loadFlows, renderFlow, activeFlowId, setLoading, setError, setActiveFlowId])
+
+  /**
+   * Duplica un flow
+   * Después de duplicar, recarga flows desde la API
+   */
+  const duplicateExistingFlow = useCallback(async (flowId: string, newName?: string) => {
+    flowLogger('📋 Duplicando flow:', { flowId, newName })
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const result = await duplicateFlow(flowId, newName)
+      
+      // COMENTADO: Recarga innecesaria que solo alenta la app
+      // await loadFlows()
+      
+      // Seleccionar el flow duplicado
+      setActiveFlowId(result.id)
+      renderFlow(result.id)
+      
+      flowLogger('✅ Flow duplicado:', { originalId: flowId, newId: result.id })
+      return result
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al duplicar flow'
+      flowLogger('❌ Error al duplicar flow:', errorMessage)
+      setError(errorMessage)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [loadFlows, renderFlow, setLoading, setError, setActiveFlowId])
+
+  /**
+   * Importa un flow desde JSON
+   * Después de importar, recarga flows desde la API
+   */
+  const importFlowFromJson = useCallback(async (json: string | object, options?: { name?: string; duplicate?: boolean }) => {
+    flowLogger('📥 Importando flow desde JSON:', { hasName: !!options?.name })
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const result = await importFlow(json, options)
+      
+      // COMENTADO: Recarga innecesaria que solo alenta la app
+      // await loadFlows()
+      
+      // Seleccionar el flow importado
+      setActiveFlowId(result.id)
+      renderFlow(result.id)
+      
+      flowLogger('✅ Flow importado:', { id: result.id })
+      return result
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al importar flow'
+      flowLogger('❌ Error al importar flow:', errorMessage)
+      setError(errorMessage)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [loadFlows, renderFlow, setLoading, setError, setActiveFlowId])
+
   return {
     // Estado
     flows,
@@ -229,6 +358,10 @@ export function useNodeRedFlow(autoLoad: boolean = true) {
     loadFlows,
     renderFlow,
     switchFlow,
+    createNewFlow,
+    removeFlow,
+    duplicateExistingFlow,
+    importFlowFromJson,
   }
 }
 

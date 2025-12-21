@@ -7,10 +7,9 @@
 
 import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
-import type { Node } from 'reactflow'
-import { Workflow, ChevronRight } from 'lucide-react'
+import { Workflow, ChevronRight, Info } from 'lucide-react'
 import { getNodeHeaderColor } from '@/utils/nodeColors'
-import { isSubflowInstance, extractSubflowIdFromType, getSubflowDefinition, getSubflowInputs, getSubflowOutputs } from '@/utils/subflowUtils'
+import { getSubflowInputs, getSubflowOutputs, extractSubflowIdFromType } from '@/utils/subflowUtils'
 import type { NodeRedSubflowDefinition, NodeRedSubflowInstance } from '@/api/types'
 
 export interface SubflowNodeProps {
@@ -25,13 +24,17 @@ export interface SubflowNodeProps {
   id: string
 }
 
-export const SubflowNode = memo(({ data, selected, id }: SubflowNodeProps) => {
+export const SubflowNode = memo(({ data, selected }: SubflowNodeProps) => {
   const { nodeRedNode, subflowDefinition } = data
   const label = data.label || nodeRedNode.name || 'Subflow'
   
   // Obtener información del subflow
   const inputs = subflowDefinition ? getSubflowInputs(subflowDefinition) : (nodeRedNode.wires?.length || 0)
   const outputs = subflowDefinition ? getSubflowOutputs(subflowDefinition) : 1
+  
+  // Obtener ID del subflow desde el tipo
+  const subflowId = extractSubflowIdFromType(nodeRedNode.type) || subflowDefinition?.id || 'unknown'
+  const subflowName = subflowDefinition?.name || label
   
   // Color del header basado en el tipo
   const nodeHeaderColor = getNodeHeaderColor('subflow')
@@ -83,7 +86,7 @@ export const SubflowNode = memo(({ data, selected, id }: SubflowNodeProps) => {
       {/* Body del subflow */}
       <div className="px-3 py-2">
         <div className="text-xs text-text-secondary">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 mb-1">
             <span className="text-[10px] bg-bg-tertiary px-1.5 py-0.5 rounded">
               Subflow
             </span>
@@ -93,6 +96,14 @@ export const SubflowNode = memo(({ data, selected, id }: SubflowNodeProps) => {
               </span>
             )}
           </div>
+          {subflowDefinition && (
+            <div className="text-[10px] text-text-tertiary flex items-center gap-1 mt-1">
+              <Info className="w-3 h-3" />
+              <span className="truncate" title={`ID: ${subflowId}`}>
+                {subflowName !== label ? subflowName : `ID: ${subflowId.slice(0, 8)}...`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

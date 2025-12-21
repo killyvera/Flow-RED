@@ -7,7 +7,6 @@
  */
 
 import { memo } from 'react'
-import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { BaseNode } from './BaseNode'
 
@@ -16,8 +15,10 @@ import { BaseNode } from './BaseNode'
  * 
  * Renderiza un nodo debug con indicador de estado.
  */
-export const DebugNode = memo(({ data, selected }: BaseNodeProps) => {
-  const { nodeRedNode } = data
+export const DebugNode = memo((props: BaseNodeProps) => {
+  const { data, selected } = props
+  const nodeData = data.data || data as any
+  const nodeRedNode = nodeData.nodeRedNode
   
   // Extraer configuración del nodo debug
   const active = nodeRedNode?.active !== false // Por defecto activo
@@ -25,10 +26,12 @@ export const DebugNode = memo(({ data, selected }: BaseNodeProps) => {
   const toSidebar = nodeRedNode?.tosidebar !== false
   const toConsole = nodeRedNode?.console || false
 
+  const baseNodeData = data.data || data as any
   return (
     <BaseNode
+      {...props}
       data={{
-        ...data,
+        ...baseNodeData,
         bodyContent: (
           <div className="space-y-1.5">
             {/* Indicador de estado - más compacto */}
@@ -64,7 +67,7 @@ export const DebugNode = memo(({ data, selected }: BaseNodeProps) => {
             </div>
           </div>
         ),
-      }}
+      } as any}
       selected={selected}
     />
   )

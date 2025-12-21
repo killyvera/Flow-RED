@@ -8,6 +8,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { getAvailableNodes } from '@/api/client'
 import { getNodeIcon } from '@/utils/nodeIcons'
+import { useCanvasStore } from '@/state/canvasStore'
+import type { NodeRedSubflowDefinition } from '@/api/types'
+import { Workflow } from 'lucide-react'
 
 /**
  * Lista de nodos comunes de Node-RED como fallback
@@ -76,12 +79,21 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     category?: string
     module: string
     enabled: boolean
+    [key: string]: any
   }>>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const hasLoadedRef = useRef(false) // Ref para evitar cargas duplicadas
+  
+  // Obtener subflows desde el store
+  const nodeRedNodes = useCanvasStore((state) => state.nodeRedNodes)
+  const subflows = useMemo(() => {
+    return nodeRedNodes.filter((n): n is NodeRedSubflowDefinition => 
+      n.type === 'subflow' && !n.x && !n.y && !n.z
+    )
+  }, [nodeRedNodes])
 
-  // Cargar nodos disponibles (solo una vez cuando se abre)
+  // Cargar nodos disponibles (solo una vez cuando se abre o cuando cambian los subflows)
   useEffect(() => {
     if (isOpen && nodes.length === 0 && !isLoading && !hasLoadedRef.current) {
       hasLoadedRef.current = true // Marcar como cargado
@@ -115,11 +127,41 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
               availableNodes.unshift(groupNode) // Agregar al inicio
             }
             
+            // Agregar subflows disponibles a la paleta
+            if (subflows.length > 0) {
+              console.log('➕ Agregando subflows a la paleta:', subflows.length)
+              const subflowNodes = subflows.map((subflow) => ({
+                id: `subflow:${subflow.id}`,
+                type: `subflow:${subflow.id}`, // Tipo de instancia de subflow
+                name: subflow.name || subflow.label || `Subflow ${subflow.id.slice(0, 8)}`,
+                category: 'subflows',
+                module: 'node-red',
+                enabled: true,
+                subflowDefinition: subflow, // Guardar la definición para referencia
+              }))
+              availableNodes.push(...subflowNodes)
+            }
+            
             setNodes(availableNodes)
           } else {
             // Si no hay nodos disponibles desde la API, usar lista hardcodeada
             console.log('⚠️ No hay nodos desde la API, usando lista por defecto')
             const defaultNodes = getDefaultNodes()
+            
+            // Agregar subflows incluso si usamos lista por defecto
+            if (subflows.length > 0) {
+              const subflowNodes = subflows.map((subflow) => ({
+                id: `subflow:${subflow.id}`,
+                type: `subflow:${subflow.id}`,
+                name: subflow.name || subflow.label || `Subflow ${subflow.id.slice(0, 8)}`,
+                category: 'subflows',
+                module: 'node-red',
+                enabled: true,
+                subflowDefinition: subflow,
+              }))
+              defaultNodes.push(...subflowNodes)
+            }
+            
             console.log('📦 Nodos por defecto cargados:', defaultNodes.length)
             setNodes(defaultNodes)
           }
@@ -128,6 +170,21 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
           // En caso de error, usar lista hardcodeada
           console.warn('⚠️ Error al cargar nodos desde la API, usando lista por defecto:', err.message)
           const defaultNodes = getDefaultNodes()
+          
+          // Agregar subflows incluso si hay error
+          if (subflows.length > 0) {
+            const subflowNodes = subflows.map((subflow) => ({
+              id: `subflow:${subflow.id}`,
+              type: `subflow:${subflow.id}`,
+              name: subflow.name || subflow.label || `Subflow ${subflow.id.slice(0, 8)}`,
+              category: 'subflows',
+              module: 'node-red',
+              enabled: true,
+              subflowDefinition: subflow,
+            }))
+            defaultNodes.push(...subflowNodes)
+          }
+          
           console.log('📦 Nodos por defecto cargados:', defaultNodes.length)
           setNodes(defaultNodes)
         })
@@ -138,7 +195,7 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     if (!isOpen) {
       hasLoadedRef.current = false
     }
-  }, [isOpen, nodes.length, isLoading]) // Incluir dependencias necesarias
+  }, [isOpen, nodes.length, isLoading, subflows]) // Incluir subflows en dependencias
 
   // Filtrar nodos por búsqueda
   const filteredNodes = useMemo(() => {
@@ -241,6 +298,15 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
                   className="px-3 py-1.5 hover:bg-node-hover cursor-pointer transition-colors flex items-center gap-2"
                 >
                   {(() => {
+                    // Si es un subflow, usar icono de Workflow
+                    if (node.type.startsWith('subflow:')) {
+                      return (
+                        <Workflow 
+                          className="w-4 h-4 text-text-primary flex-shrink-0" 
+                          strokeWidth={2}
+                        />
+                      )
+                    }
                     const IconComponent = getNodeIcon(node.type)
                     return (
                       <IconComponent 

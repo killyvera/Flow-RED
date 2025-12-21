@@ -20,7 +20,9 @@ const NODE_RED_URL = process.env.NODE_RED_URL || 'http://localhost:1880'
 // Helper para generar IDs únicos
 let nodeIdCounter = 1
 function generateId(prefix) {
-  return `${prefix}-${Date.now()}-${nodeIdCounter++}`
+  // IDs deterministas por corrida de seed para evitar desincronización con el editor.
+  // Se basan únicamente en un contador incremental y el prefijo, sin timestamp.
+  return `${prefix}-${nodeIdCounter++}`
 }
 
 // Constantes para espaciado
@@ -1466,7 +1468,7 @@ const flow10Nodes = [
     z: 'flow10',
     name: 'Convert a Number',
     rules: [
-      { t: 'set', p: 'payload', pt: 'msg', to: 'Number(payload)', tot: 'jsonata' }
+      { t: 'set', p: 'payload', pt: 'msg', to: '$number(payload)', tot: 'jsonata' }
     ],
     action: '',
     property: '',
@@ -1680,73 +1682,75 @@ const flow11 = {
   env: []
 }
 
-// Definición de subflow: Procesador de datos
+// TEMPORALMENTE COMENTADO: Definición de subflow: Procesador de datos
 // Los nodos internos deben estar en la propiedad 'flow' del subflow
-const subflow1 = {
-  id: 'subflow-processor',
-  type: 'subflow',
-  name: 'Procesador de Datos',
-  category: 'common',
-  icon: 'subflow.svg',
-  color: '#DDAA99',
-  in: [
-    {
-      x: 40,
-      y: 60,
-      wires: [{ id: 'subflow-processor-inject' }]
-    }
-  ],
-  out: [
-    {
-      x: 460,
-      y: 60,
-      wires: [{ id: 'subflow-processor-debug', port: 0 }]
-    }
-  ],
-  env: [],
-  meta: {
-    module: 'node-red',
-    version: '1.0.0'
-  },
-  // Los nodos internos del subflow van en la propiedad 'flow'
-  flow: [
-    {
-      id: 'subflow-processor-inject',
-      type: 'function',
-      z: 'subflow-processor',
-      name: 'Procesar',
-      func: 'msg.payload = "Procesado: " + JSON.stringify(msg.payload);\nreturn msg;',
-      outputs: 1,
-      noerr: 0,
-      timeout: 0,
-      initialize: '',
-      finalize: '',
-      libs: [],
-      x: 200,
-      y: 60,
-      wires: [['subflow-processor-debug']]
-    },
-    {
-      id: 'subflow-processor-debug',
-      type: 'debug',
-      z: 'subflow-processor',
-      name: 'Resultado',
-      active: true,
-      tosidebar: true,
-      console: false,
-      tostatus: false,
-      complete: 'payload',
-      targetType: 'msg',
-      statusVal: '',
-      statusType: 'auto',
-      x: 360,
-      y: 60,
-      wires: []
-    }
-  ]
-}
+// const subflow1 = {
+//   id: 'subflow-processor',
+//   type: 'subflow',
+//   name: 'Procesador de Datos',
+//   category: 'common',
+//   icon: 'subflow.svg',
+//   color: '#DDAA99',
+//   info: 'Subflow que procesa datos',
+//   in: [
+//     {
+//       x: 40,
+//       y: 60,
+//       wires: [{ id: 'subflow-processor-inject' }] // CRÍTICO: El ID debe coincidir con el ID del nodo interno en flow[]
+//     }
+//   ],
+//   out: [
+//     {
+//       x: 460,
+//       y: 60,
+//       wires: [{ id: 'subflow-processor-debug', port: 0 }]
+//     }
+//   ],
+//   env: [],
+//   meta: {
+//     module: 'node-red',
+//     version: '1.0.0'
+//   },
+//   // Los nodos internos del subflow van en la propiedad 'flow'
+//   flow: [
+//     {
+//       id: 'subflow-processor-inject',
+//       type: 'function',
+//       z: 'subflow-processor',
+//       name: 'Procesar',
+//       func: 'msg.payload = "Procesado: " + JSON.stringify(msg.payload);\nreturn msg;',
+//       outputs: 1,
+//       noerr: 0,
+//       timeout: 0,
+//       initialize: '',
+//       finalize: '',
+//       libs: [],
+//       x: 200,
+//       y: 60,
+//       wires: [['subflow-processor-debug']]
+//     },
+//     {
+//       id: 'subflow-processor-debug',
+//       type: 'debug',
+//       z: 'subflow-processor',
+//       name: 'Resultado',
+//       active: true,
+//       tosidebar: true,
+//       console: false,
+//       tostatus: false,
+//       complete: 'payload',
+//       targetType: 'msg',
+//       statusVal: '',
+//       statusType: 'auto',
+//       x: 360,
+//       y: 60,
+//       wires: []
+//     }
+//   ]
+// }
 
-// Instancias del subflow en flow11
+// TEMPORALMENTE COMENTADO: Instancias del subflow en flow11
+// Reemplazado con nodos function simples para evitar problemas con subflows
 const flow11Nodes = [
   {
     id: generateId('inject'),
@@ -1763,13 +1767,20 @@ const flow11Nodes = [
     payloadType: 'str',
     x: 100,
     y: 100,
-    wires: [['subflow-instance-1']]
+    wires: [['function-processor-1']]
   },
   {
-    id: 'subflow-instance-1',
-    type: 'subflow:subflow-processor',
+    id: 'function-processor-1',
+    type: 'function',
     z: 'flow11',
     name: 'Procesador 1',
+    func: 'msg.payload = "Procesado: " + JSON.stringify(msg.payload);\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
     x: 100 + HORIZONTAL_SPACING,
     y: 100,
     wires: [['debug-result-1']]
@@ -1806,13 +1817,20 @@ const flow11Nodes = [
     payloadType: 'json',
     x: 100,
     y: 100 + VERTICAL_SPACING,
-    wires: [['subflow-instance-2']]
+    wires: [['function-processor-2']]
   },
   {
-    id: 'subflow-instance-2',
-    type: 'subflow:subflow-processor',
+    id: 'function-processor-2',
+    type: 'function',
     z: 'flow11',
     name: 'Procesador 2',
+    func: 'msg.payload = "Procesado: " + JSON.stringify(msg.payload);\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
     x: 100 + HORIZONTAL_SPACING,
     y: 100 + VERTICAL_SPACING,
     wires: [['debug-result-2']]
@@ -2047,7 +2065,7 @@ const allFlows = [
   flow10,
   ...flow10Nodes,
   flow11,
-  subflow1, // El subflow ya incluye sus nodos internos en la propiedad 'flow'
+  // TEMPORALMENTE COMENTADO: subflow1, // El subflow ya incluye sus nodos internos en la propiedad 'flow'
   ...flow11Nodes,
   flow12,
   ...flow12Nodes
@@ -2099,20 +2117,106 @@ async function seedFlows() {
     // Filtrar flows existentes que NO están en nuestros nuevos flows
     // Y agregar/reemplazar con nuestros flows nuevos
     const flowsToKeep = existingFlows.filter(f => {
+      // Validar que el objeto existe y tiene las propiedades básicas
+      if (!f || typeof f !== 'object' || !f.type) {
+        console.warn('⚠️ Nodo inválido en flows existentes, ignorando:', f)
+        return false
+      }
+      
       // Mantener solo config nodes y otros nodos que no sean tabs ni nodos de nuestros flows
       if (f.type === 'tab') {
         return false // Eliminar todos los tabs existentes
       }
+      
+      // Asegurar que subflows y grupos tengan env definido
+      if (f.type === 'subflow' || f.type === 'group') {
+        if (!f.env) {
+          f.env = []
+        }
+        if (!Array.isArray(f.env)) {
+          f.env = []
+        }
+      }
+      
       // Mantener config nodes y otros nodos especiales que no pertenezcan a nuestros flows
-      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id, subflow1.id])
+      // TEMPORALMENTE COMENTADO: subflow1.id
+      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id])
+      
+      // CRÍTICO: Eliminar TODOS los subflows existentes para evitar conflictos
+      // Solo mantendremos nuestro subflow nuevo
+      if (f.type === 'subflow') {
+        return false // Eliminar todos los subflows existentes
+      }
+      
       if (f.z && ourFlowIds.has(f.z)) {
         return false // Eliminar nodos que pertenecen a nuestros flows
       }
       return true // Mantener config nodes y otros nodos que no pertenecen a nuestros flows
     })
     
-    // Usar nuestros flows nuevos (que reemplazan los existentes)
-    const flowsToSend = [...flowsToKeep, ...allFlows]
+    // Asegurar que todos los flows (tabs), subflows y grupos tengan env definido
+    // También asegurar que todos los objetos tengan las propiedades requeridas
+    const flowsToSend = [...flowsToKeep, ...allFlows].map(f => {
+      if (!f || typeof f !== 'object') {
+        console.warn('⚠️ Nodo inválido encontrado:', f)
+        return null
+      }
+      
+      // Si es un tab, subflow o group, asegurarse de que tenga env definido
+      if ((f.type === 'tab' || f.type === 'subflow' || f.type === 'group')) {
+        if (!f.env) {
+          f = { ...f, env: [] }
+        }
+        // Asegurar que env sea un array
+        if (!Array.isArray(f.env)) {
+          f = { ...f, env: [] }
+        }
+      }
+      
+      // Asegurar que todos los objetos tengan id y type
+      if (!f.id || !f.type) {
+        console.warn('⚠️ Nodo sin id o type:', f)
+        return null
+      }
+      
+      return f
+    }).filter(f => f !== null) // Filtrar nodos nulos
+
+    // CRÍTICO: Filtrar nodos con z inválido (apuntan a flows que no existen)
+    // Estos nodos causan el error "Cannot read properties of undefined (reading 'env')"
+    // porque Node-RED intenta acceder a flow.env donde flow es undefined
+    const flowIds = new Set(flowsToSend.filter(f => f.type === 'tab').map(f => f.id))
+    const subflowIds = new Set(flowsToSend.filter(f => f.type === 'subflow').map(f => f.id))
+    const groupIds = new Set(flowsToSend.filter(f => f.type === 'group').map(f => f.id))
+    const nodesWithZ = flowsToSend.filter(f => f.z && f.type !== 'tab' && f.type !== 'subflow')
+    const nodesWithInvalidZ = nodesWithZ.filter(n => !flowIds.has(n.z) && !subflowIds.has(n.z))
+    const nodesWithG = flowsToSend.filter(f => f.g)
+    const nodesWithInvalidG = nodesWithG.filter(n => !groupIds.has(n.g))
+    
+    if (nodesWithInvalidZ.length > 0) {
+      console.warn(`⚠️ Filtrando ${nodesWithInvalidZ.length} nodos con z inválido:`, nodesWithInvalidZ.map(n => ({ id: n.id, type: n.type, z: n.z })))
+    }
+    
+    // Filtrar nodos con z inválido y g inválido
+    const validFlowsToSend = flowsToSend.filter(f => {
+      // Si tiene z, debe apuntar a un flow o subflow válido
+      if (f.z && f.type !== 'tab' && f.type !== 'subflow') {
+        if (!flowIds.has(f.z) && !subflowIds.has(f.z)) {
+          return false // Filtrar nodos con z inválido
+        }
+      }
+      // Si tiene g, debe apuntar a un grupo válido
+      if (f.g) {
+        if (!groupIds.has(f.g)) {
+          return false // Filtrar nodos con g inválido
+        }
+      }
+      return true
+    })
+    
+    if (flowsToSend.length !== validFlowsToSend.length) {
+      console.log(`📊 Filtrados ${flowsToSend.length - validFlowsToSend.length} nodos con referencias inválidas`)
+    }
 
     // Enviar todos los flows
     console.log('📤 Enviando flows de ejemplo a Node-RED...')
@@ -2156,11 +2260,100 @@ async function seedFlows() {
       }
     }
 
+    // Validar que todos los flows tengan las propiedades requeridas antes de enviar
+    console.log(`📊 Validando ${validFlowsToSend.length} nodos antes de enviar...`)
+    
+    // Verificar que todos los tabs tengan env
+    const tabs = validFlowsToSend.filter(f => f.type === 'tab')
+    const tabsWithoutEnv = tabs.filter(f => !f.env || !Array.isArray(f.env))
+    if (tabsWithoutEnv.length > 0) {
+      console.error('❌ Tabs sin env:', tabsWithoutEnv.map(f => ({ id: f.id, label: f.label, hasEnv: !!f.env, envType: typeof f.env })))
+      throw new Error(`${tabsWithoutEnv.length} tabs no tienen env definido correctamente`)
+    }
+    
+    // Verificar que todos los subflows tengan env
+    const subflows = validFlowsToSend.filter(f => f.type === 'subflow')
+    const subflowsWithoutEnv = subflows.filter(f => !f.env || !Array.isArray(f.env))
+    if (subflowsWithoutEnv.length > 0) {
+      console.error('❌ Subflows sin env:', subflowsWithoutEnv.map(f => ({ id: f.id, name: f.name, hasEnv: !!f.env, envType: typeof f.env })))
+      throw new Error(`${subflowsWithoutEnv.length} subflows no tienen env definido correctamente`)
+    }
+    
+    // Verificar que todos los grupos tengan env
+    const groups = validFlowsToSend.filter(f => f.type === 'group')
+    const groupsWithoutEnv = groups.filter(f => !f.env || !Array.isArray(f.env))
+    if (groupsWithoutEnv.length > 0) {
+      console.error('❌ Grupos sin env:', groupsWithoutEnv.map(f => ({ id: f.id, name: f.name, hasEnv: !!f.env, envType: typeof f.env })))
+      throw new Error(`${groupsWithoutEnv.length} grupos no tienen env definido correctamente`)
+    }
+    
+    // CRÍTICO: Validar que los subflows tengan referencias válidas en in/out.wires
+    subflows.forEach(subflow => {
+      if (subflow.flow && Array.isArray(subflow.flow)) {
+        const internalNodeIds = new Set(subflow.flow.map(n => n.id))
+        
+        // Validar in.wires
+        if (subflow.in && Array.isArray(subflow.in)) {
+          subflow.in.forEach((inPort, index) => {
+            if (inPort.wires && Array.isArray(inPort.wires)) {
+              // CRÍTICO: Filtrar elementos undefined/null del array wires
+              inPort.wires = inPort.wires.filter(w => w != null && w.id != null)
+              
+              inPort.wires.forEach((wire, wireIndex) => {
+                if (!wire || !wire.id) {
+                  throw new Error(`Subflow ${subflow.id}: in[${index}].wires[${wireIndex}] está undefined o no tiene id`)
+                }
+                if (!internalNodeIds.has(wire.id)) {
+                  throw new Error(`Subflow ${subflow.id}: in[${index}].wires[${wireIndex}] referencia nodo ${wire.id} que no existe en flow[]`)
+                }
+              })
+            }
+          })
+        }
+        
+        // Validar out.wires
+        if (subflow.out && Array.isArray(subflow.out)) {
+          subflow.out.forEach((outPort, index) => {
+            if (outPort.wires && Array.isArray(outPort.wires)) {
+              // CRÍTICO: Filtrar elementos undefined/null del array wires
+              outPort.wires = outPort.wires.filter(w => w != null && w.id != null)
+              
+              outPort.wires.forEach((wire, wireIndex) => {
+                if (!wire || !wire.id) {
+                  throw new Error(`Subflow ${subflow.id}: out[${index}].wires[${wireIndex}] está undefined o no tiene id`)
+                }
+                if (!internalNodeIds.has(wire.id)) {
+                  throw new Error(`Subflow ${subflow.id}: out[${index}].wires[${wireIndex}] referencia nodo ${wire.id} que no existe en flow[]`)
+                }
+              })
+            }
+          })
+        }
+      }
+    })
+    
+    console.log(`✅ Validación exitosa: ${tabs.length} tabs, ${subflows.length} subflows, ${groups.length} grupos`)
+    
     // Node-RED API v2 espera un objeto con rev y flows
+    // IMPORTANTE: Asegurar que todos los flows (tabs) tengan env definido ANTES de crear el payload
+    // Node-RED puede fallar si un flow no tiene env cuando intenta procesarlo
+    const finalFlows = validFlowsToSend.map(f => {
+      // Si es un tab, asegurarse de que tenga env
+      if (f.type === 'tab') {
+        if (!f.env || !Array.isArray(f.env)) {
+          console.warn(`⚠️ Tab ${f.id} (${f.label}) no tiene env, agregando...`)
+          return { ...f, env: [] }
+        }
+      }
+      return f
+    })
+    
     const payload = {
       rev: rev || '',
-      flows: flowsToSend,
+      flows: finalFlows,
     }
+    
+    console.log(`✅ Payload validado: ${finalFlows.length} nodos (${finalFlows.filter(f => f.type === 'tab').length} tabs, ${finalFlows.filter(f => f.type === 'subflow').length} subflows, ${finalFlows.filter(f => f.type === 'group').length} grupos)`)
 
     const headers = {
       'Content-Type': 'application/json',

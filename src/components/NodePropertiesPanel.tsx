@@ -18,7 +18,8 @@ import { shouldNodeHaveEditableProperties, getNoPropertiesMessage } from '@/util
 import { TextField, NumberField, SelectField, BooleanField, JSONField, TypedInputField } from './fields'
 import { generateNodeSummary } from '@/utils/summaryEngine'
 import { SummaryBadge } from './SummaryBadge'
-import { getNodeExplanation, getNodeDescription } from '@/utils/nodeExplanations'
+import { getNodeDescription } from '@/utils/nodeExplanations'
+// getNodeExplanation se usa en ExplainMode, pero está comentado por ahora
 
 export interface NodePropertiesPanelProps {
   node: Node | null
@@ -155,7 +156,7 @@ function renderField(
           description={prop.placeholder || 'Tipo de input'}
           default={prop.default}
           typeOptions={prop.options}
-          defaultType={prop.defaultType || 'str'}
+          defaultType={(prop as any).defaultType || 'str'}
         />
       )
 

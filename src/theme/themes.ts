@@ -346,15 +346,15 @@ export function validateTheme(theme: Partial<Theme>): theme is Theme {
     return false
   }
 
-  const requiredColorPaths = [
-    'background.primary',
-    'foreground.primary',
-    'canvas.background',
-    'canvas.node.default',
-    'canvas.edge.default',
-    'accent.primary',
-    'status.success',
-  ]
+  // const _requiredColorPaths = [ // No usado actualmente
+  //   'background.primary',
+  //   'foreground.primary',
+  //   'canvas.background',
+  //   'canvas.node.default',
+  //   'canvas.edge.default',
+  //   'accent.primary',
+  //   'status.success',
+  // ]
 
   // Validación básica - verificar que existan las propiedades principales
   try {

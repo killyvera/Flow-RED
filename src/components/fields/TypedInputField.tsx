@@ -47,7 +47,7 @@ export function TypedInputField({
   required = false,
   disabled = false,
   description,
-  default: defaultValue,
+  default: _defaultValue,
   typeOptions = DEFAULT_TYPE_OPTIONS,
   defaultType = 'str',
 }: TypedInputFieldProps) {
@@ -140,13 +140,13 @@ export function TypedInputField({
             <input
               type="checkbox"
               id={id}
-              checked={inputValue === 'true' || inputValue === true}
+              checked={inputValue === 'true' || inputValue === '1'}
               onChange={(e) => handleValueChange(String(e.target.checked))}
               disabled={disabled}
               className="w-4 h-4 text-accent-primary border-node-border rounded focus:ring-accent-primary"
             />
             <span className="text-xs text-text-secondary">
-              {inputValue === 'true' || inputValue === true ? 'True' : 'False'}
+              {(inputValue === 'true' || inputValue === '1') ? 'True' : 'False'}
             </span>
           </div>
         ) : getInputType() === 'textarea' ? (

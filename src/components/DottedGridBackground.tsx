@@ -6,8 +6,6 @@
  * Los colores se adaptan al tema (más oscuro en modo claro, más claro en modo oscuro).
  */
 
-import React from 'react'
-import { useTheme } from '@/context/ThemeContext'
 
 export function DottedGridBackground() {
   // Usar variable CSS del tema para el color del grid

@@ -123,7 +123,7 @@ export function meetsWCAGAAA(
 export function adjustColorForContrast(
   foreground: string,
   background: string,
-  targetRatio: number,
+  _targetRatio: number,
   isLargeText: boolean = false
 ): string {
   const requiredRatio = isLargeText
@@ -136,17 +136,17 @@ export function adjustColorForContrast(
     return foreground // Ya cumple con el ratio requerido
   }
 
-  // Calcular la luminancia del fondo
-  const bgLum = getLuminance(background)
+  // Calcular la luminancia del fondo (comentado por ahora)
+  // const bgLum = getLuminance(background)
   
-  // Determinar si necesitamos aclarar u oscurecer
-  const fgLum = getLuminance(foreground)
-  const needsLighten = fgLum < bgLum
+  // Determinar si necesitamos aclarar u oscurecer (comentado por ahora)
+  // const fgLum = getLuminance(foreground)
+  // const _needsLighten = fgLum < bgLum
 
-  // Calcular la luminancia objetivo
-  const targetLum = needsLighten
-    ? (bgLum + 0.05) * requiredRatio - 0.05
-    : (bgLum + 0.05) / requiredRatio - 0.05
+  // Calcular la luminancia objetivo (comentado por ahora)
+  // const _targetLum = needsLighten
+  //   ? (bgLum + 0.05) * requiredRatio - 0.05
+  //   : (bgLum + 0.05) / requiredRatio + 0.05
 
   // Ajustar el color (simplificado - en producción usar una librería como color)
   // Por ahora, retornar el color original con una advertencia

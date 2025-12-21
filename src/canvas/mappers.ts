@@ -7,7 +7,7 @@
  * IMPORTANTE: No mutamos los datos originales de Node-RED.
  */
 
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
+import type { Node as ReactFlowNode, Edge as ReactFlowEdge, MarkerType } from 'reactflow'
 import type { NodeRedNode, NodeRedGroup, NodeRedSubflowDefinition } from '@/api/types'
 import { mapperLogger } from '@/utils/logger'
 import { getNodeType } from './nodes/nodeFactory'
@@ -32,6 +32,17 @@ export function mapNodeRedNodeToReactFlowNode(
 ): ReactFlowNode {
   // Preservar el ID exactamente como viene de Node-RED
   const id = nodeRedNode.id
+  
+  // Log detallado para nodos inject (solo en desarrollo)
+  if (process.env.NODE_ENV === 'development' && nodeRedNode.type === 'inject') {
+    mapperLogger(`📥 [mapNodeRedNodeToReactFlowNode] Cargando nodo inject:`, {
+      id: nodeRedNode.id,
+      name: nodeRedNode.name || nodeRedNode.label,
+      type: nodeRedNode.type,
+      z: nodeRedNode.z,
+      disabled: nodeRedNode.disabled,
+    })
+  }
 
   // Mapear posición
   const position = {
@@ -53,7 +64,8 @@ export function mapNodeRedNodeToReactFlowNode(
   // Si es una instancia de subflow, obtener la definición
   let subflowDefinition: NodeRedSubflowDefinition | undefined
   if (isSubflowInstance(nodeRedNode) && subflowDefinitions) {
-    subflowDefinition = getSubflowDefinition(nodeRedNode, subflowDefinitions)
+    const def = getSubflowDefinition(nodeRedNode, subflowDefinitions)
+    subflowDefinition = def || undefined
   }
 
   // Data contiene información del nodo original
@@ -138,7 +150,7 @@ export function mapNodeRedWiresToReactFlowEdges(
           stroke: 'var(--color-edge-default)',
         },
         markerEnd: {
-          type: 'arrowclosed',
+          type: 'arrowclosed' as MarkerType,
           color: 'var(--color-edge-default)',
         },
       }
@@ -226,19 +238,31 @@ export function transformNodeRedFlow(
   )
   mapperLogger('📦 Definiciones de subflows encontradas:', { count: subflowDefinitions.length })
   
-  // Filtrar nodos que pertenecen a este flow
-  // Excluimos el nodo "tab" mismo ya que no se renderiza
-  // También excluimos nodos internos de subflows (tienen z = subflowId)
-  const subflowIds = new Set(subflowDefinitions.map(sf => sf.id))
-  const flowNodes = filterNodesByFlow(allNodes, flowId).filter(
-    (node) => {
-      // Excluir tabs
-      if (node.type === 'tab') return false
-      // Excluir nodos internos de subflows (tienen z = subflowId)
-      if (node.z && subflowIds.has(node.z)) return false
-      return true
-    }
-  )
+  // Verificar si el flowId es un subflow
+  const subflowDefinition = subflowDefinitions.find(sf => sf.id === flowId)
+  
+  let flowNodes: NodeRedNode[]
+  
+  if (subflowDefinition) {
+    // Si es un subflow, usar los nodos internos del subflow (flow[])
+    mapperLogger('📦 Transformando subflow, usando nodos internos')
+    flowNodes = subflowDefinition.flow || []
+    // Los nodos internos de subflows no tienen z, así que no necesitamos filtrar por z
+  } else {
+    // Si es un tab (flow normal), filtrar nodos que pertenecen a este flow
+    // Excluimos el nodo "tab" mismo ya que no se renderiza
+    // También excluimos nodos internos de subflows (tienen z = subflowId)
+    const subflowIds = new Set(subflowDefinitions.map(sf => sf.id))
+    flowNodes = filterNodesByFlow(allNodes, flowId).filter(
+      (node) => {
+        // Excluir tabs
+        if (node.type === 'tab') return false
+        // Excluir nodos internos de subflows (tienen z = subflowId)
+        if (node.z && subflowIds.has(node.z)) return false
+        return true
+      }
+    )
+  }
   mapperLogger('📋 Nodos del flow filtrados:', { 
     total: allNodes.length, 
     enFlow: flowNodes.length,
@@ -369,52 +393,67 @@ export function transformNodeRedFlow(
  * Obtiene todos los flows (tabs) de un array de nodos de Node-RED
  * 
  * @param nodes Array completo de nodos de Node-RED
- * @returns Array de flows (nodos de tipo "tab")
+ * @returns Array de flows (nodos de tipo "tab" o "subflow") sin duplicados
  */
 export function extractFlows(nodes: NodeRedNode[]): NodeRedNode[] {
-  return nodes.filter((node) => node.type === 'tab')
-}
-
-/**
- * Merge profundo de objetos para preservar propiedades anidadas
- * 
- * Combina dos objetos preservando todas las propiedades del original,
- * pero sobrescribiendo con las del nuevo cuando sea necesario.
- * 
- * @param original Objeto original con todas las propiedades
- * @param updates Objeto con actualizaciones
- * @returns Objeto combinado
- */
-function deepMerge<T extends Record<string, any>>(original: T, updates: Partial<T>): T {
-  const result = { ...original }
+  // Incluir tanto tabs (flows) como subflows en la lista
+  // Similar a n8n donde todos los flows pueden ser tratados como subflows
+  // Usar un Map para asegurar que no haya duplicados por ID
+  const flowsMap = new Map<string, NodeRedNode>()
   
-  for (const key in updates) {
-    if (updates.hasOwnProperty(key)) {
-      const originalValue = original[key]
-      const updateValue = updates[key]
-      
-      // Si ambos son objetos y no son arrays, hacer merge profundo
-      if (
-        originalValue &&
-        typeof originalValue === 'object' &&
-        !Array.isArray(originalValue) &&
-        updateValue &&
-        typeof updateValue === 'object' &&
-        !Array.isArray(updateValue)
-      ) {
-        result[key] = deepMerge(originalValue, updateValue)
-      } else {
-        // Si el valor original existe y el update es undefined, preservar el original
-        // Si el update tiene un valor, usarlo
-        if (updateValue !== undefined) {
-          result[key] = updateValue as T[Extract<keyof T, string>]
-        }
+  nodes.forEach((node) => {
+    if ((node.type === 'tab' || node.type === 'subflow') && node.id) {
+      // Solo agregar si no existe ya un flow con este ID
+      if (!flowsMap.has(node.id)) {
+        flowsMap.set(node.id, node)
       }
     }
-  }
+  })
   
-  return result
+  return Array.from(flowsMap.values())
 }
+
+// COMENTADO: deepMerge no se usa actualmente - eliminado para evitar errores de compilación
+// /**
+//  * Merge profundo de objetos para preservar propiedades anidadas
+//  * 
+//  * Combina dos objetos preservando todas las propiedades del original,
+//  * pero sobrescribiendo con las del nuevo cuando sea necesario.
+//  * 
+//  * @param original Objeto original con todas las propiedades
+//  * @param updates Objeto con actualizaciones
+//  * @returns Objeto combinado
+//  */
+// function deepMerge<T extends Record<string, any>>(original: T, updates: Partial<T>): T {
+//   const result = { ...original }
+//   
+//   for (const key in updates) {
+//     if (updates.hasOwnProperty(key)) {
+//       const originalValue = original[key]
+//       const updateValue = updates[key]
+//       
+//       // Si ambos son objetos y no son arrays, hacer merge profundo
+//       if (
+//         originalValue &&
+//         typeof originalValue === 'object' &&
+//         !Array.isArray(originalValue) &&
+//         updateValue &&
+//         typeof updateValue === 'object' &&
+//         !Array.isArray(updateValue)
+//       ) {
+//         result[key] = deepMerge(originalValue, updateValue)
+//       } else {
+//         // Si el valor original existe y el update es undefined, preservar el original
+//         // Si el update tiene un valor, usarlo
+//         if (updateValue !== undefined) {
+//           result[key] = updateValue as T[Extract<keyof T, string>]
+//         }
+//       }
+//     }
+//   }
+//   
+//   return result
+// }
 
 /**
  * Transforma nodos y edges de React Flow a formato Node-RED
@@ -500,9 +539,12 @@ export function transformReactFlowToNodeRed(
         }
       }
       
+      // CRÍTICO: Preservar el ID original de Node-RED si existe
+      const preservedInternalId = originalNodeRedNode.id || node.id
+      
       const internalNode: NodeRedNode = {
         ...originalNodeRedNode,
-        id: node.id,
+        id: preservedInternalId,
         type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
         x: node.position.x,
         y: node.position.y,
@@ -559,43 +601,126 @@ export function transformReactFlowToNodeRed(
       ? originalNodeRedNode.name
       : (node.data.label || undefined)
     
-    const updates: Partial<NodeRedNode> = {
-      id: node.id,
+    // Para nodos link, preservar la propiedad 'links' que contiene las conexiones de link
+    // Los nodos link no usan wires para conectarse entre sí, sino la propiedad 'links'
+    const isLinkNode = originalNodeRedNode.type === 'link in' || 
+                       originalNodeRedNode.type === 'link out' || 
+                       originalNodeRedNode.type === 'link call'
+    const preservedLinks = isLinkNode ? originalNodeRedNode.links : undefined
+    
+    // Simplificado: usar el ID directamente desde React Flow
+    // Si hay un ID original, usarlo; si no, usar el ID de React Flow
+    // La API corregirá cualquier problema al recargar
+    const preservedId = originalNodeRedNode.id || node.id
+    
+    // CRÍTICO: Preservar TODAS las propiedades del nodo original
+    // Esto es esencial para que los nodos funcionen correctamente después de guardar
+    // Especialmente importante para nodos inject que necesitan props, payloadType, cron, etc.
+    // 
+    // IMPORTANTE: No sobrescribir propiedades que no han cambiado
+    // Solo sobrescribir las propiedades que React Flow gestiona (id, type, x, y, z, name, wires, links)
+    const nodeRedNode: NodeRedNode = {
+      // Primero, copiar TODAS las propiedades del nodo original
+      ...originalNodeRedNode,
+      
+      // Luego, sobrescribir SOLO las propiedades que React Flow gestiona
+      id: preservedId,
       type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
       x: node.position.x,
       y: node.position.y,
-      z: flowId,
-      name: nodeName,
-      wires: wires.length > 0 ? wires : undefined,
+      z: flowId, // CRÍTICO: El z debe ser el flowId actual, no el original
+      
+      // Propiedades que pueden haber cambiado (solo si tienen valor)
+      // IMPORTANTE: Preservar name original si nodeName está vacío
+      ...(nodeName !== undefined && nodeName !== '' ? { name: nodeName } : (originalNodeRedNode.name !== undefined ? { name: originalNodeRedNode.name } : {})),
+      ...(wires.length > 0 && { wires }),
+      ...(isLinkNode && preservedLinks !== undefined && { links: preservedLinks }),
     }
-
-    // Usar merge profundo para preservar TODAS las propiedades originales
-    // Esto incluye propiedades desconocidas, anidadas, y cualquier metadata
-    // que Node-RED pueda necesitar
-    const nodeRedNode = deepMerge(originalNodeRedNode, updates) as NodeRedNode
-
-    // Asegurar que las propiedades requeridas estén presentes
-    // (el merge profundo ya las agregó, pero por seguridad)
-    nodeRedNode.id = node.id
-    nodeRedNode.type = node.data.nodeRedType || originalNodeRedNode.type || 'unknown'
-    nodeRedNode.x = node.position.x
-    nodeRedNode.y = node.position.y
-    nodeRedNode.z = flowId
-    // Usar nodeRedNode.name si está disponible (puede haber sido editado), sino usar label
-    // El deepMerge ya aplicó el name desde updates, pero aseguramos que esté presente
-    if (nodeName !== undefined) {
-      nodeRedNode.name = nodeName
+    
+    // CRÍTICO: Para nodos inject, asegurar que todas las propiedades necesarias estén presentes
+    // Si el nodo original tenía estas propiedades, preservarlas exactamente como estaban
+    if (nodeRedNode.type === 'inject') {
+      // Asegurar que props, payloadType, repeat, cron, once, onceDelay, topic, payload estén presentes
+      // Si no están en el nodo transformado, usar los valores del original
+      if (!nodeRedNode.props && originalNodeRedNode.props) {
+        nodeRedNode.props = originalNodeRedNode.props
+      }
+      if (nodeRedNode.payloadType === undefined && originalNodeRedNode.payloadType !== undefined) {
+        nodeRedNode.payloadType = originalNodeRedNode.payloadType
+      }
+      if (nodeRedNode.repeat === undefined && originalNodeRedNode.repeat !== undefined) {
+        nodeRedNode.repeat = originalNodeRedNode.repeat
+      }
+      if (nodeRedNode.cron === undefined && originalNodeRedNode.cron !== undefined) {
+        nodeRedNode.cron = originalNodeRedNode.cron
+      }
+      if (nodeRedNode.crontab === undefined && originalNodeRedNode.crontab !== undefined) {
+        nodeRedNode.crontab = originalNodeRedNode.crontab
+      }
+      if (nodeRedNode.once === undefined && originalNodeRedNode.once !== undefined) {
+        nodeRedNode.once = originalNodeRedNode.once
+      }
+      if (nodeRedNode.onceDelay === undefined && originalNodeRedNode.onceDelay !== undefined) {
+        nodeRedNode.onceDelay = originalNodeRedNode.onceDelay
+      }
+      if (nodeRedNode.topic === undefined && originalNodeRedNode.topic !== undefined) {
+        nodeRedNode.topic = originalNodeRedNode.topic
+      }
+      if (nodeRedNode.payload === undefined && originalNodeRedNode.payload !== undefined) {
+        nodeRedNode.payload = originalNodeRedNode.payload
+      }
     }
-    if (wires.length > 0) {
-      nodeRedNode.wires = wires
-    } else if (originalNodeRedNode.wires === undefined) {
-      // Solo eliminar wires si originalmente no existían
-      delete nodeRedNode.wires
+    
+    // #region agent log - Verificar nodos inject transformados
+    if (nodeRedNode.type === 'inject') {
+      // Log detallado del nodo antes y después de transformar
+      const originalProps = originalNodeRedNode.props ? JSON.stringify(originalNodeRedNode.props) : 'undefined'
+      const transformedProps = nodeRedNode.props ? JSON.stringify(nodeRedNode.props) : 'undefined'
+      const originalPayloadType = originalNodeRedNode.payloadType || 'undefined'
+      const transformedPayloadType = nodeRedNode.payloadType || 'undefined'
+      
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed',message:'Nodo inject transformado - COMPARACIÓN DETALLADA',data:{
+        nodeId:nodeRedNode.id,
+        originalNode:{
+          id:originalNodeRedNode.id,
+          type:originalNodeRedNode.type,
+          z:originalNodeRedNode.z,
+          props:originalProps,
+          payloadType:originalPayloadType,
+          repeat:originalNodeRedNode.repeat,
+          cron:originalNodeRedNode.cron,
+          crontab:originalNodeRedNode.crontab,
+          once:originalNodeRedNode.once,
+          onceDelay:originalNodeRedNode.onceDelay,
+          topic:originalNodeRedNode.topic,
+          payload:originalNodeRedNode.payload,
+          keys:Object.keys(originalNodeRedNode),
+        },
+        transformedNode:{
+          id:nodeRedNode.id,
+          type:nodeRedNode.type,
+          z:nodeRedNode.z,
+          props:transformedProps,
+          payloadType:transformedPayloadType,
+          repeat:nodeRedNode.repeat,
+          cron:nodeRedNode.cron,
+          crontab:nodeRedNode.crontab,
+          once:nodeRedNode.once,
+          onceDelay:nodeRedNode.onceDelay,
+          topic:nodeRedNode.topic,
+          payload:nodeRedNode.payload,
+          keys:Object.keys(nodeRedNode),
+        },
+        propsChanged:originalProps!==transformedProps,
+        payloadTypeChanged:originalPayloadType!==transformedPayloadType,
+      },timestamp:Date.now(),sessionId:'debug-session',runId:'mapper-fix',hypothesisId:'H'})}).catch(()=>{});
     }
+    // #endregion
 
 
     return nodeRedNode
   })
+
 
   // Procesar subflows: agregar nodos internos a la propiedad 'flow'
   const processedSubflows = new Set<string>()
@@ -629,7 +754,6 @@ export function transformReactFlowToNodeRed(
   // IMPORTANTE: Los nodos internos de subflows (con z = subflowId) NO deben incluirse como nodos separados
   // Solo deben estar en subflow.flow
   if (allNodeRedNodes) {
-    const allSubflowIds = new Set(originalSubflows.keys())
     allNodeRedNodes.forEach(node => {
       if (node.type === 'subflow' && !processedSubflows.has(node.id)) {
         // Preservar el subflow original con sus nodos internos en subflow.flow

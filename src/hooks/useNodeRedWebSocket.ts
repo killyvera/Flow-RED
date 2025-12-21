@@ -10,10 +10,10 @@ import { getWebSocketClient, type NodeRedWebSocketEvent } from '@/api/websocket'
 import { useCanvasStore } from '@/state/canvasStore'
 import { mapNodeRedStatusToRuntimeState } from '@/utils/runtimeStatusMapper'
 import { wsLogger } from '@/utils/logger'
-import { isTriggerNode, shouldStartNewFrame, shouldEndFrame, createPayloadPreview, extractNodeIdFromEvent } from '@/utils/executionFrameManager'
+import { isTriggerNode, shouldStartNewFrame, shouldEndFrame, createPayloadPreview } from '@/utils/executionFrameManager'
 import { BoundedQueue, EventCoalescer, extractNodeIdFromEvent as extractNodeIdFromBackpressure } from '@/utils/backpressure'
 import { getPerformanceMonitor } from '@/utils/performance'
-import type { Edge } from 'reactflow'
+// import type { Edge } from 'reactflow' // No usado actualmente
 
 /**
  * Hook para conectar al WebSocket de Node-RED y recibir eventos de runtime
@@ -66,10 +66,10 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     clientRef.current = client
     // console.log('🔌 [useNodeRedWebSocket] Cliente WebSocket obtenido:', client)
 
-    // Helper para encontrar edges conectados a un nodo
-    const findEdgesForNode = (nodeId: string): Edge[] => {
-      return edges.filter(e => e.source === nodeId || e.target === nodeId)
-    }
+    // Helper para encontrar edges conectados a un nodo (comentado por ahora)
+    // const findEdgesForNode = (nodeId: string): Edge[] => {
+    //   return edges.filter(e => e.source === nodeId || e.target === nodeId)
+    // }
 
     // Helper para obtener información del nodo
     const getNodeInfo = (nodeId: string) => {
