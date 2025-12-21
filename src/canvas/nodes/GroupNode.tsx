@@ -141,11 +141,49 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
   // Nombre del grupo
   const groupName = group.name || group.label || `Group ${group.id.slice(0, 8)}`
   
-  // Color del grupo
-  const groupColor = group.color || 'rgba(59, 130, 246, 0.1)'
-  const borderColor = group.color 
-    ? `rgba(${hexToRgb(group.color)?.join(', ') || '59, 130, 246'}, 0.3)`
-    : 'rgba(59, 130, 246, 0.3)'
+  // Color del grupo - siempre convertir a rgba con opacidad
+  const getGroupColorWithOpacity = (color: string | undefined, opacity: number): string => {
+    if (!color) {
+      return `rgba(59, 130, 246, ${opacity})`
+    }
+    
+    // Si el color ya es rgba, extraer RGB y aplicar nueva opacidad
+    if (color.startsWith('rgba')) {
+      const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
+      if (rgbaMatch) {
+        const r = parseInt(rgbaMatch[1], 10)
+        const g = parseInt(rgbaMatch[2], 10)
+        const b = parseInt(rgbaMatch[3], 10)
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`
+      }
+    }
+    
+    // Si es hex, convertir a RGB
+    const rgb = hexToRgb(color)
+    if (rgb) {
+      return `rgba(${rgb.join(', ')}, ${opacity})`
+    }
+    
+    // Fallback
+    return `rgba(59, 130, 246, ${opacity})`
+  }
+  
+  // Color de fondo con opacidad baja (0.1)
+  const groupColor = getGroupColorWithOpacity(group.color, 0.1)
+  // Color de borde con opacidad media (0.3)
+  const borderColor = getGroupColorWithOpacity(group.color, 0.3)
+  // Color del título - usar el color del grupo con opacidad completa o más oscuro
+  const titleColor = group.color 
+    ? (() => {
+        const rgb = hexToRgb(group.color)
+        if (rgb) {
+          // Hacer el color más oscuro para mejor contraste (reducir brillo en 20%)
+          const darkerRgb = rgb.map(c => Math.max(0, c - 40))
+          return `rgba(${darkerRgb.join(', ')}, 1)`
+        }
+        return undefined
+      })()
+    : undefined
   
   return (
     <>
@@ -286,12 +324,14 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
           height: `${height}px`,
           minHeight: '40px',
           backgroundColor: groupColor,
-          border: 'none', // Sin borde
+          border: `2px solid ${borderColor}`, // Borde con opacidad
           boxShadow: 'none', // Sin sombras - solo estilo visual
           cursor: dragging ? 'grabbing' : 'default',
           // Deshabilitar pointer events en el contenedor principal
           // Solo el header y el handler de resize tendrán pointer events
           pointerEvents: 'none',
+          // Asegurar que el grupo esté detrás de los edges
+          zIndex: 0,
         }}
       >
       {/* Header del grupo - ÁREA DE ARRASTRE */}
@@ -339,9 +379,9 @@ const GroupNodeComponent = ({ data, dragging, id }: GroupNodeProps) => {
         
         {/* Nombre del grupo */}
         <span
-          className="text-xs font-semibold text-text-primary flex-1 truncate"
+          className="text-xs font-semibold flex-1 truncate"
           style={{
-            color: group.color ? `rgba(${hexToRgb(group.color)?.join(', ') || '59, 130, 246'}, 1)` : undefined,
+            color: titleColor || 'var(--color-text-primary, #1a1a1a)',
           }}
         >
           {groupName}

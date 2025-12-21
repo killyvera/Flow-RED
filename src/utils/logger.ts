@@ -57,16 +57,24 @@ function setupLogging() {
   const debugEnv = localStorageDebug || envDebug
   
   if (debugEnv) {
-    // Habilitar logs
-    debug.enable(debugEnv)
-    // Solo loggear si el logger app está habilitado para evitar loop
-    if (debugEnv.includes('app') || debugEnv.includes('*')) {
-      // Usar console directamente para el mensaje inicial
-      console.log('%c🔍 Sistema de logging activado:', 'color: #0f0', debugEnv)
+    try {
+      // Habilitar logs
+      debug.enable(debugEnv)
+      // Solo loggear si el logger app está habilitado para evitar loop
+      if (debugEnv.includes('app') || debugEnv.includes('*')) {
+        // Usar console directamente para el mensaje inicial
+        console.log('%c🔍 Sistema de logging activado:', 'color: #0f0', debugEnv)
+      }
+    } catch (error) {
+      console.error('Error al configurar logging:', error)
     }
   } else {
-    // Deshabilitar todos los logs si no hay configuración
-    debug.disable()
+    try {
+      // Deshabilitar todos los logs si no hay configuración
+      debug.disable()
+    } catch (error) {
+      console.error('Error al deshabilitar logging:', error)
+    }
   }
 }
 

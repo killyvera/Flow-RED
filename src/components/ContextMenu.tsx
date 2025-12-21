@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { Node } from 'reactflow'
-import { Edit, Copy, Scissors, Trash2, Power, PowerOff, Plus, Clipboard, FolderPlus, FolderMinus } from 'lucide-react'
+import { Edit, Copy, Scissors, Trash2, Power, PowerOff, Plus, Clipboard, FolderPlus, FolderMinus, Palette } from 'lucide-react'
 
 export interface ContextMenuOption {
   id: string
@@ -40,6 +40,11 @@ export interface ContextMenuProps {
   onCreateGroup?: () => void
   onAddToGroup?: (nodeId: string) => void
   onRemoveFromGroup?: (nodeId: string) => void
+  /** Callbacks específicos para grupos */
+  onEditGroup?: (groupId: string) => void
+  onChangeGroupColor?: (groupId: string) => void
+  onDuplicateGroup?: (groupId: string) => void
+  onDeleteGroup?: (groupId: string) => void
   /** Si hay nodos en el clipboard para pegar */
   hasClipboard?: boolean
   /** Si el nodo está en un grupo */
@@ -61,6 +66,10 @@ export function ContextMenu({
   onCreateGroup,
   onAddToGroup,
   onRemoveFromGroup,
+  onEditGroup,
+  onChangeGroupColor,
+  onDuplicateGroup,
+  onDeleteGroup,
   hasClipboard = false,
   nodeInGroup = false,
 }: ContextMenuProps) {
@@ -97,8 +106,73 @@ export function ContextMenu({
 
   if (!position) return null
 
-  // Opciones para nodo
-  const nodeOptions: ContextMenuOption[] = node
+  // Detectar si es un grupo
+  const isGroup = node?.type === 'group'
+
+  // Opciones específicas para grupos
+  const groupOptions: ContextMenuOption[] = isGroup
+    ? [
+        {
+          id: 'edit-group',
+          label: 'Editar propiedades',
+          icon: <Edit className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onEditGroup) onEditGroup(node.id)
+            onClose()
+          },
+        },
+        {
+          id: 'change-color',
+          label: 'Cambiar color',
+          icon: <Palette className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onChangeGroupColor) onChangeGroupColor(node.id)
+            onClose()
+          },
+        },
+        { id: 'sep-group-1', label: '', separator: true },
+        {
+          id: 'duplicate-group',
+          label: 'Duplicar grupo',
+          icon: <Copy className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onDuplicateGroup) onDuplicateGroup(node.id)
+            onClose()
+          },
+        },
+        {
+          id: 'copy-group',
+          label: 'Copiar',
+          icon: <Copy className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onCopy) onCopy(node.id)
+            onClose()
+          },
+        },
+        {
+          id: 'cut-group',
+          label: 'Cortar',
+          icon: <Scissors className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onCut) onCut(node.id)
+            onClose()
+          },
+        },
+        { id: 'sep-group-2', label: '', separator: true },
+        {
+          id: 'delete-group',
+          label: 'Eliminar grupo',
+          icon: <Trash2 className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (onDeleteGroup) onDeleteGroup(node.id)
+            onClose()
+          },
+        },
+      ]
+    : []
+
+  // Opciones para nodo normal
+  const nodeOptions: ContextMenuOption[] = node && !isGroup
     ? [
         {
           id: 'edit',
@@ -214,7 +288,7 @@ export function ContextMenu({
     },
   ]
 
-  const options = node ? nodeOptions : canvasOptions
+  const options = isGroup ? groupOptions : (node ? nodeOptions : canvasOptions)
 
   return (
     <div

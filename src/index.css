@@ -166,16 +166,26 @@ body {
 /* Estilos para edges suaves */
 .react-flow__edge {
   transition: stroke-width 0.2s ease-in-out, stroke 0.2s ease-in-out;
+  /* Asegurar que los edges se rendericen sobre los grupos */
+  z-index: 10 !important;
+  position: relative;
+}
+
+.react-flow__edge-path {
+  /* Asegurar que el path del edge esté visible sobre grupos */
+  z-index: 10 !important;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
   stroke-width: 3;
   stroke: var(--color-edge-selected);
+  z-index: 11 !important;
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
   stroke-width: 3;
   stroke: var(--color-edge-hover);
+  z-index: 11 !important;
 }
 
 /* Mejorar la apariencia de los handles */

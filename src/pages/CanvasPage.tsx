@@ -38,6 +38,8 @@ import { modernEdgeTypes } from '@/canvas/edges.tsx'
 import { applyModernEdgeStyles } from '@/canvas/edges.tsx'
 import { NodePalette } from '@/components/NodePalette'
 import { NodePropertiesPanel } from '@/components/NodePropertiesPanel'
+import { GroupPropertiesPanel } from '@/components/GroupPropertiesPanel'
+import { GroupSelector } from '@/components/GroupSelector'
 import { useKeyboardShortcuts } from '@/utils/keyboardShortcuts'
 import { pasteFromClipboard, copyToClipboard } from '@/utils/clipboard'
 import { validateConnectionComplete } from '@/utils/connectionValidator'
@@ -152,7 +154,7 @@ export function CanvasPage() {
   // #region agent log
   // Log cuando cambian los flows para debug
   useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:flowsEffect',message:'Flows actualizados en el componente',data:{flowsCount:flows.length,flowIds:flows.map(f=>f.id),activeFlowId,isLoading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:flowsEffect',message:'Flows actualizados en el componente',data:{flowsCount:flows.length,flowIds:flows.map(f=>f.id),activeFlowId,isLoading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
   }, [flows, activeFlowId, isLoading])
   // #endregion
 
@@ -213,6 +215,16 @@ export function CanvasPage() {
 
   // Estado para clipboard
   const [hasClipboard, setHasClipboard] = React.useState(false)
+
+  // Estado para selector de grupo
+  const [groupSelector, setGroupSelector] = React.useState<{
+    isOpen: boolean
+    nodeId: string | null
+    position?: { x: number; y: number }
+  }>({
+    isOpen: false,
+    nodeId: null,
+  })
 
   // Estados locales de React Flow para manejar cambios en tiempo real
   const [nodes, setNodesLocal, onNodesChange] = useNodesState(storeNodes)
@@ -461,7 +473,7 @@ export function CanvasPage() {
       // #region agent log
       const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
       const allFlowsFromStore = allNodeRedNodes.filter(n => n.type === 'tab')
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Iniciando guardado',data:{activeFlowId,flowsCount:allFlowsFromStore.length,flowIds:allFlowsFromStore.map(f=>f.id),nodesCount:nodes.length,edgesCount:edges.length,storeGroupsCount:storeGroups.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Iniciando guardado',data:{activeFlowId,flowsCount:allFlowsFromStore.length,flowIds:allFlowsFromStore.map(f=>f.id),nodesCount:nodes.length,edgesCount:edges.length,storeGroupsCount:storeGroups.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
       // Transformar nodos y edges a formato Node-RED
@@ -480,7 +492,7 @@ export function CanvasPage() {
       })
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Nodos transformados',data:{activeFlowId,transformedNodesCount:nodeRedNodes.length,transformedNodeIds:nodeRedNodes.map(n=>n.id),transformedNodeTypes:nodeRedNodes.map(n=>n.type)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Nodos transformados',data:{activeFlowId,transformedNodesCount:nodeRedNodes.length,transformedNodeIds:nodeRedNodes.map(n=>n.id),transformedNodeTypes:nodeRedNodes.map(n=>n.type)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
       // Obtener todos los flows (tabs) del store para preservarlos
@@ -518,7 +530,8 @@ export function CanvasPage() {
         byType: nodesFromOtherFlowsByType,
         sample: nodesFromOtherFlows.slice(0, 3).map(n => ({ id: n.id, type: n.type, z: n.z })),
       })
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Nodos de otros flows identificados',data:{activeFlowId,groupsInTransformed:groupsInTransformed.length,groupsInTransformedIds:groupsInTransformed,nodesFromOtherFlowsCount:nodesFromOtherFlows.length,nodesFromOtherFlowsByType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Nodos de otros flows identificados',data:{activeFlowId,groupsInTransformed:groupsInTransformed.length,groupsInTransformedIds:groupsInTransformed,nodesFromOtherFlowsCount:nodesFromOtherFlows.length,nodesFromOtherFlowsByType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
       // Construir el payload final:
@@ -541,14 +554,14 @@ export function CanvasPage() {
       // #region agent log
       const allGroupIds = allNodesToSave.filter(n => n.type === 'group').map(n => n.id)
       const duplicateGroupIds = allGroupIds.filter((id, index) => allGroupIds.indexOf(id) !== index)
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Payload final preparado',data:{activeFlowId,totalNodesToSave:allNodesToSave.length,flowsInPayload:allNodesToSave.filter(n=>n.type==='tab').length,flowIdsInPayload:allNodesToSave.filter(n=>n.type==='tab').map(n=>n.id),groupsInPayload:allGroupIds.length,groupIds:allGroupIds,duplicateGroupIds:duplicateGroupIds,hasDuplicates:duplicateGroupIds.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Payload final preparado',data:{activeFlowId,totalNodesToSave:allNodesToSave.length,flowsInPayload:allNodesToSave.filter(n=>n.type==='tab').length,flowIdsInPayload:allNodesToSave.filter(n=>n.type==='tab').map(n=>n.id),groupsInPayload:allGroupIds.length,groupIds:allGroupIds,duplicateGroupIds:duplicateGroupIds,hasDuplicates:duplicateGroupIds.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
       // Validar que no haya IDs duplicados antes de enviar
       if (duplicateGroupIds.length > 0) {
         const errorMessage = `IDs duplicados detectados antes de guardar: ${duplicateGroupIds.join(', ')}`
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Error: IDs duplicados detectados',data:{activeFlowId,duplicateGroupIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Error: IDs duplicados detectados',data:{activeFlowId,duplicateGroupIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
         throw new Error(errorMessage)
       }
@@ -560,7 +573,7 @@ export function CanvasPage() {
       
       // #region agent log
       const flowsAfterSave = useCanvasStore.getState().flows
-      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Guardado exitoso',data:{activeFlowId,flowsAfterSaveCount:flowsAfterSave.length,flowIdsAfterSave:flowsAfterSave.map(f=>f.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/ae5fc8cc-311f-43dc-9442-4e2184e25420',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave',message:'Guardado exitoso',data:{activeFlowId,flowsAfterSaveCount:flowsAfterSave.length,flowIdsAfterSave:flowsAfterSave.map(f=>f.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
       // CRÍTICO: Actualizar el store con los nodos y edges actuales (que acabamos de guardar)
@@ -810,61 +823,46 @@ export function CanvasPage() {
     setNodes(updatedNodes)
   }, [isEditMode, activeFlowId, contextMenu, storeGroups, setGroups, nodes, setNodesLocal, setNodes])
 
-  const handleAddToGroup = useCallback((nodeId: string) => {
+  const handleAddToGroup = useCallback((nodeId: string, position?: { x: number; y: number }) => {
     if (!isEditMode) return
 
-    // Si hay múltiples grupos, mostrar selector
-    // Por ahora, agregar al primer grupo o crear uno nuevo si no hay grupos
+    // Si no hay grupos, crear uno nuevo directamente
     if (storeGroups.length === 0) {
-      // Crear un grupo nuevo y agregar el nodo
       handleCreateGroup()
       // Esperar un momento y luego agregar el nodo al grupo recién creado
       setTimeout(() => {
-        const latestGroup = storeGroups[storeGroups.length - 1]
+        const state = useCanvasStore.getState()
+        const latestGroup = state.groups[state.groups.length - 1]
         if (latestGroup) {
-          const updatedNodes = nodes.map(n => {
-            if (n.id === nodeId) {
-              const newNodeRedNode = {
-                ...n.data.nodeRedNode,
-                g: latestGroup.id,
+          setNodesLocal((prevNodes) => {
+            return prevNodes.map(n => {
+              if (n.id === nodeId) {
+                const newNodeRedNode = {
+                  ...n.data.nodeRedNode,
+                  g: latestGroup.id,
+                }
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    nodeRedNode: newNodeRedNode,
+                  },
+                }
               }
-              return {
-                ...n,
-                data: {
-                  ...n.data,
-                  nodeRedNode: newNodeRedNode,
-                },
-              }
-            }
-            return n
+              return n
+            })
           })
-          setNodesLocal(updatedNodes)
-          setNodes(updatedNodes)
         }
       }, 100)
     } else {
-      // Agregar al primer grupo disponible (mejorar con selector)
-      const targetGroup = storeGroups[0]
-      const updatedNodes = nodes.map(n => {
-        if (n.id === nodeId) {
-          const newNodeRedNode = {
-            ...n.data.nodeRedNode,
-            g: targetGroup.id,
-          }
-          return {
-            ...n,
-            data: {
-              ...n.data,
-              nodeRedNode: newNodeRedNode,
-            },
-          }
-        }
-        return n
+      // Mostrar selector de grupo
+      setGroupSelector({
+        isOpen: true,
+        nodeId,
+        position,
       })
-      setNodesLocal(updatedNodes)
-      setNodes(updatedNodes)
     }
-  }, [isEditMode, storeGroups, nodes, setNodesLocal, setNodes, handleCreateGroup])
+  }, [isEditMode, storeGroups, handleCreateGroup, setNodesLocal])
 
   const handleRemoveFromGroup = useCallback((nodeId: string) => {
     if (!isEditMode) return
@@ -886,6 +884,58 @@ export function CanvasPage() {
     setNodesLocal(updatedNodes)
     setNodes(updatedNodes)
   }, [isEditMode, nodes, setNodesLocal, setNodes])
+
+  // Handler para cuando se selecciona un grupo en el selector
+  const handleSelectGroup = useCallback((groupId: string | null) => {
+    if (!groupSelector.nodeId) return
+
+    const nodeId = groupSelector.nodeId
+
+    if (groupId === null) {
+      // Remover del grupo
+      handleRemoveFromGroup(nodeId)
+    } else {
+      // Agregar al grupo seleccionado
+      setNodesLocal((prevNodes) => {
+        return prevNodes.map(n => {
+          if (n.id === nodeId) {
+            const newNodeRedNode = {
+              ...n.data.nodeRedNode,
+              g: groupId,
+            }
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                nodeRedNode: newNodeRedNode,
+              },
+            }
+          }
+          return n
+        })
+      })
+      setNodes((prevNodes) => {
+        return prevNodes.map(n => {
+          if (n.id === nodeId) {
+            const newNodeRedNode = {
+              ...n.data.nodeRedNode,
+              g: groupId,
+            }
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                nodeRedNode: newNodeRedNode,
+              },
+            }
+          }
+          return n
+        })
+      })
+    }
+
+    setGroupSelector({ isOpen: false, nodeId: null })
+  }, [groupSelector.nodeId, handleRemoveFromGroup, setNodesLocal, setNodes])
 
   // Función para mover grupos (no se usa actualmente, los grupos se mueven nativamente con React Flow)
   // const handleGroupMove = useCallback((groupId: string, newX: number, newY: number) => {
@@ -963,6 +1013,176 @@ export function CanvasPage() {
       return updatedNodes
     })
   }, [setGroups, setNodesLocal])
+
+  // Handler para actualizar grupo
+  const handleUpdateGroup = useCallback((groupId: string, updates: Partial<NodeRedGroup>) => {
+    if (!isEditMode) return
+
+    // Actualizar grupo en el store
+    const updatedGroups = storeGroups.map(g => {
+      if (g.id === groupId) {
+        return { ...g, ...updates }
+      }
+      return g
+    })
+    setGroups(updatedGroups)
+
+    // Actualizar nodo del grupo en React Flow
+    setNodesLocal((prevNodes) => {
+      return prevNodes.map(n => {
+        if (n.id === groupId && n.type === 'group') {
+          const currentGroup = (n.data as any).group
+          if (currentGroup) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                group: { ...currentGroup, ...updates },
+              },
+            }
+          }
+        }
+        return n
+      })
+    })
+  }, [isEditMode, storeGroups, setGroups, setNodesLocal])
+
+  // Handler para eliminar grupo
+  const handleDeleteGroup = useCallback((groupId: string) => {
+    if (!isEditMode) return
+
+    // Confirmar eliminación
+    if (!window.confirm('¿Eliminar este grupo? Los nodos dentro del grupo se desasignarán.')) {
+      return
+    }
+
+    // Desasignar todos los nodos del grupo
+    setNodesLocal((prevNodes) => {
+      return prevNodes.map(n => {
+        const nodeRedNode = n.data?.nodeRedNode
+        if (nodeRedNode && nodeRedNode.g === groupId) {
+          const newNodeRedNode = { ...nodeRedNode }
+          delete newNodeRedNode.g
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              nodeRedNode: newNodeRedNode,
+            },
+          }
+        }
+        return n
+      })
+    })
+
+    // Remover grupo del store
+    const updatedGroups = storeGroups.filter(g => g.id !== groupId)
+    setGroups(updatedGroups)
+
+    // Remover nodo del grupo de React Flow
+    setNodes((prevNodes) => prevNodes.filter(n => n.id !== groupId))
+    setNodesLocal((prevNodes) => prevNodes.filter(n => n.id !== groupId))
+  }, [isEditMode, storeGroups, setGroups, setNodes, setNodesLocal])
+
+  // Handler para duplicar grupo
+  const handleDuplicateGroup = useCallback((groupId: string) => {
+    if (!isEditMode || !activeFlowId) return
+
+    const originalGroup = storeGroups.find(g => g.id === groupId)
+    if (!originalGroup) return
+
+    // Crear nuevo grupo con ID único
+    const newGroupId = `group-${Date.now()}`
+    const offset = 50 // Offset para posicionar el grupo duplicado
+
+    const newGroup: NodeRedGroup = {
+      ...originalGroup,
+      id: newGroupId,
+      x: originalGroup.x + offset,
+      y: originalGroup.y + offset,
+    }
+
+    // Agregar nuevo grupo al store
+    const updatedGroups = [...storeGroups, newGroup]
+    setGroups(updatedGroups)
+
+    // Duplicar nodos dentro del grupo
+    const nodesInGroup = nodes.filter(n => {
+      const nodeRedNode = n.data?.nodeRedNode
+      return nodeRedNode && nodeRedNode.g === groupId
+    })
+
+    const duplicatedNodes = nodesInGroup.map(n => {
+      const newNodeId = `${n.id}-${Date.now()}`
+      const newNodeRedNode = {
+        ...n.data.nodeRedNode,
+        id: newNodeId,
+        g: newGroupId,
+        x: (n.data.nodeRedNode.x || n.position.x) + offset,
+        y: (n.data.nodeRedNode.y || n.position.y) + offset,
+      }
+
+      return {
+        ...n,
+        id: newNodeId,
+        position: {
+          x: n.position.x + offset,
+          y: n.position.y + offset,
+        },
+        data: {
+          ...n.data,
+          nodeRedNode: newNodeRedNode,
+        },
+      }
+    })
+
+    // Agregar nodo del grupo y nodos duplicados
+    const groupNode: Node = {
+      id: newGroupId,
+      type: 'group',
+      position: { x: newGroup.x, y: newGroup.y },
+      data: {
+        label: newGroup.name || newGroup.label || 'Nuevo Grupo',
+        nodeRedType: 'group',
+        flowId: activeFlowId,
+        outputPortsCount: 0,
+        nodeRedNode: newGroup,
+        group: newGroup,
+        nodesCount: duplicatedNodes.length,
+      },
+      style: {
+        width: newGroup.w || 400,
+        height: newGroup.h || 300,
+      },
+    }
+
+    const updatedNodes = [...nodes, groupNode, ...duplicatedNodes]
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+  }, [isEditMode, activeFlowId, storeGroups, nodes, setGroups, setNodes, setNodesLocal])
+
+  // Handler para cambiar color del grupo
+  const handleChangeGroupColor = useCallback((groupId: string) => {
+    // Abrir un prompt simple para cambiar color (mejorar con modal de color picker)
+    const currentGroup = storeGroups.find(g => g.id === groupId)
+    const currentColor = currentGroup?.color || '#3b82f6'
+    
+    const newColor = window.prompt('Ingrese el color hexadecimal (ej: #3b82f6):', currentColor)
+    if (newColor && /^#[0-9A-Fa-f]{6}$/.test(newColor)) {
+      handleUpdateGroup(groupId, { color: newColor })
+    } else if (newColor && newColor !== '') {
+      alert('Color inválido. Use formato hexadecimal (ej: #3b82f6)')
+    }
+  }, [storeGroups, handleUpdateGroup])
+
+  // Handler para editar grupo (abrir panel de propiedades)
+  const handleEditGroup = useCallback((groupId: string) => {
+    const groupNode = nodes.find(n => n.id === groupId && n.type === 'group')
+    if (groupNode) {
+      setSelectedNode(groupNode)
+      setIsPropertiesOpen(true)
+    }
+  }, [nodes])
 
   // Agregar handlers a nodos de grupo cuando se cargan o cambia el modo edición
   useEffect(() => {
@@ -1529,8 +1749,21 @@ export function CanvasPage() {
           
         </div>
 
-        {/* Panel de propiedades */}
-        {isEditMode && (
+        {/* Panel de propiedades para grupos */}
+        {isEditMode && selectedNode?.type === 'group' && (
+          <GroupPropertiesPanel
+            node={selectedNode}
+            isOpen={isPropertiesOpen}
+            onClose={() => {
+              setIsPropertiesOpen(false)
+              setSelectedNode(null)
+            }}
+            onUpdateGroup={handleUpdateGroup}
+          />
+        )}
+
+        {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
+        {isEditMode && selectedNode && selectedNode.type !== 'group' && (
           <NodePropertiesPanel
             node={selectedNode}
             isOpen={isPropertiesOpen}
@@ -1656,10 +1889,72 @@ export function CanvasPage() {
               setIsPaletteOpen(true)
             }}
             onCreateGroup={handleCreateGroup}
-            onAddToGroup={handleAddToGroup}
+            onAddToGroup={(nodeId) => {
+              const node = nodes.find(n => n.id === nodeId)
+              const position = contextMenu?.position
+              handleAddToGroup(nodeId, position)
+            }}
             onRemoveFromGroup={handleRemoveFromGroup}
+            onEditGroup={handleEditGroup}
+            onChangeGroupColor={handleChangeGroupColor}
+            onDuplicateGroup={handleDuplicateGroup}
+            onDeleteGroup={handleDeleteGroup}
             hasClipboard={hasClipboard}
             nodeInGroup={contextMenu?.node ? !!contextMenu.node.data?.nodeRedNode?.g : false}
+          />
+        )}
+
+        {/* Selector de grupo */}
+        {isEditMode && (
+          <GroupSelector
+            groups={storeGroups}
+            isOpen={groupSelector.isOpen}
+            onClose={() => setGroupSelector({ isOpen: false, nodeId: null })}
+            onSelectGroup={handleSelectGroup}
+            onCreateGroup={() => {
+              handleCreateGroup()
+              // Después de crear, agregar el nodo al grupo recién creado
+              setTimeout(() => {
+                const state = useCanvasStore.getState()
+                const latestGroup = state.groups[state.groups.length - 1]
+                if (latestGroup && groupSelector.nodeId) {
+                  handleSelectGroup(latestGroup.id)
+                }
+              }, 100)
+            }}
+            position={groupSelector.position}
+          />
+        )}
+
+        {/* Panel de propiedades para grupos */}
+        {isEditMode && selectedNode?.type === 'group' && (
+          <GroupPropertiesPanel
+            node={selectedNode}
+            isOpen={isPropertiesOpen}
+            onClose={() => {
+              setIsPropertiesOpen(false)
+              setSelectedNode(null)
+            }}
+            onUpdateGroup={handleUpdateGroup}
+          />
+        )}
+
+        {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
+        {isEditMode && selectedNode && selectedNode.type !== 'group' && (
+          <NodePropertiesPanel
+            node={selectedNode}
+            isOpen={isPropertiesOpen}
+            onClose={() => {
+              setIsPropertiesOpen(false)
+              setSelectedNode(null)
+            }}
+            onUpdateNode={(nodeId, updates) => {
+              const updatedNodes = nodes.map(n => 
+                n.id === nodeId ? { ...n, ...updates } : n
+              )
+              setNodesLocal(updatedNodes)
+              setNodes(updatedNodes)
+            }}
           />
         )}
       </div>
