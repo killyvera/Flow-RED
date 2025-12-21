@@ -266,10 +266,7 @@ export function CanvasPage() {
       if (prevSelectedNodeIdRef.current !== currentSelectedId) {
         prevSelectedNodeIdRef.current = currentSelectedId
         setSelectedNode(firstSelected)
-        // Si el panel está cerrado pero hay un nodo seleccionado, abrirlo
-        if (!isPropertiesOpen && isEditMode) {
-          setIsPropertiesOpen(true)
-        }
+        // El panel solo se abre con doble clic, no automáticamente
       } else {
         // Es el mismo nodo, actualizar solo si los datos básicos han cambiado
         // Evitar bucle infinito no comparando todo el objeto data
