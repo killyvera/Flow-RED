@@ -30,9 +30,11 @@ import { Moon, Sun } from 'lucide-react'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
+import { ExecutionLog } from '@/components/ExecutionLog'
 
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
+import { useNodeRedWebSocket } from '@/hooks/useNodeRedWebSocket'
 import { BaseNode } from '@/canvas/nodes/BaseNode'
 import { modernEdgeTypes } from '@/canvas/edges.tsx'
 import { applyModernEdgeStyles } from '@/canvas/edges.tsx'
@@ -150,6 +152,9 @@ export function CanvasPage() {
     loadFlows,
     renderFlow,
   } = useNodeRedFlow(true)
+
+  // Conectar a WebSocket para recibir eventos de runtime
+  const wsConnection = useNodeRedWebSocket(true)
   
   // #region agent log
   // Log cuando cambian los flows para debug
@@ -202,6 +207,7 @@ export function CanvasPage() {
 
   // Estado para paleta de nodos
   const [isPaletteOpen, setIsPaletteOpen] = React.useState(false)
+  const [isExecutionLogOpen, setIsExecutionLogOpen] = React.useState(false)
   
   // Estado para panel de propiedades
   const [isPropertiesOpen, setIsPropertiesOpen] = React.useState(false)
@@ -1546,6 +1552,21 @@ export function CanvasPage() {
 
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
+        {/* Indicador discreto de conexión WebSocket */}
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+          {wsConnection.connected ? (
+            <div 
+              className="w-2 h-2 rounded-full bg-green-500 shadow-sm animate-pulse"
+              title="Conectado a Node-RED (tiempo real)"
+            />
+          ) : (
+            <div 
+              className="w-2 h-2 rounded-full bg-yellow-500 shadow-sm"
+              title="WebSocket desconectado. La aplicación funciona sin tiempo real. Los nodos inject funcionan correctamente."
+            />
+          )}
+        </div>
+        
         {/* Mensaje cuando hay error de conexión */}
         {error && !isLoading && (
           <div className="absolute inset-0 flex items-center justify-center text-text-secondary">
@@ -1957,6 +1978,31 @@ export function CanvasPage() {
             }}
           />
         )}
+
+        {/* Panel de logs de ejecución */}
+        <ExecutionLog
+          isOpen={isExecutionLogOpen}
+          onClose={() => setIsExecutionLogOpen(false)}
+        />
+
+        {/* Botón para abrir/cerrar logs de ejecución */}
+        <button
+          onClick={() => setIsExecutionLogOpen(!isExecutionLogOpen)}
+          className={`
+            fixed bottom-4 right-4 z-40
+            p-3 rounded-lg shadow-lg
+            transition-all duration-200
+            ${isExecutionLogOpen 
+              ? 'bg-accent-primary text-white' 
+              : 'bg-node-default text-text-primary border border-node-border hover:bg-node-hover'
+            }
+          `}
+          title="Logs de ejecución"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </button>
       </div>
     </div>
   )

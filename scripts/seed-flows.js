@@ -45,15 +45,15 @@ const flow1Nodes = [
     id: generateId('inject'),
     type: 'inject',
     z: 'flow1',
-    name: 'Trigger cada 5 segundos',
-    props: [{ p: 'payload', v: '', vt: 'date' }],
-    repeat: '5',
+    name: 'Trigger Manual',
+    props: [{ p: 'payload', v: 'Hola desde Node-RED', vt: 'str' }],
+    repeat: '',
     cron: '',
     once: false,
     onceDelay: 0.1,
     topic: '',
-    payload: '',
-    payloadType: 'date',
+    payload: 'Hola desde Node-RED',
+    payloadType: 'str',
     x: 100,
     y: 100,
     wires: [['function1']]
@@ -678,6 +678,976 @@ const flow5Nodes = [
   }
 ]
 
+// Flow 6: Flow para demostrar estados de runtime (tiempo real)
+const flow6 = {
+  id: 'flow6',
+  type: 'tab',
+  label: 'Runtime Feedback Demo',
+  disabled: false,
+  info: 'Flow para demostrar estados de runtime en tiempo real (running, error, warning, idle)',
+  env: []
+}
+
+const flow6Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow6',
+    name: 'Trigger cada 2s',
+    props: [{ p: 'payload', v: '', vt: 'date' }],
+    repeat: '2',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '',
+    payloadType: 'date',
+    x: 100,
+    y: 100,
+    wires: [['function_running']]
+  },
+  {
+    id: 'function_running',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo Running',
+    func: '// Este nodo mostrará estado "running" cuando esté procesando\nnode.status({fill:"green",shape:"dot",text:"Procesando..."});\nsetTimeout(() => {\n  node.status({fill:"grey",shape:"dot",text:"Completado"});\n}, 1000);\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['function_error']]
+  },
+  {
+    id: 'function_error',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo con Error',
+    func: '// Este nodo mostrará estado "error" ocasionalmente\nconst shouldError = Math.random() > 0.5;\nif (shouldError) {\n  node.status({fill:"red",shape:"ring",text:"Error detectado"});\n  setTimeout(() => {\n    node.status({fill:"grey",shape:"dot",text:"Reintentando..."});\n  }, 2000);\n} else {\n  node.status({fill:"green",shape:"dot",text:"OK"});\n}\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: [['function_warning']]
+  },
+  {
+    id: 'function_warning',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo con Warning',
+    func: '// Este nodo mostrará estado "warning"\nconst value = Math.random();\nif (value > 0.7) {\n  node.status({fill:"yellow",shape:"dot",text:"Advertencia: valor alto"});\n} else {\n  node.status({fill:"green",shape:"dot",text:"Normal"});\n}\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: [['debug_runtime']]
+  },
+  {
+    id: 'debug_runtime',
+    type: 'debug',
+    z: 'flow6',
+    name: 'Debug Runtime',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100,
+    wires: []
+  },
+  // Nodos adicionales para mostrar diferentes estados
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow6',
+    name: 'Trigger Manual',
+    props: [{ p: 'payload', v: 'test', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'test',
+    payloadType: 'str',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['function_idle']]
+  },
+  {
+    id: 'function_idle',
+    type: 'function',
+    z: 'flow6',
+    name: 'Nodo Idle',
+    func: '// Este nodo permanecerá en estado idle\n// No establece status, por lo que mostrará estado por defecto\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['debug_idle']]
+  },
+  {
+    id: 'debug_idle',
+    type: 'debug',
+    z: 'flow6',
+    name: 'Debug Idle',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  }
+]
+
+// Flow 7: Flow con APIs públicas - GET JSON
+const flow7 = {
+  id: 'flow7',
+  type: 'tab',
+  label: 'APIs Públicas - GET JSON',
+  disabled: false,
+  info: 'Flow que descarga JSON de APIs públicas y procesa los datos',
+  env: []
+}
+
+const flow7Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow7',
+    name: 'Obtener Post',
+    props: [{ p: 'payload', v: '', vt: 'date' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '',
+    payloadType: 'date',
+    x: 100,
+    y: 100,
+    wires: [['http_jsonplaceholder']]
+  },
+  {
+    id: 'http_jsonplaceholder',
+    type: 'http request',
+    z: 'flow7',
+    name: 'GET JSONPlaceholder',
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/posts/1',
+    paytoqs: 'ignore',
+    ret: 'obj',
+    usetls: true,
+    tls: '',
+    useAuth: false,
+    authType: '',
+    persist: false,
+    useProxy: false,
+    proxy: '',
+    senderr: false,
+    insecureHTTPParser: false,
+    headers: [
+      { key: 'Content-Type', value: 'application/json' }
+    ],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['json_parse']]
+  },
+  {
+    id: 'json_parse',
+    type: 'json',
+    z: 'flow7',
+    name: 'Parse JSON',
+    property: 'payload',
+    action: '',
+    pretty: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: [['change_extract']]
+  },
+  {
+    id: 'change_extract',
+    type: 'change',
+    z: 'flow7',
+    name: 'Extraer Datos',
+    rules: [
+      { t: 'set', p: 'title', pt: 'msg', to: 'payload.title', tot: 'msg' },
+      { t: 'set', p: 'body', pt: 'msg', to: 'payload.body', tot: 'msg' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: [['template_format']]
+  },
+  {
+    id: 'template_format',
+    type: 'template',
+    z: 'flow7',
+    name: 'Formatear',
+    field: 'payload',
+    fieldType: 'msg',
+    format: 'handlebars',
+    syntax: 'mustache',
+    output: 'str',
+    template: 'Título: {{title}}\n\nCuerpo: {{body}}',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100,
+    wires: [['debug_api']]
+  },
+  {
+    id: 'debug_api',
+    type: 'debug',
+    z: 'flow7',
+    name: 'Debug API',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 5,
+    y: 100,
+    wires: []
+  },
+  // Segundo ejemplo: API REST pública simple
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow7',
+    name: 'Obtener Usuario',
+    props: [{ p: 'payload', v: '1', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '1',
+    payloadType: 'str',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['http_user']]
+  },
+  {
+    id: 'http_user',
+    type: 'http request',
+    z: 'flow7',
+    name: 'GET Usuario',
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/users/{{payload}}',
+    paytoqs: 'ignore',
+    ret: 'obj',
+    usetls: true,
+    tls: '',
+    useAuth: false,
+    authType: '',
+    persist: false,
+    useProxy: false,
+    proxy: '',
+    senderr: false,
+    insecureHTTPParser: false,
+    headers: [],
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['json_parse_user']]
+  },
+  {
+    id: 'json_parse_user',
+    type: 'json',
+    z: 'flow7',
+    name: 'Parse Usuario',
+    property: 'payload',
+    action: '',
+    pretty: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['change_user']]
+  },
+  {
+    id: 'change_user',
+    type: 'change',
+    z: 'flow7',
+    name: 'Extraer Usuario',
+    rules: [
+      { t: 'set', p: 'name', pt: 'msg', to: 'payload.name', tot: 'msg' },
+      { t: 'set', p: 'email', pt: 'msg', to: 'payload.email', tot: 'msg' },
+      { t: 'set', p: 'city', pt: 'msg', to: 'payload.address.city', tot: 'msg' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['debug_user']]
+  },
+  {
+    id: 'debug_user',
+    type: 'debug',
+    z: 'flow7',
+    name: 'Debug Usuario',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  }
+]
+
+// Flow 8: Flow con APIs públicas - POST/PUT
+const flow8 = {
+  id: 'flow8',
+  type: 'tab',
+  label: 'APIs Públicas - POST/PUT',
+  disabled: false,
+  info: 'Flow que envía datos a APIs públicas usando POST y PUT',
+  env: []
+}
+
+const flow8Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow8',
+    name: 'Crear Post',
+    props: [
+      { p: 'payload', v: '{"title":"Mi Post","body":"Contenido del post","userId":1}', vt: 'json' }
+    ],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '{"title":"Mi Post","body":"Contenido del post","userId":1}',
+    payloadType: 'json',
+    x: 100,
+    y: 100,
+    wires: [['json_stringify']]
+  },
+  {
+    id: 'json_stringify',
+    type: 'json',
+    z: 'flow8',
+    name: 'Stringify JSON',
+    property: 'payload',
+    action: 'obj',
+    pretty: false,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['http_post']]
+  },
+  {
+    id: 'http_post',
+    type: 'http request',
+    z: 'flow8',
+    name: 'POST JSONPlaceholder',
+    method: 'POST',
+    url: 'https://jsonplaceholder.typicode.com/posts',
+    paytoqs: 'ignore',
+    ret: 'obj',
+    usetls: true,
+    tls: '',
+    useAuth: false,
+    authType: '',
+    persist: false,
+    useProxy: false,
+    proxy: '',
+    senderr: false,
+    insecureHTTPParser: false,
+    headers: [
+      { key: 'Content-Type', value: 'application/json' }
+    ],
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: [['json_parse_post']]
+  },
+  {
+    id: 'json_parse_post',
+    type: 'json',
+    z: 'flow8',
+    name: 'Parse Response',
+    property: 'payload',
+    action: '',
+    pretty: true,
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: [['debug_post']]
+  },
+  {
+    id: 'debug_post',
+    type: 'debug',
+    z: 'flow8',
+    name: 'Debug POST',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100,
+    wires: []
+  },
+  // Ejemplo PUT
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow8',
+    name: 'Actualizar Post',
+    props: [
+      { p: 'payload', v: '{"id":1,"title":"Post Actualizado","body":"Nuevo contenido","userId":1}', vt: 'json' }
+    ],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '{"id":1,"title":"Post Actualizado","body":"Nuevo contenido","userId":1}',
+    payloadType: 'json',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['json_stringify_put']]
+  },
+  {
+    id: 'json_stringify_put',
+    type: 'json',
+    z: 'flow8',
+    name: 'Stringify',
+    property: 'payload',
+    action: 'obj',
+    pretty: false,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['http_put']]
+  },
+  {
+    id: 'http_put',
+    type: 'http request',
+    z: 'flow8',
+    name: 'PUT JSONPlaceholder',
+    method: 'PUT',
+    url: 'https://jsonplaceholder.typicode.com/posts/1',
+    paytoqs: 'ignore',
+    ret: 'obj',
+    usetls: true,
+    tls: '',
+    useAuth: false,
+    authType: '',
+    persist: false,
+    useProxy: false,
+    proxy: '',
+    senderr: false,
+    insecureHTTPParser: false,
+    headers: [
+      { key: 'Content-Type', value: 'application/json' }
+    ],
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['debug_put']]
+  },
+  {
+    id: 'debug_put',
+    type: 'debug',
+    z: 'flow8',
+    name: 'Debug PUT',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  }
+]
+
+// Flow 9: Flow con Webhook y Transformers
+const flow9 = {
+  id: 'flow9',
+  type: 'tab',
+  label: 'Webhook y Transformers',
+  disabled: false,
+  info: 'Flow que demuestra webhooks HTTP y transformaciones de datos',
+  env: []
+}
+
+const flow9Nodes = [
+  {
+    id: 'http_in',
+    type: 'http in',
+    z: 'flow9',
+    name: 'Webhook POST',
+    url: '/webhook/test',
+    method: 'post',
+    upload: false,
+    swaggerDoc: '',
+    x: 100,
+    y: 100,
+    wires: [['json_parse_webhook']]
+  },
+  {
+    id: 'json_parse_webhook',
+    type: 'json',
+    z: 'flow9',
+    name: 'Parse Webhook',
+    property: 'payload',
+    action: '',
+    pretty: false,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['change_transform']]
+  },
+  {
+    id: 'change_transform',
+    type: 'change',
+    z: 'flow9',
+    name: 'Transformar',
+    rules: [
+      { t: 'set', p: 'timestamp', pt: 'msg', to: '$now()', tot: 'jsonata' },
+      { t: 'set', p: 'processed', pt: 'msg', to: 'true', tot: 'bool' },
+      { t: 'set', p: 'original', pt: 'msg', to: 'payload', tot: 'msg' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: [['switch_route']]
+  },
+  {
+    id: 'switch_route',
+    type: 'switch',
+    z: 'flow9',
+    name: 'Router',
+    property: 'payload.type',
+    propertyType: 'msg',
+    rules: [
+      { t: 'eq', v: 'user', vt: 'str' },
+      { t: 'eq', v: 'order', vt: 'str' },
+      { t: 'else' }
+    ],
+    checkall: 'false',
+    repair: false,
+    outputs: 3,
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: [['template_user'], ['template_order'], ['template_default']]
+  },
+  {
+    id: 'template_user',
+    type: 'template',
+    z: 'flow9',
+    name: 'Template User',
+    field: 'payload',
+    fieldType: 'msg',
+    format: 'handlebars',
+    syntax: 'mustache',
+    output: 'str',
+    template: 'Usuario procesado: {{payload.name}}',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 60,
+    wires: [['http_response']]
+  },
+  {
+    id: 'template_order',
+    type: 'template',
+    z: 'flow9',
+    name: 'Template Order',
+    field: 'payload',
+    fieldType: 'msg',
+    format: 'handlebars',
+    syntax: 'mustache',
+    output: 'str',
+    template: 'Orden procesada: {{payload.id}}',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100,
+    wires: [['http_response']]
+  },
+  {
+    id: 'template_default',
+    type: 'template',
+    z: 'flow9',
+    name: 'Template Default',
+    field: 'payload',
+    fieldType: 'msg',
+    format: 'handlebars',
+    syntax: 'mustache',
+    output: 'str',
+    template: 'Tipo desconocido: {{payload.type}}',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 140,
+    wires: [['http_response']]
+  },
+  {
+    id: 'http_response',
+    type: 'http response',
+    z: 'flow9',
+    name: 'Response',
+    statusCode: '200',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    x: 100 + HORIZONTAL_SPACING * 5,
+    y: 100,
+    wires: []
+  },
+  // Ejemplo con delay y join
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow9',
+    name: 'Test Transform',
+    props: [
+      { p: 'payload', v: '{"type":"user","name":"John","age":30}', vt: 'json' }
+    ],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '{"type":"user","name":"John","age":30}',
+    payloadType: 'json',
+    x: 100,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['delay_transform']]
+  },
+  {
+    id: 'delay_transform',
+    type: 'delay',
+    z: 'flow9',
+    name: 'Delay 1s',
+    pauseType: 'delay',
+    timeout: '1',
+    timeoutUnits: 'seconds',
+    rate: '1',
+    nbRateUnits: '1',
+    rateUnits: 'second',
+    randomFirst: '1',
+    randomLast: '5',
+    randomUnits: 'seconds',
+    drop: false,
+    allowrate: false,
+    outputs: 1,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['change_add']]
+  },
+  {
+    id: 'change_add',
+    type: 'change',
+    z: 'flow9',
+    name: 'Agregar Campo',
+    rules: [
+      { t: 'set', p: 'processedAt', pt: 'msg', to: '$now()', tot: 'jsonata' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['debug_transform']]
+  },
+  {
+    id: 'debug_transform',
+    type: 'debug',
+    z: 'flow9',
+    name: 'Debug Transform',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: []
+  }
+]
+
+// Flow 10: Flow con Convert y múltiples transformaciones
+const flow10 = {
+  id: 'flow10',
+  type: 'tab',
+  label: 'Convert y Transformaciones',
+  disabled: false,
+  info: 'Flow que demuestra conversiones de tipos y transformaciones complejas',
+  env: []
+}
+
+const flow10Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow10',
+    name: 'String a Number',
+    props: [{ p: 'payload', v: '123', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '123',
+    payloadType: 'str',
+    x: 100,
+    y: 100,
+    wires: [['convert_number']]
+  },
+  {
+    id: 'convert_number',
+    type: 'change',
+    z: 'flow10',
+    name: 'Convert a Number',
+    rules: [
+      { t: 'set', p: 'payload', pt: 'msg', to: 'Number(payload)', tot: 'jsonata' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100,
+    wires: [['function_validate']]
+  },
+  {
+    id: 'function_validate',
+    type: 'function',
+    z: 'flow10',
+    name: 'Validar Number',
+    func: 'if (typeof msg.payload === "number") {\n  node.status({fill:"green",shape:"dot",text:"Es número"});\n} else {\n  node.status({fill:"red",shape:"ring",text:"No es número"});\n}\nreturn msg;',
+    outputs: 1,
+    noerr: 0,
+    timeout: 0,
+    initialize: '',
+    finalize: '',
+    libs: [],
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100,
+    wires: [['debug_convert']]
+  },
+  {
+    id: 'debug_convert',
+    type: 'debug',
+    z: 'flow10',
+    name: 'Debug Number',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100,
+    wires: []
+  },
+  // Convertir objeto a string
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow10',
+    name: 'Object a String',
+    props: [
+      { p: 'payload', v: '{"name":"Test","value":42}', vt: 'json' }
+    ],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '{"name":"Test","value":42}',
+    payloadType: 'json',
+    x: 100,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['json_to_string']]
+  },
+  {
+    id: 'json_to_string',
+    type: 'json',
+    z: 'flow10',
+    name: 'JSON a String',
+    property: 'payload',
+    action: 'obj',
+    pretty: true,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['change_format']]
+  },
+  {
+    id: 'change_format',
+    type: 'change',
+    z: 'flow10',
+    name: 'Formatear',
+    rules: [
+      { t: 'set', p: 'formatted', pt: 'msg', to: 'payload', tot: 'msg' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING,
+    wires: [['debug_string']]
+  },
+  {
+    id: 'debug_string',
+    type: 'debug',
+    z: 'flow10',
+    name: 'Debug String',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'formatted',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING,
+    wires: []
+  },
+  // Ejemplo con split y join
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow10',
+    name: 'Array de Datos',
+    props: [
+      { p: 'payload', v: '["item1","item2","item3"]', vt: 'json' }
+    ],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: '["item1","item2","item3"]',
+    payloadType: 'json',
+    x: 100,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['split_array']]
+  },
+  {
+    id: 'split_array',
+    type: 'split',
+    z: 'flow10',
+    name: 'Split Array',
+    splits: '3',
+    splitType: 'len',
+    splitKey: 'payload',
+    x: 100 + HORIZONTAL_SPACING,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['change_item']]
+  },
+  {
+    id: 'change_item',
+    type: 'change',
+    z: 'flow10',
+    name: 'Procesar Item',
+    rules: [
+      { t: 'set', p: 'item', pt: 'msg', to: 'payload', tot: 'msg' },
+      { t: 'set', p: 'index', pt: 'msg', to: '$index()', tot: 'jsonata' }
+    ],
+    action: '',
+    property: '',
+    from: '',
+    to: '',
+    reg: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['join_items']]
+  },
+  {
+    id: 'join_items',
+    type: 'join',
+    z: 'flow10',
+    name: 'Join Items',
+    mode: 'auto',
+    build: 'string',
+    property: 'payload',
+    propertyType: 'msg',
+    key: 'topic',
+    joiner: ', ',
+    joinerType: 'str',
+    accumulate: false,
+    timeout: '',
+    count: '3',
+    reduceRight: false,
+    reduceExp: '',
+    reduceInit: '',
+    reduceInitType: '',
+    reduceFixup: '',
+    x: 100 + HORIZONTAL_SPACING * 3,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: [['debug_join']]
+  },
+  {
+    id: 'debug_join',
+    type: 'debug',
+    z: 'flow10',
+    name: 'Debug Join',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 100 + VERTICAL_SPACING * 2,
+    wires: []
+  }
+]
+
 // Combinar todos los flows
 const allFlows = [
   flow1,
@@ -689,7 +1659,17 @@ const allFlows = [
   flow4,
   ...flow4Nodes,
   flow5,
-  ...flow5Nodes
+  ...flow5Nodes,
+  flow6,
+  ...flow6Nodes,
+  flow7,
+  ...flow7Nodes,
+  flow8,
+  ...flow8Nodes,
+  flow9,
+  ...flow9Nodes,
+  flow10,
+  ...flow10Nodes
 ]
 
 async function seedFlows() {
@@ -743,7 +1723,7 @@ async function seedFlows() {
         return false // Eliminar todos los tabs existentes
       }
       // Mantener config nodes y otros nodos especiales que no pertenezcan a nuestros flows
-      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id])
+      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id])
       if (f.z && ourFlowIds.has(f.z)) {
         return false // Eliminar nodos que pertenecen a nuestros flows
       }
@@ -760,6 +1740,11 @@ async function seedFlows() {
     console.log(`   - Flow 3: Flow Complejo con Grupos (${flow3Nodes.length} nodos, 2 grupos)`)
     console.log(`   - Flow 4: Flow con Estados (${flow4Nodes.length} nodos)`)
     console.log(`   - Flow 5: Flow HTTP Request (${flow5Nodes.length} nodos)`)
+    console.log(`   - Flow 6: Runtime Feedback Demo (${flow6Nodes.length} nodos) - Muestra estados en tiempo real`)
+    console.log(`   - Flow 7: APIs Públicas - GET JSON (${flow7Nodes.length} nodos) - Descarga y procesa JSON`)
+    console.log(`   - Flow 8: APIs Públicas - POST/PUT (${flow8Nodes.length} nodos) - Envía datos a APIs`)
+    console.log(`   - Flow 9: Webhook y Transformers (${flow9Nodes.length} nodos) - Webhooks HTTP y transformaciones`)
+    console.log(`   - Flow 10: Convert y Transformaciones (${flow10Nodes.length} nodos) - Conversiones de tipos`)
     if (existingFlows.length > 0) {
       console.log(`   🔄 Reemplazando flows existentes con versiones limpias`)
     }
@@ -797,6 +1782,7 @@ async function seedFlows() {
     const headers = {
       'Content-Type': 'application/json',
       'Node-RED-API-Version': 'v2',
+      'Node-RED-Deployment-Type': 'full', // Desplegar automáticamente los flows
     }
 
     const response = await fetch(`${NODE_RED_URL}/flows`, {
@@ -811,10 +1797,10 @@ async function seedFlows() {
     }
 
     const result = await response.json()
-    console.log('\n✅ Flows de ejemplo creados exitosamente!')
+    console.log('\n✅ Flows de ejemplo creados y desplegados exitosamente!')
     console.log('📋 Resultado:', result)
     console.log('\n📊 Resumen:')
-    console.log(`   - Total de flows creados: 5`)
+    console.log(`   - Total de flows creados: 10`)
     console.log(`   - Total de nodos creados: ${allFlows.filter(n => n.type !== 'tab' && n.type !== 'group').length}`)
     console.log(`   - Total de grupos creados: ${allFlows.filter(n => n.type === 'group').length}`)
     console.log('\n🔄 Recarga tu editor visual para ver los flows')
@@ -822,6 +1808,24 @@ async function seedFlows() {
     console.log('📦 Los grupos se mostrarán como contenedores visuales con fondo y bordes')
     console.log('🔽 Haz clic en el botón de colapsar/expandir en los grupos para ocultar/mostrar nodos')
     console.log('📍 Los nodos están bien distribuidos para evitar encimamiento')
+    console.log('\n⚡ NUEVO: Runtime Feedback en Tiempo Real')
+    console.log('   - Abre el flow "Runtime Feedback Demo" para ver estados en tiempo real')
+    console.log('   - Los nodos mostrarán indicadores de color según su estado:')
+    console.log('     • 🟢 Verde = Running (ejecutando)')
+    console.log('     • 🔴 Rojo = Error')
+    console.log('     • 🟡 Amarillo = Warning')
+    console.log('     • ⚪ Sin indicador = Idle')
+    console.log('   - Asegúrate de que Node-RED esté ejecutándose para ver los estados')
+    console.log('   - El punto verde en la esquina superior derecha indica conexión WebSocket activa')
+    console.log('\n🌐 APIs Públicas y Nodos Básicos:')
+    console.log('   - Flow 7: Descarga JSON de JSONPlaceholder (posts y usuarios)')
+    console.log('   - Flow 8: Envía datos con POST y PUT a APIs públicas')
+    console.log('   - ⚡ Los flows están DESPLEGADOS y LISTOS para usar')
+    console.log('   - 🖱️ Haz clic en los nodos inject (botón azul) para ejecutar los flows')
+    console.log('   - Flow 9: Webhook HTTP en /webhook/test - prueba con:')
+    console.log('     curl -X POST http://localhost:1880/webhook/test -H "Content-Type: application/json" -d \'{"type":"user","name":"Test"}\'')
+    console.log('   - Flow 10: Conversiones de tipos (string↔number, JSON↔string, split/join)')
+    console.log('   - Todos los flows usan nodos básicos: HTTP, JSON, Change, Template, Switch, etc.')
   } catch (error) {
     console.error('❌ Error al crear flows:', error.message)
     if (error.message.includes('fetch')) {
