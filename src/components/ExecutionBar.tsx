@@ -18,12 +18,7 @@ export function ExecutionBar() {
   const endFrame = useCanvasStore((state) => state.endFrame)
   const setExecutionFramesEnabled = useCanvasStore((state) => state.setExecutionFramesEnabled)
 
-  // Si está deshabilitado, no mostrar
-  if (!executionFramesEnabled) {
-    return null
-  }
-
-  // Calcular estadísticas del último frame
+  // Calcular estadísticas del último frame (todos los hooks deben estar antes del return condicional)
   const lastFrameStats = useMemo(() => {
     const lastFrame = frames.length > 0 ? frames[frames.length - 1] : null
     if (!lastFrame) {
@@ -108,6 +103,11 @@ export function ExecutionBar() {
   }
 
   const stats = currentFrame ? currentFrameStats : lastFrameStats
+
+  // Si está deshabilitado, no mostrar (después de todos los hooks)
+  if (!executionFramesEnabled) {
+    return null
+  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 h-10 bg-bg-secondary border-t border-node-border flex items-center justify-between px-4 z-30 shadow-lg">
