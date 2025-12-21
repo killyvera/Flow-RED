@@ -5,7 +5,7 @@
  * con botones Next/Previous y highlight del nodo actual.
  */
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { isTriggerNode } from '@/utils/executionFrameManager'
@@ -95,33 +95,21 @@ export function ExplainModeStepper() {
     }
   }, [explainMode])
 
-  // Si explainMode está desactivado, no mostrar
-  if (!explainMode || executionOrder.length === 0) {
-    return null
-  }
+  // Handlers con useCallback para estabilidad
+  const handlePrevious = useCallback(() => {
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : prev))
+  }, [])
 
-  const currentNodeId = executionOrder[currentIndex]
-  const currentNode = nodes.find(n => n.id === currentNodeId)
-  const currentNodeName = currentNode?.data?.label || currentNode?.data?.nodeRedType || 'Node'
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev < executionOrder.length - 1 ? prev + 1 : prev))
+  }, [executionOrder.length])
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1)
-    }
-  }
-
-  const handleNext = () => {
-    if (currentIndex < executionOrder.length - 1) {
-      setCurrentIndex(currentIndex + 1)
-    }
-  }
-
-  const handleExit = () => {
+  const handleExit = useCallback(() => {
     toggleExplainMode()
     setSelectedNodeId(null)
-  }
+  }, [toggleExplainMode, setSelectedNodeId])
 
-  // Navegación con teclado
+  // Navegación con teclado (debe estar antes del return condicional)
   useEffect(() => {
     if (!explainMode) return
 
@@ -140,7 +128,16 @@ export function ExplainModeStepper() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [explainMode, currentIndex, executionOrder.length])
+  }, [explainMode, handlePrevious, handleNext, handleExit])
+
+  // Si explainMode está desactivado, no mostrar (después de todos los hooks)
+  if (!explainMode || executionOrder.length === 0) {
+    return null
+  }
+
+  const currentNodeId = executionOrder[currentIndex]
+  const currentNode = nodes.find(n => n.id === currentNodeId)
+  const currentNodeName = currentNode?.data?.label || currentNode?.data?.nodeRedType || 'Node'
 
   return (
     <div className="fixed bottom-12 left-1/2 transform -translate-x-1/2 bg-bg-secondary border border-node-border rounded-lg shadow-lg px-4 py-2 z-40 flex items-center gap-4">
