@@ -7,6 +7,7 @@
 import { create } from 'zustand'
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
 import type { NodeRedNode, NodeRedGroup } from '@/api/types'
+import type { ExecutionFrame, NodeExecutionSnapshot } from '@/types/executionFrames'
 
 /**
  * Estado de runtime de un nodo
@@ -69,6 +70,16 @@ export interface CanvasState {
   /** Máximo número de logs a mantener */
   maxLogs: number
   
+  // Execution Frames
+  /** Frame de ejecución actual (null si no hay frame activo) */
+  currentFrame: ExecutionFrame | null
+  /** Lista de frames (mantener últimos 20) */
+  frames: ExecutionFrame[]
+  /** Snapshots de ejecución por nodo */
+  nodeSnapshots: Map<string, NodeExecutionSnapshot[]>
+  /** Si Execution Frames está habilitado */
+  executionFramesEnabled: boolean
+  
   // Acciones
   setNodes: (nodes: ReactFlowNode[]) => void
   setEdges: (edges: ReactFlowEdge[]) => void
@@ -97,6 +108,13 @@ export interface CanvasState {
   setFlows: (flows: NodeRedNode[]) => void
   setActiveFlowId: (flowId: string | null) => void
   
+  // Acciones para Execution Frames
+  startFrame: (triggerNodeId?: string, label?: string) => ExecutionFrame
+  endFrame: (frameId: string) => void
+  addNodeSnapshot: (snapshot: NodeExecutionSnapshot) => void
+  setExecutionFramesEnabled: (enabled: boolean) => void
+  clearFrames: () => void
+  
   reset: () => void
 }
 
@@ -118,6 +136,10 @@ const initialState: CanvasState = {
   activeEdges: new Set<string>(),
   executionLogs: [],
   maxLogs: 1000,
+  currentFrame: null,
+  frames: [],
+  nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
+  executionFramesEnabled: true, // Habilitado por defecto
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -195,10 +217,93 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setFlows: (flows) => set({ flows }),
   setActiveFlowId: (flowId) => set({ activeFlowId: flowId }),
   
+  // Execution Frames actions
+  startFrame: (triggerNodeId, label) => {
+    const newFrame: ExecutionFrame = {
+      id: `frame-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      startedAt: Date.now(),
+      triggerNodeId,
+      label,
+    }
+    set((state) => {
+      // Cerrar frame anterior si existe
+      const updatedFrames = state.currentFrame
+        ? [...state.frames, { ...state.currentFrame, endedAt: Date.now() }]
+        : state.frames
+      
+      // Mantener solo los últimos 20 frames
+      const trimmedFrames = updatedFrames.slice(-20)
+      
+      return {
+        currentFrame: newFrame,
+        frames: trimmedFrames,
+      }
+    })
+    return newFrame
+  },
+  
+  endFrame: (frameId) => {
+    set((state) => {
+      if (state.currentFrame?.id === frameId) {
+        const endedFrame: ExecutionFrame = {
+          ...state.currentFrame,
+          endedAt: Date.now(),
+        }
+        const updatedFrames = [...state.frames, endedFrame].slice(-20)
+        return {
+          currentFrame: null,
+          frames: updatedFrames,
+        }
+      }
+      return state
+    })
+  },
+  
+  addNodeSnapshot: (snapshot) => {
+    set((state) => {
+      const newSnapshots = new Map(state.nodeSnapshots)
+      const nodeSnapshots = newSnapshots.get(snapshot.nodeId) || []
+      // Agregar al inicio y mantener solo los últimos 50 snapshots por nodo
+      const updatedSnapshots = [snapshot, ...nodeSnapshots].slice(0, 50)
+      newSnapshots.set(snapshot.nodeId, updatedSnapshots)
+      return { nodeSnapshots: newSnapshots }
+    })
+  },
+  
+  setExecutionFramesEnabled: (enabled) => {
+    set({ executionFramesEnabled: enabled })
+    if (!enabled) {
+      // Si se deshabilita, cerrar frame actual si existe
+      set((state) => {
+        if (state.currentFrame) {
+          const endedFrame: ExecutionFrame = {
+            ...state.currentFrame,
+            endedAt: Date.now(),
+          }
+          const updatedFrames = [...state.frames, endedFrame].slice(-20)
+          return {
+            currentFrame: null,
+            frames: updatedFrames,
+          }
+        }
+        return state
+      })
+    }
+  },
+  
+  clearFrames: () => {
+    set({
+      currentFrame: null,
+      frames: [],
+      nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
+    })
+  },
+  
   reset: () => set({
     ...initialState,
     nodeRuntimeStates: new Map(),
     wsConnected: false,
+    nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
   }),
 }))
 

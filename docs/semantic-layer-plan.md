@@ -550,3 +550,68 @@
 
 **Nota:** Este documento es un plan de implementación. Todos los cambios propuestos son en la UI solamente y no requieren modificaciones al runtime de Node-RED.
 
+---
+
+## 8. Frame Rules Implemented (PROMPT 9B)
+
+**Estado:** ✅ **IMPLEMENTADO**
+
+### Execution Frames - Reglas de Creación
+
+Se ha implementado el sistema de Execution Frames que agrupa eventos WebSocket en sesiones de ejecución coherentes.
+
+#### Reglas Implementadas:
+
+1. **Detección de Trigger Nodes:**
+   - Se detectan automáticamente nodos tipo: `inject`, `http in`, `mqtt in`, `websocket in`, `tcp in`, `udp in`, `watch`, `tail`
+   - Cuando un trigger node emite actividad y no hay frame activo, se crea un nuevo frame
+
+2. **Creación Automática de Frames:**
+   - Si hay evento de trigger node y no hay frame activo → crear frame
+   - Si hay evento de debug/status y no hay frame activo → crear frame (modo manual)
+   - El frame se crea con el ID del trigger node y una etiqueta descriptiva
+
+3. **Cierre Automático de Frames:**
+   - Si no hay eventos nuevos por 5 segundos, el frame se cierra automáticamente
+   - El timeout es configurable (default: 5000ms)
+
+4. **Modo Manual:**
+   - El usuario puede iniciar captura manualmente con el botón "Start Capture"
+   - El usuario puede detener captura con el botón "Stop Capture"
+   - El toggle "Enable/Disable" permite activar/desactivar completamente el sistema
+
+5. **Snapshots de Nodos:**
+   - Cada evento de status/debug crea un snapshot del nodo
+   - Los snapshots incluyen: nodeId, frameId, status, timestamp, summary, payloadPreview
+   - Los payloads se truncan a 100 caracteres para no almacenar datos pesados
+   - Se mantienen máximo 50 snapshots por nodo
+
+6. **Límites de Almacenamiento:**
+   - Se mantienen máximo 20 frames en el historial
+   - Se mantienen máximo 50 snapshots por nodo
+   - Los payloads se almacenan solo como previews (truncados)
+
+#### Integración con Sistema Existente:
+
+- ✅ No rompe la integración WebSocket existente
+- ✅ Usa los mismos eventos WebSocket (`status`, `debug`, `error`)
+- ✅ Se integra con el hook `useNodeRedWebSocket` sin modificar su lógica principal
+- ✅ Opcional: puede ser deshabilitado completamente
+- ✅ UI minimalista: barra en la parte inferior que no satura el canvas
+
+#### Archivos Creados/Modificados:
+
+- ✅ `src/types/executionFrames.ts` - Tipos TypeScript
+- ✅ `src/state/canvasStore.ts` - Extendido con Execution Frames
+- ✅ `src/utils/executionFrameManager.ts` - Lógica de detección y creación
+- ✅ `src/hooks/useNodeRedWebSocket.ts` - Integración con WebSocket
+- ✅ `src/components/ExecutionBar.tsx` - Componente UI
+- ✅ `src/pages/CanvasPage.tsx` - Integración en canvas
+
+#### Próximos Pasos (PROMPT 9C):
+
+Con Execution Frames implementado, el siguiente paso es:
+- Usar los frames para mejorar la visualización de ejecuciones
+- Agregar timeline visual de frames
+- Mejorar la trazabilidad de datos usando frames
+

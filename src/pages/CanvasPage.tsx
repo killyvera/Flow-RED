@@ -29,6 +29,7 @@ import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
+import { ExecutionBar } from '@/components/ExecutionBar'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 import { useTheme } from '@/context/ThemeContext'
@@ -2301,6 +2302,9 @@ export function CanvasPage() {
           </svg>
         </button>
       </div>
+
+      {/* Execution Bar - Barra de estado de Execution Frames */}
+      <ExecutionBar />
     </div>
   )
 }

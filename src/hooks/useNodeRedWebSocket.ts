@@ -10,6 +10,7 @@ import { getWebSocketClient, type NodeRedWebSocketEvent } from '@/api/websocket'
 import { useCanvasStore } from '@/state/canvasStore'
 import { mapNodeRedStatusToRuntimeState } from '@/utils/runtimeStatusMapper'
 import { wsLogger } from '@/utils/logger'
+import { isTriggerNode, shouldStartNewFrame, shouldEndFrame, createPayloadPreview, extractNodeIdFromEvent } from '@/utils/executionFrameManager'
 import type { Edge } from 'reactflow'
 
 /**
@@ -29,9 +30,18 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const edges = useCanvasStore((state) => state.edges)
   const nodes = useCanvasStore((state) => state.nodes)
   
+  // Execution Frames
+  const currentFrame = useCanvasStore((state) => state.currentFrame)
+  const executionFramesEnabled = useCanvasStore((state) => state.executionFramesEnabled)
+  const startFrame = useCanvasStore((state) => state.startFrame)
+  const endFrame = useCanvasStore((state) => state.endFrame)
+  const addNodeSnapshot = useCanvasStore((state) => state.addNodeSnapshot)
+  
   const clientRef = useRef<ReturnType<typeof getWebSocketClient> | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const nodeExecutionStartTimes = useRef<Map<string, number>>(new Map())
+  const lastEventTimeRef = useRef<number>(Date.now())
+  const frameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     // console.log('🎣 [useNodeRedWebSocket] Hook montado, enabled:', enabled)
@@ -83,6 +93,63 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       return edgeChain
     }
 
+    // Helper para gestionar Execution Frames
+    const handleFrameLogic = (event: NodeRedWebSocketEvent, nodeId: string | null, nodeType?: string) => {
+      if (!executionFramesEnabled) {
+        return
+      }
+
+      // Actualizar tiempo del último evento
+      lastEventTimeRef.current = Date.now()
+
+      // Limpiar timeout anterior
+      if (frameTimeoutRef.current) {
+        clearTimeout(frameTimeoutRef.current)
+        frameTimeoutRef.current = null
+      }
+
+      // Obtener frame actual del store
+      const currentFrameState = useCanvasStore.getState().currentFrame
+
+      // Verificar si debemos crear un nuevo frame
+      const shouldStart = shouldStartNewFrame(event, currentFrameState)
+      if (shouldStart) {
+        // Verificar si es un trigger node
+        const isTrigger = nodeType ? isTriggerNode(nodeType) : false
+        const triggerNodeId = isTrigger && nodeId ? nodeId : undefined
+        const label = isTrigger ? `Triggered by ${nodeType}` : 'Manual execution'
+        
+        startFrame(triggerNodeId, label)
+      }
+
+      // Obtener frame actualizado después de posible creación
+      const frame = useCanvasStore.getState().currentFrame
+      if (frame && nodeId) {
+        const payload = event.data?.msg?.payload || event.data?.payload || event.payload
+        const payloadPreview = payload ? createPayloadPreview(payload) : undefined
+        
+        addNodeSnapshot({
+          nodeId,
+          frameId: frame.id,
+          status: nodeType && isTriggerNode(nodeType) ? 'running' : 'idle',
+          ts: Date.now(),
+          summary: event.topic === 'debug' ? 'Debug event' : `Status: ${event.topic}`,
+          payloadPreview,
+        })
+      }
+
+      // Programar cierre del frame si no hay más eventos
+      const frameForTimeout = useCanvasStore.getState().currentFrame
+      if (frameForTimeout) {
+        frameTimeoutRef.current = setTimeout(() => {
+          const currentFrameState = useCanvasStore.getState().currentFrame
+          if (currentFrameState && shouldEndFrame(currentFrameState, lastEventTimeRef.current, 5000)) {
+            endFrame(currentFrameState.id)
+          }
+        }, 5000) // 5 segundos de timeout
+      }
+    }
+
     // Handler para eventos de WebSocket
     const handleEvent = (event: NodeRedWebSocketEvent) => {
       // Log todos los eventos para debugging
@@ -107,6 +174,12 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
             return
           }
 
+          // Obtener información del nodo para Execution Frames
+          const nodeInfo = getNodeInfo(nodeId)
+          
+          // Gestionar Execution Frames
+          handleFrameLogic(event, nodeId, nodeInfo.type)
+
           // Crear un objeto compatible con NodeRedStatusEvent
           const statusEvent = {
             id: nodeId,
@@ -118,6 +191,24 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           
           if (runtimeState) {
             setNodeRuntimeState(nodeId, runtimeState)
+            
+            // Actualizar snapshot si hay frame activo
+            if (executionFramesEnabled) {
+              const frame = useCanvasStore.getState().currentFrame
+              if (frame) {
+                const payload = statusData?.payload || statusData
+                const payloadPreview = payload ? createPayloadPreview(payload) : undefined
+                
+                addNodeSnapshot({
+                  nodeId,
+                  frameId: frame.id,
+                  status: runtimeState,
+                  ts: Date.now(),
+                  summary: statusData?.text || `Status: ${runtimeState}`,
+                  payloadPreview,
+                })
+              }
+            }
             
             // Si el nodo está en estado "running", activar sus edges de salida
             if (runtimeState === 'running') {
@@ -201,6 +292,12 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           // Necesitamos activar TODA la cadena de edges desde el nodo fuente hasta el destino
           const targetNodeId = debugData.id // ID del nodo que recibe el mensaje
           const sourceNodeId = debugData.node || debugData.nodeid // ID del nodo que generó el mensaje
+          
+          // Gestionar Execution Frames para el nodo fuente
+          if (sourceNodeId) {
+            const sourceNodeInfo = getNodeInfo(sourceNodeId)
+            handleFrameLogic(event, sourceNodeId, sourceNodeInfo.type)
+          }
           
           console.log('🔍 [WebSocket] Procesando evento debug - activando cadena completa:', {
             sourceNodeId,
@@ -350,6 +447,12 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     return () => {
       clearInterval(connectionCheckInterval)
       
+      // Limpiar timeout de frame
+      if (frameTimeoutRef.current) {
+        clearTimeout(frameTimeoutRef.current)
+        frameTimeoutRef.current = null
+      }
+      
       if (unsubscribeRef.current) {
         unsubscribeRef.current()
         unsubscribeRef.current = null
@@ -359,7 +462,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       // Solo limpiar la suscripción
       wsLogger('Hook desmontado, limpiando suscripción')
     }
-  }, [enabled, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, edges, nodes])
+  }, [enabled, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, edges, nodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
 
   // Limpiar estados cuando se deshabilita
   useEffect(() => {
