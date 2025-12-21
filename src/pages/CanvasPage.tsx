@@ -1076,9 +1076,10 @@ export function CanvasPage() {
 
     // También necesitamos agregarlo como nodo para que se guarde
     // Los grupos son nodos especiales en Node-RED
+    // IMPORTANTE: El tipo debe ser 'group' para que React Flow lo reconozca como grupo
     const groupNode: Node = {
       id: groupId,
-      type: 'baseNode',
+      type: 'group', // Tipo 'group' para que React Flow use GroupNode
       position: defaultPosition,
       data: {
         label: 'Nuevo Grupo',
@@ -1086,6 +1087,11 @@ export function CanvasPage() {
         flowId: activeFlowId,
         outputPortsCount: 0,
         nodeRedNode: newGroup,
+        group: newGroup, // Agregar referencia al grupo en data.group
+      },
+      style: {
+        width: newGroup.w || 400,
+        height: newGroup.h || 300,
       },
     }
 
@@ -1106,6 +1112,13 @@ export function CanvasPage() {
         const latestGroup = state.groups[state.groups.length - 1]
         if (latestGroup) {
           setNodesLocal((prevNodes) => {
+            // Verificar que el grupo existe en el array de nodos
+            const groupExists = prevNodes.some(n => n.id === latestGroup.id && n.type === 'group')
+            if (!groupExists) {
+              console.warn(`Grupo ${latestGroup.id} no encontrado en nodos. No se puede asignar parentId.`)
+              return prevNodes
+            }
+
             return prevNodes.map(n => {
               if (n.id === nodeId) {
                 const newNodeRedNode = {
@@ -1114,6 +1127,7 @@ export function CanvasPage() {
                 }
                 return {
                   ...n,
+                  parentId: latestGroup.id, // IMPORTANTE: Establecer parentId para React Flow
                   data: {
                     ...n.data,
                     nodeRedNode: newNodeRedNode,
@@ -1144,6 +1158,7 @@ export function CanvasPage() {
         delete newNodeRedNode.g // Remover la propiedad g
         return {
           ...n,
+          parentId: undefined, // IMPORTANTE: Remover parentId para React Flow
           data: {
             ...n.data,
             nodeRedNode: newNodeRedNode,
@@ -1167,7 +1182,15 @@ export function CanvasPage() {
       handleRemoveFromGroup(nodeId)
     } else {
       // Agregar al grupo seleccionado
+      // IMPORTANTE: Verificar que el grupo existe en el array de nodos antes de asignar parentId
       setNodesLocal((prevNodes) => {
+        // Verificar que el grupo existe
+        const groupExists = prevNodes.some(n => n.id === groupId && n.type === 'group')
+        if (!groupExists) {
+          console.warn(`Grupo ${groupId} no encontrado en nodos. No se puede asignar parentId.`)
+          return prevNodes
+        }
+
         return prevNodes.map(n => {
           if (n.id === nodeId) {
             const newNodeRedNode = {
@@ -1176,6 +1199,7 @@ export function CanvasPage() {
             }
             return {
               ...n,
+              parentId: groupId, // IMPORTANTE: Establecer parentId para React Flow
               data: {
                 ...n.data,
                 nodeRedNode: newNodeRedNode,
@@ -1187,6 +1211,13 @@ export function CanvasPage() {
       })
       // Actualizar el store con los nodos modificados
       setNodesLocal((prevNodes) => {
+        // Verificar que el grupo existe
+        const groupExists = prevNodes.some(n => n.id === groupId && n.type === 'group')
+        if (!groupExists) {
+          console.warn(`Grupo ${groupId} no encontrado en nodos. No se puede asignar parentId.`)
+          return prevNodes
+        }
+
         const updatedNodes = prevNodes.map((n: Node) => {
           if (n.id === nodeId) {
             const newNodeRedNode = {
@@ -1195,6 +1226,7 @@ export function CanvasPage() {
             }
             return {
               ...n,
+              parentId: groupId, // IMPORTANTE: Establecer parentId para React Flow
               data: {
                 ...n.data,
                 nodeRedNode: newNodeRedNode,
