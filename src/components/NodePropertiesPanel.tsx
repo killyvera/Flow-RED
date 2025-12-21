@@ -694,7 +694,7 @@ export function NodePropertiesPanel({
           </div>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0"
+            className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             aria-label="Cerrar panel"
           >
             <X className="w-4 h-4" strokeWidth={2} />
@@ -710,6 +710,7 @@ export function NodePropertiesPanel({
                 className={`
                   flex-1 px-3 py-2 text-xs font-medium transition-colors
                   flex items-center justify-center gap-1.5
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
                   ${activeTab === 'config'
                     ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
                     : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
@@ -722,9 +723,10 @@ export function NodePropertiesPanel({
             )}
             <button
               onClick={() => setActiveTab('status')}
-              className={`
+                className={`
                 ${isEditMode ? 'flex-1' : 'w-full'} px-3 py-2 text-xs font-medium transition-colors
                 flex items-center justify-center gap-1.5 relative
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
                 ${activeTab === 'status'
                   ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
                   : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'

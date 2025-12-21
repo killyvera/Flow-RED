@@ -111,7 +111,7 @@ export function GroupSelector({
           </h3>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors p-1"
+            className="text-text-secondary hover:text-text-primary transition-colors p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             aria-label="Cerrar"
           >
             <X className="w-4 h-4" strokeWidth={2} />
@@ -149,7 +149,7 @@ export function GroupSelector({
                     key={group.id}
                     type="button"
                     onClick={() => handleSelectGroup(group.id)}
-                    className="w-full px-3 py-2 text-left text-xs hover:bg-node-hover rounded transition-colors flex items-center gap-2 group"
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-node-hover rounded transition-colors flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   >
                     {/* Indicador de color */}
                     <div
@@ -171,7 +171,7 @@ export function GroupSelector({
           <button
             type="button"
             onClick={handleCreateNew}
-            className="w-full px-3 py-2 text-xs bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors flex items-center justify-center gap-2"
+            className="w-full px-3 py-2 text-xs bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
           >
             <Plus className="w-3.5 h-3.5" />
             Crear nuevo grupo
@@ -179,7 +179,7 @@ export function GroupSelector({
           <button
             type="button"
             onClick={handleRemoveFromGroup}
-            className="w-full px-3 py-2 text-xs border border-node-border rounded hover:bg-node-hover transition-colors flex items-center justify-center gap-2 text-text-secondary hover:text-text-primary"
+            className="w-full px-3 py-2 text-xs border border-node-border rounded hover:bg-node-hover transition-colors flex items-center justify-center gap-2 text-text-secondary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
           >
             <FolderPlus className="w-3.5 h-3.5" />
             Quitar de grupo

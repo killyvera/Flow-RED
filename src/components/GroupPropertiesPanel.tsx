@@ -104,7 +104,7 @@ export function GroupPropertiesPanel({
         </div>
         <button
           onClick={onClose}
-          className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0"
+          className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
           aria-label="Cerrar panel"
         >
           <X className="w-4 h-4" strokeWidth={2} />

@@ -78,14 +78,14 @@ export function ExecutionLog({ isOpen, onClose }: ExecutionLogProps) {
         <div className="flex items-center gap-1">
           <button
             onClick={clearLogs}
-            className="p-1.5 hover:bg-node-hover rounded transition-colors"
+            className="p-1.5 hover:bg-node-hover rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             title="Limpiar logs"
           >
             <Trash2 className="w-4 h-4 text-text-secondary" />
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-node-hover rounded transition-colors"
+            className="p-1.5 hover:bg-node-hover rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             title="Cerrar"
           >
             <X className="w-4 h-4 text-text-secondary" />

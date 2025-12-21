@@ -174,7 +174,7 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
             <h2 className="text-sm font-semibold text-text-primary">Paleta de Nodos</h2>
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-text-primary transition-colors p-1"
+              className="text-text-secondary hover:text-text-primary transition-colors p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               aria-label="Cerrar paleta"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

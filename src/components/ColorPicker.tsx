@@ -153,7 +153,7 @@ export function ColorPicker({
             transition-colors duration-150
             ${disabled
               ? 'bg-bg-secondary border-node-border text-text-tertiary cursor-not-allowed opacity-50'
-              : 'bg-bg-primary border-node-border text-text-primary hover:border-node-border-hover focus:outline-none focus:ring-1 focus:ring-accent-primary'
+              : 'bg-bg-primary border-node-border text-text-primary hover:border-node-border-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2'
             }
           `}
         >
@@ -186,6 +186,7 @@ export function ColorPicker({
                   className={`
                     w-6 h-6 rounded border-2 transition-all
                     hover:scale-110 hover:shadow-md
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-1
                     ${normalizedColor.toLowerCase() === color.toLowerCase()
                       ? 'border-accent-primary ring-2 ring-accent-primary ring-offset-1'
                       : 'border-node-border'
@@ -205,7 +206,7 @@ export function ColorPicker({
               <button
                 type="button"
                 onClick={() => setShowCustomInput(true)}
-                className="w-full px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-node-hover rounded transition-colors"
+                className="w-full px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-node-hover rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               >
                 Color personalizado...
               </button>
@@ -236,7 +237,7 @@ export function ColorPicker({
                   type="button"
                   onClick={handleCustomColorSubmit}
                   disabled={!isValidHexColor(normalizeHexColor(customColor))}
-                  className="px-2 py-1 text-xs bg-accent-primary text-white rounded hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-2 py-1 text-xs bg-accent-primary text-white rounded hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                 >
                   OK
                 </button>
@@ -246,7 +247,7 @@ export function ColorPicker({
                     setShowCustomInput(false)
                     setCustomColor('')
                   }}
-                  className="p-1 text-text-secondary hover:text-text-primary transition-colors"
+                  className="p-1 text-text-secondary hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                 >
                   <X className="w-3 h-3" />
                 </button>

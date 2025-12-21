@@ -165,7 +165,7 @@ export function JSONField({
         <button
           type="button"
           onClick={handleFormat}
-          className="text-[10px] text-accent-primary hover:text-accent-hover transition-colors"
+          className="text-[10px] text-accent-primary hover:text-accent-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
           disabled={!isValid}
         >
           Formatear JSON

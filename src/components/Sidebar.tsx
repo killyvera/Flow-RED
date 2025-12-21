@@ -77,7 +77,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
                     <button
                       key={item.id}
                       onClick={item.onClick}
-                      className={`flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors ${
+                      className={`flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 ${
                         isCollapsed ? 'justify-center' : 'justify-start'
                       }`}
                       title={isCollapsed ? item.label : undefined}
@@ -111,7 +111,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
             <div className="flex items-center gap-2 p-4 border-b border-canvas-grid">
               <button
                 onClick={handleBackToMenu}
-                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0"
+                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                 aria-label="Volver al menú principal"
                 title="Volver al menú principal"
               >
@@ -168,7 +168,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse, onCollapse }: SidebarPr
               <div className="flex-1 flex items-center justify-center">
                 <button
                   onClick={handleBackToMenu}
-                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors"
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   aria-label="Volver al menú principal"
                   title="Volver al menú principal"
                 >
@@ -202,7 +202,7 @@ export function SidebarToggleButton({
   return (
     <button
       onClick={onToggle}
-      className="fixed top-1/2 z-50 w-10 h-10 rounded-full bg-bg-primary border-2 border-canvas-grid shadow-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300"
+      className="fixed top-1/2 z-50 w-10 h-10 rounded-full bg-bg-primary border-2 border-canvas-grid shadow-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-node-hover transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
       aria-label={isCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
       title={isCollapsed ? 'Expandir' : 'Colapsar'}
       style={{

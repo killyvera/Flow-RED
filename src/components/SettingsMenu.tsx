@@ -72,7 +72,7 @@ export function SettingsMenu({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors"
+            className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             aria-label="Cerrar menú de configuración"
           >
             <X className="w-5 h-5" strokeWidth={2} />

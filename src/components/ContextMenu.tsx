@@ -318,6 +318,7 @@ export function ContextMenu({
               w-full px-3 py-2 text-left text-xs font-medium
               flex items-center gap-2
               transition-colors duration-150
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
               ${
                 option.disabled
                   ? 'text-text-tertiary cursor-not-allowed opacity-50'
