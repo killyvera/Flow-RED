@@ -3,9 +3,12 @@
  * 
  * Persiste el estado en localStorage para mantener la preferencia del usuario
  * entre sesiones. El estado NO se guarda en Node-RED, es puramente UI.
+ * 
+ * Sincroniza con el store de Zustand para que los nodos se oculten/muestren correctamente.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
+import { useCanvasStore } from '@/state/canvasStore'
 
 const STORAGE_PREFIX = 'node-red-editor:group-collapsed:'
 
@@ -17,27 +20,22 @@ const STORAGE_PREFIX = 'node-red-editor:group-collapsed:'
  */
 export function useGroupCollapse(groupId: string): [boolean, (collapsed: boolean) => void] {
   const storageKey = `${STORAGE_PREFIX}${groupId}`
+  const toggleGroupCollapsed = useCanvasStore((state) => state.toggleGroupCollapsed)
+  const collapsedGroupIds = useCanvasStore((state) => state.collapsedGroupIds)
   
-  // Inicializar desde localStorage
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-    
-    try {
-      const stored = localStorage.getItem(storageKey)
-      return stored === 'true'
-    } catch (error) {
-      console.warn('Error al leer estado de colapso del grupo:', error)
-      return false
-    }
-  })
+  // Usar el store como fuente de verdad principal
+  const isCollapsed = collapsedGroupIds.has(groupId)
 
-  // Función para actualizar el estado y localStorage
+  // Función para actualizar el estado, localStorage y el store
   const setCollapsed = useCallback(
     (collapsed: boolean) => {
-      setIsCollapsed(collapsed)
+      // Actualizar el store de Zustand primero (esto actualizará isCollapsed automáticamente)
+      const storeCollapsed = collapsedGroupIds.has(groupId)
+      if (storeCollapsed !== collapsed) {
+        toggleGroupCollapsed(groupId)
+      }
       
+      // Actualizar localStorage para persistencia
       try {
         if (collapsed) {
           localStorage.setItem(storageKey, 'true')
@@ -48,8 +46,31 @@ export function useGroupCollapse(groupId: string): [boolean, (collapsed: boolean
         console.warn('Error al guardar estado de colapso del grupo:', error)
       }
     },
-    [storageKey]
+    [storageKey, groupId, toggleGroupCollapsed, collapsedGroupIds]
   )
+
+  // Sincronizar localStorage cuando cambia el store (para persistencia)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    
+    try {
+      const stored = localStorage.getItem(storageKey)
+      const storedCollapsed = stored === 'true'
+      
+      // Si el store y localStorage están desincronizados, actualizar localStorage
+      if (storedCollapsed !== isCollapsed) {
+        if (isCollapsed) {
+          localStorage.setItem(storageKey, 'true')
+        } else {
+          localStorage.removeItem(storageKey)
+        }
+      }
+    } catch (error) {
+      console.warn('Error al sincronizar localStorage:', error)
+    }
+  }, [isCollapsed, storageKey])
 
   // Sincronizar con localStorage si cambia externamente (por ejemplo, en otra pestaña)
   useEffect(() => {
@@ -59,13 +80,18 @@ export function useGroupCollapse(groupId: string): [boolean, (collapsed: boolean
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === storageKey) {
-        setIsCollapsed(e.newValue === 'true')
+        const newValue = e.newValue === 'true'
+        // Sincronizar con el store
+        const storeCollapsed = collapsedGroupIds.has(groupId)
+        if (storeCollapsed !== newValue) {
+          toggleGroupCollapsed(groupId)
+        }
       }
     }
 
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
-  }, [storageKey])
+  }, [storageKey, groupId, toggleGroupCollapsed, collapsedGroupIds])
 
   return [isCollapsed, setCollapsed]
 }
