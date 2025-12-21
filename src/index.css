@@ -252,6 +252,125 @@ body {
   border-style: none !important;
 }
 
+/* Estilos minimalistas para controles de React Flow */
+.react-flow__controls {
+  background-color: var(--color-bg-primary) !important;
+  border: 1px solid var(--color-node-border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  padding: 4px !important;
+  gap: 2px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* Botón Tidy Up dentro del panel de controles (solo icono, mismo tamaño y color que otros botones) */
+.react-flow__tidy-up-button {
+  background-color: transparent !important;
+  border: none !important;
+  color: var(--color-text-primary) !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+.react-flow__tidy-up-button:hover {
+  background-color: var(--color-node-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.react-flow__tidy-up-button:active {
+  background-color: var(--color-node-hover) !important;
+  transform: scale(0.95) !important;
+}
+
+/* Asegurar que todos los elementos hijos (incluido SVG) hereden el color del botón */
+.react-flow__tidy-up-button * {
+  color: inherit !important;
+}
+
+.react-flow__tidy-up-button svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  flex-shrink: 0 !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+  border-color: transparent !important;
+}
+
+/* Forzar que el stroke use el color del botón */
+.react-flow__tidy-up-button svg * {
+  stroke: currentColor !important;
+  color: var(--color-text-primary) !important;
+}
+
+
+.dark .react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.react-flow__controls-button {
+  background-color: transparent !important;
+  border: none !important;
+  color: var(--color-text-primary) !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--color-node-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.react-flow__controls-button:active {
+  background-color: var(--color-node-hover) !important;
+  transform: scale(0.95) !important;
+}
+
+.react-flow__controls-button svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  color: inherit !important;
+  border: none !important;
+}
+
+/* Separador entre botones */
+.react-flow__controls-separator {
+  width: 1px !important;
+  height: 20px !important;
+  background-color: var(--color-node-border) !important;
+  margin: 4px 2px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Asegurar que el separador antes del botón Tidy Up no tenga margen extra */
+.react-flow__controls-separator:last-of-type {
+  margin: 4px 2px !important;
+}
+
 /* Eliminar TODOS los estilos del contenedor externo de grupos (React Flow lo crea automáticamente) */
 .react-flow__node-group {
   /* Eliminar estilos de fondo y padding que React Flow aplica por defecto */
