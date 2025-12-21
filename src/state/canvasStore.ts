@@ -106,7 +106,7 @@ const initialState: CanvasState = {
   groups: [],
   selectedNodeId: null,
   selectedEdgeId: null,
-  isEditMode: false, // Por defecto modo solo lectura
+  isEditMode: true, // Por defecto modo edición activo
   isLoading: false,
   error: null,
   nodeRedNodes: [],

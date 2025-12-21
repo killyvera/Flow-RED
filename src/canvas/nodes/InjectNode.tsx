@@ -18,7 +18,8 @@ import { triggerInjectNode } from '@/api/client'
  * 
  * Renderiza un nodo inject con características específicas.
  */
-export const InjectNode = memo(({ data, selected }: BaseNodeProps) => {
+export const InjectNode = memo((props: BaseNodeProps) => {
+  const { data, selected, dragging, id } = props
   const { nodeRedNode } = data
   const [isTriggering, setIsTriggering] = useState(false)
   
@@ -58,6 +59,8 @@ export const InjectNode = memo(({ data, selected }: BaseNodeProps) => {
 
   return (
     <BaseNode
+      {...props}
+      id={id}
       data={{
         ...data,
         bodyContent: (
@@ -105,6 +108,7 @@ export const InjectNode = memo(({ data, selected }: BaseNodeProps) => {
         ),
       }}
       selected={selected}
+      dragging={dragging}
     />
   )
 })

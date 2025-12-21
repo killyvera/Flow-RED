@@ -9,7 +9,7 @@
  * - Estilos modernos con Tailwind
  */
 
-import { memo, useState, useEffect } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
@@ -26,7 +26,10 @@ import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
  * - Body: contenido del nodo
  * - Handles: puertos de entrada (izquierda) y salida (derecha)
  */
-export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
+export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) => {
+  // Refs para detectar doble clic en handles
+  const handleDoubleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Estado para detectar cambios de tema
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -268,31 +271,78 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
       </div>
 
       {/* Handles - Puertos de entrada (izquierda) - estilo n8n */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="input"
-        className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
-        style={{
-          left: -6,
-          top: '50%',
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          // Emitir evento personalizado para abrir paleta
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'input',
+              handleType: 'target',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
         }}
-      />
-
-      {/* Handles - Puertos de salida (derecha) - Renderizar dinámicamente */}
-      {Array.from({ length: outputPortsCount }, (_, index) => (
+        style={{ position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, zIndex: 10 }}
+      >
         <Handle
-          key={`output-${index}`}
-          type="source"
-          position={Position.Right}
-          id={`output-${index}`}
+          type="target"
+          position={Position.Left}
+          id="input"
           className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
           style={{
-            right: -6,
-            top: getOutputHandlePosition(index, outputPortsCount),
+            left: 0,
+            top: '50%',
           }}
         />
-      ))}
+      </div>
+
+      {/* Handles - Puertos de salida (derecha) - Renderizar dinámicamente */}
+      {Array.from({ length: outputPortsCount }, (_, index) => {
+        const handleId = `output-${index}`
+        const topPosition = getOutputHandlePosition(index, outputPortsCount)
+        return (
+          <div
+            key={`output-wrapper-${index}`}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              // Emitir evento personalizado para abrir paleta
+              const event = new CustomEvent('handleDoubleClick', {
+                detail: {
+                  nodeId: id,
+                  handleId: handleId,
+                  handleType: 'source',
+                  position: { x: e.clientX, y: e.clientY },
+                },
+              })
+              window.dispatchEvent(event)
+            }}
+            style={{
+              position: 'absolute',
+              right: -6,
+              top: topPosition,
+              transform: 'translateY(-50%)',
+              width: 12,
+              height: 12,
+              zIndex: 10,
+            }}
+          >
+            <Handle
+              key={`output-${index}`}
+              type="source"
+              position={Position.Right}
+              id={handleId}
+              className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+              style={{
+                right: 0,
+                top: '50%',
+              }}
+            />
+          </div>
+        )
+      })}
 
       {/* Texto de status debajo del nodo */}
       {hasStatus && nodeStatus.text && (
