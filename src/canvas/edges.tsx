@@ -4,15 +4,19 @@
  * Define los tipos de edges y sus estilos para un look moderno estilo Flowise/n8n.
  */
 
-import React from 'react'
+import React, { memo } from 'react'
 import type { Edge, EdgeProps } from 'reactflow'
-import { SmoothStepEdge, BezierEdge, getSmoothStepPath } from 'reactflow'
+import { BaseEdge, SmoothStepEdge, BezierEdge, getSmoothStepPath } from 'reactflow'
 import { useCanvasStore } from '@/state/canvasStore'
 
 /**
  * Edge animado que muestra actividad durante la ejecución (estilo n8n)
+ * 
+ * Usa animaciones CSS y SVG para crear efectos visuales cuando el edge está activo.
+ * Basado en la documentación oficial de React Flow:
+ * https://reactflow.dev/examples/edges/animating-edges
  */
-function AnimatedEdge({
+const AnimatedEdge = memo(function AnimatedEdge({
   id,
   sourceX,
   sourceY,
@@ -35,11 +39,6 @@ function AnimatedEdge({
         activeEdgesCount: activeEdges.size,
         allActiveEdges: Array.from(activeEdges)
       })
-    } else {
-      // Log cuando se desactiva solo si antes estaba activo
-      if (activeEdges.size === 0) {
-        console.log('💤 [AnimatedEdge] Todos los edges desactivados')
-      }
     }
   }, [isActive, id, activeEdges])
 
@@ -54,51 +53,62 @@ function AnimatedEdge({
 
   return (
     <>
-      {/* Edge base */}
-      <path
+      {/* Edge base usando BaseEdge de React Flow */}
+      <BaseEdge
         id={id}
+        path={edgePath}
         style={{
           ...style,
-          strokeWidth: isActive ? 4 : style.strokeWidth || 2,
-          stroke: isActive ? 'var(--color-edge-active, #10b981)' : style.stroke || 'var(--color-edge-default)',
-          transition: 'stroke-width 0.3s ease-out, stroke 0.3s ease-out',
-          filter: isActive ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))' : 'none',
+          strokeWidth: isActive ? 4 : (style.strokeWidth as number) || 2,
+          stroke: isActive 
+            ? '#10b981' // Verde brillante cuando está activo
+            : (style.stroke as string) || '#adb5bd', // Gris por defecto
+          fill: 'none',
+          transition: 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
+          filter: isActive 
+            ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' 
+            : 'none',
         }}
-        className="react-flow__edge-path"
-        d={edgePath}
+        className={isActive ? 'edge-active' : ''}
         markerEnd={markerEnd}
       />
-      {/* Animación de pulso cuando está activo (estilo n8n) */}
+      
+      {/* Capa de pulso cuando está activo */}
       {isActive && (
         <>
-          <path
-            d={edgePath}
+          {/* Path de pulso con animación CSS */}
+          <BaseEdge
+            path={edgePath}
             style={{
               strokeWidth: 6,
-              stroke: 'var(--color-edge-active, #10b981)',
-              opacity: 0.3,
+              stroke: '#10b981',
               fill: 'none',
+              opacity: 0.4,
+              filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))',
             }}
-            className="react-flow__edge-path"
-          >
-            <animate
-              attributeName="opacity"
-              values="0.3;0.6;0.3"
-              dur="0.8s"
-              repeatCount="indefinite"
-            />
-          </path>
-          {/* Punto animado que se mueve por el edge */}
-          <circle r="4" fill="var(--color-edge-active, #10b981)">
+            className="edge-pulse"
+          />
+          
+          {/* Punto animado que se mueve por el edge usando SVG animateMotion */}
+          <circle r="8" fill="#10b981" className="edge-moving-dot" opacity="1">
             <animateMotion
-              dur="0.5s"
+              dur="1.5s"
               repeatCount="indefinite"
               path={edgePath}
+              keyPoints="0;1"
+              keyTimes="0;1"
+              calcMode="linear"
             />
             <animate
               attributeName="opacity"
-              values="1;0.5;1"
-              dur="0.5s"
+              values="0.7;1;0.7"
+              dur="1.5s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="r"
+              values="6;8;6"
+              dur="1.5s"
               repeatCount="indefinite"
             />
           </circle>
@@ -106,7 +116,7 @@ function AnimatedEdge({
       )}
     </>
   )
-}
+})
 
 /**
  * Edge type personalizado usando SmoothStep para curvas suaves

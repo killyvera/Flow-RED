@@ -1021,8 +1021,9 @@ export function CanvasPage() {
           return n
         })
       })
-      setNodes((prevNodes) => {
-        return prevNodes.map(n => {
+      // Actualizar el store con los nodos modificados
+      setNodesLocal((prevNodes) => {
+        const updatedNodes = prevNodes.map((n: Node) => {
           if (n.id === nodeId) {
             const newNodeRedNode = {
               ...n.data.nodeRedNode,
@@ -1038,6 +1039,11 @@ export function CanvasPage() {
           }
           return n
         })
+        // Actualizar el store después del render usando el ref
+        if (isEditMode) {
+          pendingStoreUpdateRef.current.nodes = updatedNodes
+        }
+        return updatedNodes
       })
     }
 
@@ -1187,8 +1193,14 @@ export function CanvasPage() {
     setGroups(updatedGroups)
 
     // Remover nodo del grupo de React Flow
-    setNodes((prevNodes) => prevNodes.filter(n => n.id !== groupId))
-    setNodesLocal((prevNodes) => prevNodes.filter(n => n.id !== groupId))
+    setNodesLocal((prevNodes) => {
+      const updatedNodes = prevNodes.filter((n: Node) => n.id !== groupId)
+      // Actualizar el store después del render usando el ref
+      if (isEditMode) {
+        pendingStoreUpdateRef.current.nodes = updatedNodes
+      }
+      return updatedNodes
+    })
   }, [isEditMode, storeGroups, setGroups, setNodes, setNodesLocal])
 
   // Handler para duplicar grupo

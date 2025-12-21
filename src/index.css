@@ -195,6 +195,39 @@ body {
   z-index: 11 !important;
 }
 
+/* Animaciones para edges activos (cuando hay flujo de datos) */
+.edge-active {
+  animation: edgePulse 1s ease-in-out infinite;
+}
+
+.edge-pulse {
+  animation: edgePulseGlow 1s ease-in-out infinite;
+}
+
+.edge-moving-dot {
+  filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.8));
+}
+
+@keyframes edgePulse {
+  0%, 100% {
+    stroke-width: 4;
+    opacity: 1;
+  }
+  50% {
+    stroke-width: 5;
+    opacity: 0.9;
+  }
+}
+
+@keyframes edgePulseGlow {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 /* Mejorar la apariencia de los handles */
 .react-flow__handle {
   transition: all 0.2s ease-in-out;

@@ -63,6 +63,26 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
     }
 
+    // Helper para encontrar todos los edges en una cadena desde un nodo inicial
+    const findEdgeChain = (startNodeId: string, visited: Set<string> = new Set()): string[] => {
+      if (visited.has(startNodeId)) {
+        return [] // Evitar ciclos infinitos
+      }
+      visited.add(startNodeId)
+      
+      const edgeChain: string[] = []
+      const outgoingEdges = edges.filter(e => e.source === startNodeId)
+      
+      outgoingEdges.forEach(edge => {
+        edgeChain.push(edge.id)
+        // Recursivamente encontrar edges de los nodos destino
+        const targetChain = findEdgeChain(edge.target, visited)
+        edgeChain.push(...targetChain)
+      })
+      
+      return edgeChain
+    }
+
     // Handler para eventos de WebSocket
     const handleEvent = (event: NodeRedWebSocketEvent) => {
       // Log todos los eventos para debugging
@@ -109,18 +129,36 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
               // Activar edges de salida del nodo
               const outgoingEdges = edges.filter(e => e.source === nodeId)
               if (outgoingEdges.length > 0) {
-                console.log('✨ [WebSocket] Activando edges para nodo running:', {
+                console.log('✨ [WebSocket] Nodo en estado RUNNING - Activando edges de salida:', {
                   nodeId,
                   nodeName: getNodeInfo(nodeId).name,
                   edgesCount: outgoingEdges.length,
-                  edgeIds: outgoingEdges.map(e => e.id)
+                  edgeIds: outgoingEdges.map(e => e.id),
+                  targets: outgoingEdges.map(e => ({ target: e.target, targetName: getNodeInfo(e.target).name }))
                 })
-                outgoingEdges.forEach(edge => {
-                  setActiveEdge(edge.id, true)
-                  // Desactivar después de un tiempo
+                outgoingEdges.forEach((edge, index) => {
+                  // Activar con un pequeño delay para crear efecto de secuencia
+                  const delay = index * 150 // 150ms entre cada edge
                   setTimeout(() => {
-                    setActiveEdge(edge.id, false)
-                  }, 1000) // Aumentar tiempo para mejor visibilidad
+                    console.log('✨ [WebSocket] Activando edge de salida (running):', {
+                      edgeId: edge.id,
+                      source: edge.source,
+                      target: edge.target,
+                      sourceName: getNodeInfo(edge.source).name,
+                      targetName: getNodeInfo(edge.target).name
+                    })
+                    setActiveEdge(edge.id, true)
+                    // Desactivar después de un tiempo más largo para mejor visibilidad
+                    setTimeout(() => {
+                      console.log('💤 [WebSocket] Desactivando edge (running):', edge.id)
+                      setActiveEdge(edge.id, false)
+                    }, 3000) // Aumentar tiempo para mejor visibilidad del flujo
+                  }, delay)
+                })
+              } else {
+                console.log('⚠️ [WebSocket] Nodo running sin edges de salida:', {
+                  nodeId,
+                  nodeName: getNodeInfo(nodeId).name
                 })
               }
             }
@@ -151,42 +189,98 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
         // Eventos de debug (mensajes que pasan por los nodos)
         else if (event.topic === 'debug' && event.data) {
           const debugData = event.data
-          // Node-RED envía el ID del nodo que generó el mensaje en debugData.node
-          // El ID del nodo debug está en debugData.id
-          const sourceNodeId = debugData.node || debugData.nodeid
-          const debugNodeId = debugData.id
+          console.log('🔍 [WebSocket] Procesando evento debug:', {
+            debugData,
+            node: debugData.node,
+            nodeid: debugData.nodeid,
+            id: debugData.id,
+            msg: debugData.msg
+          })
           
-          // Usar el nodo fuente (el que generó el mensaje) para activar edges
-          if (sourceNodeId) {
-            // Marcar inicio de ejecución
-            if (!nodeExecutionStartTimes.current.has(sourceNodeId)) {
-              nodeExecutionStartTimes.current.set(sourceNodeId, Date.now())
-            }
+          // En eventos de debug, el mensaje está pasando por un nodo
+          // Necesitamos activar TODA la cadena de edges desde el nodo fuente hasta el destino
+          const targetNodeId = debugData.id // ID del nodo que recibe el mensaje
+          const sourceNodeId = debugData.node || debugData.nodeid // ID del nodo que generó el mensaje
+          
+          console.log('🔍 [WebSocket] Procesando evento debug - activando cadena completa:', {
+            sourceNodeId,
+            targetNodeId,
+            sourceName: sourceNodeId ? getNodeInfo(sourceNodeId).name : 'unknown',
+            targetName: getNodeInfo(targetNodeId).name
+          })
+          
+          // Si tenemos el nodo fuente, activar toda la cadena desde él
+          if (sourceNodeId && sourceNodeId !== targetNodeId) {
+            const edgeChain = findEdgeChain(sourceNodeId)
+            console.log('🔗 [WebSocket] Cadena de edges encontrada:', {
+              startNode: sourceNodeId,
+              chainLength: edgeChain.length,
+              edgeIds: edgeChain
+            })
             
-            // Activar edges de salida del nodo fuente
-            const outgoingEdges = edges.filter(e => e.source === sourceNodeId)
-            if (outgoingEdges.length > 0) {
-              console.log('✨ [WebSocket] Activando edges para evento debug:', {
-                sourceNodeId,
-                nodeName: getNodeInfo(sourceNodeId).name,
-                edgesCount: outgoingEdges.length,
-                edgeIds: outgoingEdges.map(e => e.id)
-              })
-              outgoingEdges.forEach(edge => {
+            // Activar todos los edges de la cadena en secuencia
+            edgeChain.forEach((edgeId, index) => {
+              const delay = index * 200 // 200ms entre cada edge para efecto cascada visible
+              setTimeout(() => {
+                const edge = edges.find(e => e.id === edgeId)
+                if (edge) {
+                  console.log('✨ [WebSocket] Activando edge en cadena:', {
+                    index: index + 1,
+                    total: edgeChain.length,
+                    edgeId: edge.id,
+                    source: edge.source,
+                    target: edge.target,
+                    sourceName: getNodeInfo(edge.source).name,
+                    targetName: getNodeInfo(edge.target).name
+                  })
+                  setActiveEdge(edge.id, true)
+                  // Desactivar después de un tiempo
+                  setTimeout(() => {
+                    setActiveEdge(edge.id, false)
+                  }, 3000) // Tiempo más largo para ver el flujo completo
+                }
+              }, delay)
+            })
+          } else {
+            // Si no hay nodo fuente, solo activar edges que llegan al nodo destino
+            const incomingEdges = edges.filter(e => e.target === targetNodeId)
+            console.log('🔍 [WebSocket] Sin nodo fuente - activando edges de entrada:', {
+              targetNodeId,
+              incomingEdgesCount: incomingEdges.length
+            })
+            
+            incomingEdges.forEach((edge, index) => {
+              const delay = index * 200
+              setTimeout(() => {
                 setActiveEdge(edge.id, true)
-                // Desactivar después de un tiempo
                 setTimeout(() => {
                   setActiveEdge(edge.id, false)
-                }, 1000) // Aumentar tiempo para mejor visibilidad
-              })
-            }
-            
-            // Agregar log de debug - usar sourceNodeId (el nodo que generó el mensaje)
+                }, 3000)
+              }, delay)
+            })
+          }
+          
+          // Agregar log de debug
+          if (sourceNodeId && sourceNodeId !== targetNodeId) {
+            // Usar sourceNodeId (el nodo que generó el mensaje)
             const sourceNodeInfo = getNodeInfo(sourceNodeId)
             addExecutionLog({
-              nodeId: sourceNodeId, // Usar el nodo fuente, no el nodo debug
+              nodeId: sourceNodeId,
               nodeName: sourceNodeInfo.name,
               nodeType: sourceNodeInfo.type,
+              level: 'info',
+              message: debugData.msg?.payload 
+                ? `Payload: ${typeof debugData.msg.payload === 'string' ? debugData.msg.payload : JSON.stringify(debugData.msg.payload)}`
+                : `Debug: ${JSON.stringify(debugData.msg || debugData)}`,
+              data: debugData.msg,
+            })
+          } else {
+            // Si no hay sourceNodeId, usar el nodo target para el log
+            const targetNodeInfo = getNodeInfo(targetNodeId)
+            addExecutionLog({
+              nodeId: targetNodeId,
+              nodeName: targetNodeInfo.name,
+              nodeType: targetNodeInfo.type,
               level: 'info',
               message: debugData.msg?.payload 
                 ? `Payload: ${typeof debugData.msg.payload === 'string' ? debugData.msg.payload : JSON.stringify(debugData.msg.payload)}`
