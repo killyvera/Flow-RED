@@ -8,6 +8,26 @@ import { create } from 'zustand'
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
 import type { NodeRedNode, NodeRedGroup } from '@/api/types'
 
+/**
+ * Estado de runtime de un nodo
+ */
+export type NodeRuntimeState = 'running' | 'error' | 'idle' | 'warning'
+
+/**
+ * Entrada de log de ejecución
+ */
+export interface ExecutionLogEntry {
+  id: string
+  timestamp: number
+  nodeId: string
+  nodeName: string
+  nodeType: string
+  level: 'info' | 'success' | 'error' | 'warning'
+  message: string
+  data?: any
+  duration?: number // Duración de ejecución en ms
+}
+
 // Tipos básicos para el estado del canvas
 export interface CanvasState {
   // Estado del canvas (nodos y edges de React Flow)
@@ -37,12 +57,34 @@ export interface CanvasState {
   /** Grupos colapsados actualmente (IDs) */
   collapsedGroupIds: Set<string>
   
+  /** Estados de runtime de los nodos (por ID de nodo) */
+  nodeRuntimeStates: Map<string, NodeRuntimeState>
+  /** Estado de conexión WebSocket */
+  wsConnected: boolean
+  
+  /** Edges activos (transmitiendo datos) - Set de edge IDs */
+  activeEdges: Set<string>
+  /** Logs de ejecución */
+  executionLogs: ExecutionLogEntry[]
+  /** Máximo número de logs a mantener */
+  maxLogs: number
+  
   // Acciones
   setNodes: (nodes: ReactFlowNode[]) => void
   setEdges: (edges: ReactFlowEdge[]) => void
   setGroups: (groups: NodeRedGroup[]) => void
   setCollapsedGroupIds: (ids: Set<string>) => void
   toggleGroupCollapsed: (groupId: string) => void
+  setNodeRuntimeState: (nodeId: string, state: NodeRuntimeState | null) => void
+  clearNodeRuntimeState: (nodeId: string) => void
+  clearAllRuntimeStates: () => void
+  setWsConnected: (connected: boolean) => void
+  
+  // Acciones para ejecución
+  setActiveEdge: (edgeId: string, active: boolean) => void
+  clearActiveEdges: () => void
+  addExecutionLog: (entry: Omit<ExecutionLogEntry, 'id' | 'timestamp'>) => void
+  clearExecutionLogs: () => void
   setSelectedNodeId: (id: string | null) => void
   setSelectedEdgeId: (id: string | null) => void
   setEditMode: (isEditMode: boolean) => void
@@ -71,6 +113,11 @@ const initialState: CanvasState = {
   flows: [],
   activeFlowId: null,
   collapsedGroupIds: new Set<string>(),
+  nodeRuntimeStates: new Map<string, NodeRuntimeState>(),
+  wsConnected: false,
+  activeEdges: new Set<string>(),
+  executionLogs: [],
+  maxLogs: 1000,
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -89,6 +136,45 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     }
     return { collapsedGroupIds: newCollapsed }
   }),
+  setNodeRuntimeState: (nodeId, state) => set((currentState) => {
+    const newStates = new Map(currentState.nodeRuntimeStates)
+    if (state === null) {
+      newStates.delete(nodeId)
+    } else {
+      newStates.set(nodeId, state)
+    }
+    return { nodeRuntimeStates: newStates }
+  }),
+  clearNodeRuntimeState: (nodeId) => set((currentState) => {
+    const newStates = new Map(currentState.nodeRuntimeStates)
+    newStates.delete(nodeId)
+    return { nodeRuntimeStates: newStates }
+  }),
+  clearAllRuntimeStates: () => set({ nodeRuntimeStates: new Map() }),
+  setWsConnected: (connected) => set({ wsConnected: connected }),
+  
+  setActiveEdge: (edgeId, active) => set((state) => {
+    const newActiveEdges = new Set(state.activeEdges)
+    if (active) {
+      newActiveEdges.add(edgeId)
+    } else {
+      newActiveEdges.delete(edgeId)
+    }
+    return { activeEdges: newActiveEdges }
+  }),
+  clearActiveEdges: () => set({ activeEdges: new Set() }),
+  addExecutionLog: (entry) => set((state) => {
+    const newLog: ExecutionLogEntry = {
+      ...entry,
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+    }
+    const newLogs = [...state.executionLogs, newLog]
+    // Mantener solo los últimos maxLogs
+    const trimmedLogs = newLogs.slice(-state.maxLogs)
+    return { executionLogs: trimmedLogs }
+  }),
+  clearExecutionLogs: () => set({ executionLogs: [] }),
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setEditMode: (isEditMode) => set({ isEditMode }),
@@ -100,6 +186,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setFlows: (flows) => set({ flows }),
   setActiveFlowId: (flowId) => set({ activeFlowId: flowId }),
   
-  reset: () => set(initialState),
+  reset: () => set({
+    ...initialState,
+    nodeRuntimeStates: new Map(),
+    wsConnected: false,
+  }),
 }))
 

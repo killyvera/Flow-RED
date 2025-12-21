@@ -28,10 +28,12 @@ import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
+
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
+import { useNodeRedWebSocket } from '@/hooks/useNodeRedWebSocket'
 import { BaseNode } from '@/canvas/nodes/BaseNode'
 import { modernEdgeTypes } from '@/canvas/edges.tsx'
 import { applyModernEdgeStyles } from '@/canvas/edges.tsx'
@@ -125,6 +127,9 @@ export function CanvasPage() {
     loadFlows,
     renderFlow,
   } = useNodeRedFlow(true)
+
+  // Conectar a WebSocket para recibir eventos de runtime
+  const wsConnection = useNodeRedWebSocket(true)
   
   // #region agent log
   // Log cuando cambian los flows para debug
@@ -177,6 +182,7 @@ export function CanvasPage() {
 
   // Estado para paleta de nodos
   const [isPaletteOpen, setIsPaletteOpen] = React.useState(false)
+  const [isExecutionLogOpen, setIsExecutionLogOpen] = React.useState(false)
   
   // Estado para panel de propiedades
   const [isPropertiesOpen, setIsPropertiesOpen] = React.useState(false)
@@ -205,6 +211,29 @@ export function CanvasPage() {
   // Estados locales de React Flow para manejar cambios en tiempo real
   const [nodes, setNodesLocal, onNodesChange] = useNodesState(storeNodes)
   const [edges, setEdgesLocal, onEdgesChange] = useEdgesState(applyModernEdgeStyles(storeEdges))
+  
+  // Ref para almacenar los nodos actualizados y actualizar el store después del render
+  const pendingStoreUpdateRef = React.useRef<{ nodes: Node[] | null; edges: Edge[] | null }>({ nodes: null, edges: null })
+  
+  // Efecto para aplicar actualizaciones pendientes al store después del render
+  // Usar useLayoutEffect para ejecutar antes del paint, pero después del render
+  React.useLayoutEffect(() => {
+    if (pendingStoreUpdateRef.current.nodes) {
+      const nodesToUpdate = pendingStoreUpdateRef.current.nodes
+      pendingStoreUpdateRef.current.nodes = null
+      // Usar setTimeout para asegurar que se ejecute después del render completo
+      setTimeout(() => {
+        setNodes(nodesToUpdate)
+      }, 0)
+    }
+    if (pendingStoreUpdateRef.current.edges) {
+      const edgesToUpdate = pendingStoreUpdateRef.current.edges
+      pendingStoreUpdateRef.current.edges = null
+      setTimeout(() => {
+        setEdges(edgesToUpdate)
+      }, 0)
+    }
+  })
   
   // Referencia para React Flow instance (se inicializará dentro del componente)
   const reactFlowInstanceRef = React.useRef<any>(null)
@@ -321,17 +350,20 @@ export function CanvasPage() {
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
     // Aplicar cambios inmediatamente para que los edges se actualicen en tiempo real
     onNodesChange(changes)
+    
+    // Verificar si hay cambios persistentes antes de actualizar
+    const hasPersistentChanges = isEditMode && !isInitialRenderRef.current && 
+      changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')
+    
+    // Aplicar cambios localmente
     setNodesLocal((prevNodes) => {
       const updatedNodes = applyNodeChanges(changes, prevNodes)
-      // Actualizar store solo en modo edición y solo para cambios persistentes (mueves, no selecciones)
-      // Actualizar inmediatamente sin delay para que los nodos hijos se muevan en tiempo real
-      if (isEditMode && !isInitialRenderRef.current) {
-        const hasPersistentChanges = changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')
-        if (hasPersistentChanges) {
-          // Actualizar inmediatamente para que los nodos hijos se muevan sin delay
-          setNodes(updatedNodes)
-        }
+      
+      // Guardar en ref para actualizar el store después del render
+      if (hasPersistentChanges) {
+        pendingStoreUpdateRef.current.nodes = updatedNodes
       }
+      
       return updatedNodes
     })
   }, [isEditMode, setNodes, onNodesChange, setNodesLocal])
@@ -341,13 +373,11 @@ export function CanvasPage() {
     setEdgesLocal((prevEdges) => {
       const updatedEdges = applyEdgeChanges(changes, prevEdges)
       // Actualizar store solo en modo edición y cambios persistentes
-      // Usar setTimeout para evitar actualizar durante el renderizado
+      // Guardar en ref para actualizar después del render
       if (isEditMode && !isInitialRenderRef.current) {
         const hasPersistentChanges = changes.some(c => c.type === 'remove' || c.type === 'add')
         if (hasPersistentChanges) {
-          setTimeout(() => {
-            setEdges(updatedEdges)
-          }, 0)
+          pendingStoreUpdateRef.current.edges = updatedEdges
         }
       }
       return updatedEdges
@@ -1507,6 +1537,21 @@ export function CanvasPage() {
 
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
+        {/* Indicador discreto de conexión WebSocket */}
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+          {wsConnection.connected ? (
+            <div 
+              className="w-2 h-2 rounded-full bg-green-500 shadow-sm animate-pulse"
+              title="Conectado a Node-RED (tiempo real)"
+            />
+          ) : (
+            <div 
+              className="w-2 h-2 rounded-full bg-yellow-500 shadow-sm"
+              title="WebSocket desconectado. La aplicación funciona sin tiempo real. Los nodos inject funcionan correctamente."
+            />
+          )}
+        </div>
+        
         {/* Mensaje cuando hay error de conexión */}
         {error && !isLoading && (
           <div className="absolute inset-0 flex items-center justify-center text-text-secondary">
@@ -1912,6 +1957,30 @@ export function CanvasPage() {
           />
         )}
 
+        {/* Panel de logs de ejecución */}
+        <ExecutionLog
+          isOpen={isExecutionLogOpen}
+          onClose={() => setIsExecutionLogOpen(false)}
+        />
+
+        {/* Botón para abrir/cerrar logs de ejecución */}
+        <button
+          onClick={() => setIsExecutionLogOpen(!isExecutionLogOpen)}
+          className={`
+            fixed bottom-4 right-4 z-40
+            p-3 rounded-lg shadow-lg
+            transition-all duration-200
+            ${isExecutionLogOpen 
+              ? 'bg-accent-primary text-white' 
+              : 'bg-node-default text-text-primary border border-node-border hover:bg-node-hover'
+            }
+          `}
+          title="Logs de ejecución"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </button>
       </div>
     </div>
   )
