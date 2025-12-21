@@ -79,6 +79,8 @@ export interface CanvasState {
   nodeSnapshots: Map<string, NodeExecutionSnapshot[]>
   /** Si Execution Frames está habilitado */
   executionFramesEnabled: boolean
+  /** Si Explain Mode está activo */
+  explainMode: boolean
   
   // Acciones
   setNodes: (nodes: ReactFlowNode[]) => void
@@ -115,6 +117,10 @@ export interface CanvasState {
   setExecutionFramesEnabled: (enabled: boolean) => void
   clearFrames: () => void
   
+  // Acciones para Explain Mode
+  setExplainMode: (enabled: boolean) => void
+  toggleExplainMode: () => void
+  
   reset: () => void
 }
 
@@ -140,6 +146,7 @@ const initialState: CanvasState = {
   frames: [],
   nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
   executionFramesEnabled: true, // Habilitado por defecto
+  explainMode: false, // Deshabilitado por defecto
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -298,6 +305,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
     })
   },
+  
+  // Explain Mode actions
+  setExplainMode: (enabled) => set({ explainMode: enabled }),
+  toggleExplainMode: () => set((state) => ({ explainMode: !state.explainMode })),
   
   reset: () => set({
     ...initialState,

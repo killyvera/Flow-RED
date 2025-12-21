@@ -17,9 +17,9 @@ export interface SummaryInput {
   nodeName?: string
   /** Estado de runtime del nodo */
   runtimeState?: NodeRuntimeState
-  /** Preview del payload (truncado) */
+  /** Preview del output data (truncado) */
   payloadPreview?: string
-  /** Payload completo (opcional, para análisis más detallado) */
+  /** Output data completo (opcional, para análisis más detallado) - payload en Node-RED */
   payload?: any
   /** Código de estado HTTP (para nodos HTTP) */
   statusCode?: number
@@ -107,7 +107,7 @@ function getHttpStatusText(statusCode: number): string {
 }
 
 /**
- * Analiza un payload y genera un resumen descriptivo
+ * Analiza output data (payload) y genera un resumen descriptivo
  */
 function analyzePayload(payload: any): { title: string; subtitle?: string } {
   if (payload === null || payload === undefined) {
