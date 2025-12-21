@@ -1,9 +1,9 @@
 # Estado de Implementación - Editor Visual Node-RED
 
-**Fecha de revisión:** $(date)  
-**Rama actual:** `main`
+**Fecha de revisión:** 2025-01-20  
+**Rama actual:** `feature/semantic-layer`
 
-Este documento detalla el estado de implementación de los 8 prompts principales que definen el alcance del editor visual.
+Este documento detalla el estado de implementación de los prompts principales que definen el alcance del editor visual, incluyendo los 8 prompts originales y las extensiones de la Semantic Layer.
 
 ---
 
@@ -19,8 +19,13 @@ Este documento detalla el estado de implementación de los 8 prompts principales
 | PROMPT 6 - Flow Tabs, Groups & Zones | ✅ COMPLETO | 100% |
 | PROMPT 7 - Realtime State & Events (WS) | ✅ COMPLETO | 100% |
 | PROMPT 8 - Theming, Dark Mode & Branding | ✅ COMPLETO | 100% |
+| **PROMPT 9 - Semantic Layer** | ✅ **COMPLETO** | **100%** |
+| └─ PROMPT 9B - Execution Frames | ✅ COMPLETO | 100% |
+| └─ PROMPT 9C - Semantic Summaries | ✅ COMPLETO | 100% |
+| └─ PROMPT 9D - Explain Mode | ✅ COMPLETO | 100% |
+| └─ PROMPT 9E - Polish | ✅ COMPLETO | 100% |
 
-**Estado General:** ✅ **TODOS LOS PROMPTS COMPLETADOS**
+**Estado General:** ✅ **TODOS LOS PROMPTS COMPLETADOS (8 + Semantic Layer)**
 
 ---
 
@@ -568,6 +573,335 @@ Convertirlo en producto personalizable.
 
 ---
 
+## PROMPT 9 — SEMANTIC LAYER (EXTENSIÓN)
+
+**Estado:** ✅ **COMPLETO**
+
+### Objetivo General
+Reconciliar los conceptos implícitos de Node-RED con los explícitos de n8n, mejorando la experiencia del usuario sin modificar el runtime de Node-RED. Proporcionar una capa semántica que haga el editor más accesible y comprensible para usuarios técnicos y no técnicos.
+
+### Contexto
+La Semantic Layer es una extensión que se implementó después de completar los 8 prompts originales. Su objetivo es reducir la confusión de los usuarios al trabajar con conceptos implícitos de Node-RED (como `msg`, `payload`, `wires`) mediante:
+
+1. **Execution Frames:** Agrupar eventos WebSocket en sesiones de ejecución coherentes
+2. **Semantic Summaries:** Generar resúmenes legibles de resultados de ejecución
+3. **Explain Mode:** Transformar la UI en una vista guiada y no técnica
+4. **Polish:** Refinamientos de UX, auditoría de nombres, microinteracciones
+
+---
+
+## PROMPT 9B — EXECUTION FRAMES
+
+**Estado:** ✅ **COMPLETO**
+
+### Objetivo
+Agrupar eventos WebSocket/debug/status en sesiones de ejecución coherentes, proporcionando un modelo mental de "sesión de ejecución" similar a n8n.
+
+### Tareas Implementadas
+
+#### ✅ 1. Definir tipos TypeScript para Execution Frames
+- **Archivo:** `src/types/executionFrames.ts`
+- **Tipos definidos:**
+  - `ExecutionFrame` - Frame de ejecución que agrupa eventos relacionados
+  - `NodeExecutionSnapshot` - Snapshot de ejecución de un nodo dentro de un frame
+- **Características:**
+  - ID único del frame
+  - Timestamps de inicio y fin
+  - Nodo trigger opcional
+  - Etiqueta descriptiva opcional
+  - Tracking de nodos actualizados, payload updates y errores
+
+#### ✅ 2. Extender Zustand store con Execution Frames
+- **Archivo:** `src/state/canvasStore.ts`
+- **Estado agregado:**
+  - `currentFrame: ExecutionFrame | null` - Frame activo
+  - `frames: ExecutionFrame[]` - Lista de frames (máximo 20)
+  - `nodeSnapshots: Map<string, NodeExecutionSnapshot[]>` - Snapshots por nodo (máximo 50 por nodo)
+  - `executionFramesEnabled: boolean` - Flag de habilitación
+- **Acciones agregadas:**
+  - `startFrame()` - Iniciar nuevo frame
+  - `endFrame()` - Finalizar frame actual
+  - `addNodeSnapshot()` - Agregar snapshot de nodo
+  - `setExecutionFramesEnabled()` - Habilitar/deshabilitar
+  - `clearFrames()` - Limpiar todos los frames
+
+#### ✅ 3. Crear Execution Frame Manager
+- **Archivo:** `src/utils/executionFrameManager.ts`
+- **Funciones:**
+  - `isTriggerNode()` - Identifica nodos que pueden iniciar ejecución
+  - `shouldStartNewFrame()` - Determina si se debe crear un nuevo frame
+  - `shouldEndFrame()` - Determina si un frame debe cerrarse por inactividad
+  - `createPayloadPreview()` - Crea preview truncado del payload
+- **Reglas implementadas:**
+  - Frame se crea automáticamente al detectar trigger node
+  - Frame se crea manualmente si hay evento debug/status sin frame activo
+  - Frame se cierra automáticamente después de 5 segundos de inactividad
+  - Máximo 20 frames en historial
+  - Máximo 50 snapshots por nodo
+
+#### ✅ 4. Integrar Execution Frames con WebSocket hook
+- **Archivo:** `src/hooks/useNodeRedWebSocket.ts`
+- **Características:**
+  - Integración con `executionFrameManager`
+  - Creación automática de frames al detectar triggers
+  - Captura de snapshots en cada evento de nodo
+  - Auto-cierre de frames por inactividad
+  - Manejo de timeouts y cleanup
+
+#### ✅ 5. Crear UI Execution Bar
+- **Archivo:** `src/components/ExecutionBar.tsx`
+- **Características:**
+  - Barra minimalista en la parte inferior del canvas
+  - Indicador de estado (Recording/Idle)
+  - Botones de control (Start/Stop capture)
+  - Resumen del frame actual/último:
+    - Número de nodos actualizados
+    - Número de payload updates
+    - Número de errores
+    - Duración del frame
+  - Toggle para habilitar/deshabilitar Execution Frames
+  - Solo visible cuando está habilitado
+
+### Archivos Clave
+- `src/types/executionFrames.ts` - Tipos TypeScript
+- `src/utils/executionFrameManager.ts` - Lógica de gestión de frames
+- `src/components/ExecutionBar.tsx` - UI component
+- `src/state/canvasStore.ts` - Store extension
+- `src/hooks/useNodeRedWebSocket.ts` - Integración con WebSocket
+
+### Restricciones Cumplidas
+- ✅ No afecta el runtime de Node-RED
+- ✅ No almacena payloads pesados (solo previews truncados)
+- ✅ Opcional (puede deshabilitarse)
+- ✅ No rompe la integración WebSocket existente
+- ✅ UI minimalista que no satura el canvas
+
+---
+
+## PROMPT 9C — SEMANTIC SUMMARIES
+
+**Estado:** ✅ **COMPLETO**
+
+### Objetivo
+Mostrar un pequeño "Result Summary" derivado de señales de runtime para cada nodo, mostrando resultados primero y JSON segundo.
+
+### Tareas Implementadas
+
+#### ✅ 1. Crear Summary Engine
+- **Archivo:** `src/utils/summaryEngine.ts`
+- **Interfaces:**
+  - `SummaryInput` - Input para generar resumen
+  - `NodeSummary` - Output del resumen (title, subtitle, severity, icon)
+- **Función principal:** `generateNodeSummary()`
+- **Heurísticas implementadas:**
+  1. **Error state:** Detecta estado de error y muestra mensaje descriptivo
+  2. **HTTP nodes:** Extrae código de estado HTTP y muestra texto descriptivo
+  3. **Function/Change nodes:** Analiza payload y muestra transformación
+  4. **Object/Array output:** Analiza estructura y muestra tipo y tamaño
+  5. **Payload preview:** Muestra preview truncado si no hay payload completo
+  6. **Running state:** Indica que el nodo está ejecutándose
+  7. **Warning state:** Muestra advertencia con mensaje
+  8. **Default:** Estado "Ready" con mensaje genérico
+
+#### ✅ 2. Crear SummaryBadge Component
+- **Archivo:** `src/components/SummaryBadge.tsx`
+- **Características:**
+  - Badge con icono y color según severidad
+  - Severidades: `success`, `warn`, `error`, `info`
+  - Iconos dinámicos (CheckCircle, AlertCircle, AlertTriangle, Info, Loader2, etc.)
+  - Tooltips descriptivos para cada severidad
+  - Tamaños: `sm` (default) y `md`
+
+#### ✅ 3. Integrar Summary Engine en BaseNode
+- **Archivo:** `src/canvas/nodes/BaseNode.tsx`
+- **Características:**
+  - Genera resumen usando `generateNodeSummary()`
+  - Muestra `SummaryBadge` y texto de resumen en el cuerpo del nodo
+  - Solo visible cuando `explainMode` está desactivado
+  - Usa `useMemo` para optimizar generación de resumen
+
+#### ✅ 4. Integrar Summary Engine en NodePropertiesPanel
+- **Archivo:** `src/components/NodePropertiesPanel.tsx`
+- **Características:**
+  - Muestra resumen semántico en la parte superior del tab "Estado"
+  - Vista "Explain Mode": Sección "Last result" con resumen y payload colapsable
+  - Vista "Normal": Resumen integrado con logs y conexiones
+  - Payload viewer colapsable con preview truncado
+
+### Archivos Clave
+- `src/utils/summaryEngine.ts` - Motor de generación de resúmenes
+- `src/components/SummaryBadge.tsx` - Componente de badge
+- `src/canvas/nodes/BaseNode.tsx` - Integración en nodos
+- `src/components/NodePropertiesPanel.tsx` - Integración en inspector
+
+### Heurísticas Implementadas
+- ✅ Error state detection
+- ✅ HTTP status code mapping
+- ✅ Payload type analysis (String, Number, Boolean, Array, Object)
+- ✅ Payload structure analysis (keys, item count)
+- ✅ Running state indication
+- ✅ Warning state indication
+- ✅ Default fallback para nodos desconocidos
+
+---
+
+## PROMPT 9D — EXPLAIN MODE
+
+**Estado:** ✅ **COMPLETO**
+
+### Objetivo
+Proporcionar un toggle que transforme la UI en una vista guiada y no técnica, similar a n8n's "Explain Mode".
+
+### Tareas Implementadas
+
+#### ✅ 1. Extender Zustand store con Explain Mode
+- **Archivo:** `src/state/canvasStore.ts`
+- **Estado agregado:**
+  - `explainMode: boolean` - Flag de modo explicativo
+- **Acciones agregadas:**
+  - `setExplainMode()` - Activar/desactivar modo
+  - `toggleExplainMode()` - Toggle del modo
+
+#### ✅ 2. Crear Node Explanations Utility
+- **Archivo:** `src/utils/nodeExplanations.ts`
+- **Funciones:**
+  - `getNodeExplanation()` - Obtiene explicación de una línea para un tipo de nodo
+  - `getNodeDescription()` - Obtiene descripción detallada para el inspector
+- **Características:**
+  - Mapeo de tipos de nodos a explicaciones simples
+  - Más de 20 tipos de nodos cubiertos
+  - Fallback genérico para nodos desconocidos
+
+#### ✅ 3. Implementar cambios en Canvas (nodos)
+- **Archivo:** `src/canvas/nodes/BaseNode.tsx`
+- **Características:**
+  - Overlay de explicación cuando `explainMode` está activo
+  - Muestra explicación de una línea en lugar de resumen semántico
+  - Transición suave entre modos
+
+#### ✅ 4. Implementar cambios en Canvas (edges)
+- **Archivo:** `src/canvas/edges.tsx`
+- **Características:**
+  - Label sutil "passes msg" en hover cuando `explainMode` está activo
+  - Solo visible en hover para no saturar el canvas
+
+#### ✅ 5. Implementar cambios en Inspector
+- **Archivo:** `src/components/NodePropertiesPanel.tsx`
+- **Vista Explain Mode:**
+  - **"What it does"** - Descripción amigable del nodo
+  - **"Inputs"** - Lista de conexiones de entrada con nombres de nodos
+  - **"Outputs"** - Lista de conexiones de salida con nombres de nodos
+  - **"Last result"** - Resumen semántico y payload colapsable
+  - **"Advanced"** - Sección colapsable con configuración técnica
+- **Vista Normal:** Mantiene estructura original con tabs
+
+#### ✅ 6. Crear Explain Mode Stepper
+- **Archivo:** `src/components/ExplainModeStepper.tsx`
+- **Características:**
+  - Navegación guiada por nodos en orden de ejecución
+  - Botones Previous/Next
+  - Información del nodo actual (nombre, posición en secuencia)
+  - Botón Exit para salir del modo
+  - Navegación con teclado (flechas izquierda/derecha, Esc)
+  - Cálculo de orden de ejecución usando BFS desde nodos trigger
+  - Resalta nodo actual automáticamente
+
+#### ✅ 7. Agregar Toggle en Toolbar
+- **Archivo:** `src/pages/CanvasPage.tsx`
+- **Características:**
+  - Botón "Explain Mode" en la toolbar superior
+  - Icono `HelpCircle` de lucide-react
+  - Toggle visual del estado activo/inactivo
+
+### Archivos Clave
+- `src/utils/nodeExplanations.ts` - Utilidades de explicaciones
+- `src/components/ExplainModeStepper.tsx` - Componente de navegación guiada
+- `src/canvas/nodes/BaseNode.tsx` - Overlay en nodos
+- `src/canvas/edges.tsx` - Labels en edges
+- `src/components/NodePropertiesPanel.tsx` - Vista explicativa en inspector
+
+### Restricciones Cumplidas
+- ✅ No cambia el JSON del flow
+- ✅ Visualmente consistente con el tema
+- ✅ Fácil de salir (botón Exit o toggle)
+- ✅ No afecta funcionalidad existente
+
+---
+
+## PROMPT 9E — POLISH
+
+**Estado:** ✅ **COMPLETO**
+
+### Objetivo
+Asegurar que la Semantic Layer no introduzca sobrecarga cognitiva mediante refinamientos de UX, auditoría de nombres, microinteracciones y optimizaciones de performance.
+
+### Tareas Implementadas
+
+#### ✅ 1. Auditoría de Nombres (Naming Audit)
+- **Cambios realizados:**
+  - "payload" → "Output data" en labels y tooltips
+  - "deploy" → "Save & Deploy" en botones
+  - "Último Payload" → "Output Data" en tab Estado
+  - Términos técnicos mantenidos en tooltips para referencia
+- **Archivos modificados:**
+  - `src/components/NodePropertiesPanel.tsx`
+  - `src/pages/CanvasPage.tsx`
+  - `src/utils/nodeExplanations.ts`
+
+#### ✅ 2. Microinteracciones
+- **Tooltips:**
+  - Badges de severidad con tooltips descriptivos
+  - Indicadores de estado de runtime con tooltips
+  - Botones con tooltips explicativos
+- **Empty States:**
+  - "No execution captured yet" en ExecutionBar cuando no hay frames
+  - "No preview available" cuando no hay payload
+  - Mensajes descriptivos en ExecutionLog cuando está vacío
+- **Safe Fallbacks:**
+  - "No preview available" para payloads no disponibles
+  - Descripción genérica para nodos desconocidos
+  - Fallback a "Ready" en Summary Engine
+
+#### ✅ 3. Optimizaciones de Performance
+- **Payload Truncation:**
+  - Previews truncados a 100 caracteres por defecto
+  - Opción de expandir para ver completo
+- **Frames Cap:**
+  - Máximo 20 frames en historial
+  - Máximo 50 snapshots por nodo
+- **Memoization:**
+  - `useMemo` en `BaseNode` para generación de resumen
+  - `useMemo` en `ExecutionBar` para cálculo de estadísticas
+  - `useMemo` en `ExplainModeStepper` para orden de ejecución
+  - `useCallback` para handlers en componentes
+
+#### ✅ 4. Regression Checklist
+- **Archivo:** `docs/checklists/semantic-layer-regression.md`
+- **Checklist completo:**
+  - ✅ Renderizado de Flows
+  - ✅ Edición y Deploy
+  - ✅ WebSocket y Runtime Feedback
+  - ✅ Temas y Branding
+  - ✅ Grupos
+  - ✅ Inspector de Nodos
+  - ✅ Execution Frames
+  - ✅ Semantic Summaries
+  - ✅ Explain Mode
+  - ✅ Polish
+
+### Archivos Clave
+- `docs/checklists/semantic-layer-regression.md` - Checklist de regresión
+- Todos los archivos modificados en PROMPT 9B, 9C, 9D
+
+### Mejoras de UX Implementadas
+- ✅ Términos amigables en lugar de jerga técnica
+- ✅ Tooltips informativos en todos los elementos interactivos
+- ✅ Empty states descriptivos
+- ✅ Fallbacks seguros para casos edge
+- ✅ Performance optimizada con memoization y truncation
+
+---
+
 ## Características Adicionales Implementadas
 
 ### Más allá de los prompts originales:
@@ -642,7 +976,21 @@ Convertirlo en producto personalizable.
 
 ## Conclusión
 
-Todos los 8 prompts principales han sido **completamente implementados** y están funcionando. El editor visual está listo para uso en producción con todas las funcionalidades básicas y avanzadas solicitadas.
+Todos los 8 prompts principales han sido **completamente implementados** y están funcionando. Además, la **Semantic Layer (PROMPT 9)** ha sido completamente implementada con todas sus sub-partes:
 
-**Estado del Proyecto:** ✅ **PRODUCTION READY**
+- ✅ **PROMPT 9B - Execution Frames:** Sistema completo de agrupación de eventos en sesiones de ejecución
+- ✅ **PROMPT 9C - Semantic Summaries:** Motor de generación de resúmenes legibles con 8 heurísticas
+- ✅ **PROMPT 9D - Explain Mode:** Modo guiado con navegación step-by-step y explicaciones amigables
+- ✅ **PROMPT 9E - Polish:** Refinamientos de UX, auditoría de nombres, microinteracciones y optimizaciones
+
+El editor visual está listo para uso en producción con todas las funcionalidades básicas, avanzadas y de Semantic Layer solicitadas.
+
+**Estado del Proyecto:** ✅ **PRODUCTION READY + SEMANTIC LAYER COMPLETE**
+
+### Próximos Pasos Sugeridos
+
+1. **Testing:** Realizar pruebas exhaustivas de la Semantic Layer con usuarios reales
+2. **Documentación:** Crear guías de usuario para Explain Mode y Execution Frames
+3. **Feedback:** Recopilar feedback de usuarios sobre la experiencia con la Semantic Layer
+4. **Iteración:** Refinar heurísticas de Summary Engine basadas en uso real
 
