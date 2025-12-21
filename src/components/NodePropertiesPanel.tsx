@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Node } from 'reactflow'
-import { X, Loader2, Info, Settings, Activity } from 'lucide-react'
+import { X, Loader2, Info, Settings, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 import { getNodeDefinition } from '@/api/nodeDefinition'
@@ -16,6 +16,8 @@ import { parseNodeSchema, type NodeSchema, type PropertyDefinition } from '@/uti
 import { getKnownNodeProperties } from '@/utils/nodeDefaults'
 import { shouldNodeHaveEditableProperties, getNoPropertiesMessage } from '@/utils/nodeTypesInfo'
 import { TextField, NumberField, SelectField, BooleanField, JSONField, TypedInputField } from './fields'
+import { generateNodeSummary } from '@/utils/summaryEngine'
+import { SummaryBadge } from './SummaryBadge'
 
 export interface NodePropertiesPanelProps {
   node: Node | null
@@ -628,6 +630,69 @@ export function NodePropertiesPanel({
     return nodeLogs.find(log => log.data) || null
   }, [nodeLogs])
   
+  // Obtener snapshots para generar resumen
+  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
+  const currentFrame = useCanvasStore((state) => state.currentFrame)
+  
+  // Obtener último snapshot del nodo
+  const lastSnapshot = useMemo(() => {
+    if (!node?.id) return null
+    const snapshots = nodeSnapshots.get(node.id) || []
+    const frameSnapshots = currentFrame
+      ? snapshots.filter(s => s.frameId === currentFrame.id)
+      : snapshots
+    return frameSnapshots.length > 0 ? frameSnapshots[0] : null
+  }, [node?.id, nodeSnapshots, currentFrame])
+  
+  // Generar resumen del nodo
+  const nodeSummary = useMemo(() => {
+    // Intentar obtener payload del snapshot o log
+    let payload: any = undefined
+    let payloadPreview: string | undefined = undefined
+    let statusCode: number | undefined = undefined
+    let errorMessage: string | undefined = undefined
+    
+    if (lastSnapshot?.payloadPreview) {
+      payloadPreview = lastSnapshot.payloadPreview
+      try {
+        payload = JSON.parse(lastSnapshot.payloadPreview)
+      } catch {
+        payload = lastSnapshot.payloadPreview
+      }
+    } else if (lastLogWithData?.data) {
+      payload = lastLogWithData.data
+      try {
+        const jsonString = JSON.stringify(payload)
+        payloadPreview = jsonString.length > 100 ? jsonString.substring(0, 100) + '...' : jsonString
+      } catch {
+        payloadPreview = String(payload)
+      }
+    }
+    
+    // Extraer statusCode si existe
+    if (payload && typeof payload === 'object' && 'statusCode' in payload) {
+      statusCode = payload.statusCode
+    }
+    
+    // Extraer errorMessage
+    if (lastLogWithData?.level === 'error' && lastLogWithData?.message) {
+      errorMessage = lastLogWithData.message
+    }
+    
+    return generateNodeSummary({
+      nodeType: nodeType || 'unknown',
+      nodeName: nodeName,
+      runtimeState,
+      payloadPreview,
+      payload,
+      statusCode,
+      errorMessage,
+    })
+  }, [nodeType, nodeName, runtimeState, lastSnapshot, lastLogWithData])
+  
+  // Estado para colapsar payload viewer
+  const [isPayloadExpanded, setIsPayloadExpanded] = useState(true)
+  
   // Edges conectados al nodo (input/output)
   const edges = useCanvasStore((state) => state.edges)
   const inputEdges = useMemo(() => {
@@ -851,6 +916,26 @@ export function NodePropertiesPanel({
         ) : (
           /* Pestaña de Estado */
           <div className="p-3 space-y-4">
+            {/* Bloque de Resumen Semántico */}
+            <div className="space-y-2 pb-3 border-b border-node-border">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                Resumen
+              </h3>
+              <div className="flex items-start gap-2">
+                <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium text-text-primary">
+                    {nodeSummary.title}
+                  </h4>
+                  {nodeSummary.subtitle && (
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      {nodeSummary.subtitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
             {/* Estado actual del nodo */}
             <div className="space-y-2 pb-3 border-b border-node-border">
               <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
@@ -939,20 +1024,34 @@ export function NodePropertiesPanel({
               </div>
             </div>
 
-            {/* Último Payload (estilo n8n) */}
+            {/* Último Payload (estilo n8n, colapsable) */}
             {lastLogWithData && lastLogWithData.data && (
               <div className="space-y-2 pb-3 border-b border-node-border">
-                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  Último Payload
-                </h3>
-                <div className="bg-bg-secondary rounded-md p-2 border border-node-border/50">
-                  <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-48 overflow-y-auto">
-                    {JSON.stringify(lastLogWithData.data, null, 2)}
-                  </pre>
-                </div>
-                <p className="text-[10px] text-text-tertiary">
-                  {new Date(lastLogWithData.timestamp).toLocaleString()}
-                </p>
+                <button
+                  onClick={() => setIsPayloadExpanded(!isPayloadExpanded)}
+                  className="flex items-center justify-between w-full text-left hover:bg-bg-secondary/50 rounded px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                >
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                    Último Payload
+                  </h3>
+                  {isPayloadExpanded ? (
+                    <ChevronUp className="w-3 h-3 text-text-tertiary" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3 text-text-tertiary" />
+                  )}
+                </button>
+                {isPayloadExpanded && (
+                  <>
+                    <div className="bg-bg-secondary rounded-md p-2 border border-node-border/50">
+                      <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-48 overflow-y-auto">
+                        {JSON.stringify(lastLogWithData.data, null, 2)}
+                      </pre>
+                    </div>
+                    <p className="text-[10px] text-text-tertiary">
+                      {new Date(lastLogWithData.timestamp).toLocaleString()}
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

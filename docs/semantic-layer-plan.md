@@ -615,3 +615,104 @@ Con Execution Frames implementado, el siguiente paso es:
 - Agregar timeline visual de frames
 - Mejorar la trazabilidad de datos usando frames
 
+---
+
+## 9. Semantic Summaries Implemented (PROMPT 9C)
+
+**Estado:** ✅ **IMPLEMENTADO**
+
+### Resúmenes Semánticos - Mostrar Resultados Antes que JSON
+
+Se ha implementado un sistema de resúmenes semánticos que muestra resultados legibles antes que JSON crudo, mejorando la comprensión del usuario sobre qué pasó en cada nodo sin necesidad de abrir el JSON.
+
+#### Heurísticas Implementadas:
+
+1. **Error State:**
+   - Si `runtimeState === 'error'` → Muestra "Error" con mensaje de error
+   - Severidad: `error`
+   - Icono: `AlertCircle`
+
+2. **HTTP Nodes:**
+   - Si el tipo contiene "http" y hay `statusCode` → Muestra "HTTP {statusCode} {statusText}"
+   - Severidad: `error` si statusCode >= 400, `warn` si >= 300, `success` si < 300
+   - Icono: `CheckCircle` o `AlertCircle` según severidad
+
+3. **Function/Change Nodes:**
+   - Si el tipo es "function" o "change" → Muestra "Transformed message" o análisis del payload
+   - Severidad: `success`
+   - Icono: `ArrowRight`
+
+4. **Object/Array Payload:**
+   - Si payload es objeto → Muestra "Output: {keys...}" con conteo de propiedades
+   - Si payload es array → Muestra "Output: N items" con estructura del primer elemento
+   - Severidad: `success` (o según estado de runtime)
+   - Icono: `CheckCircle`
+
+5. **String/Number Payload:**
+   - Si payload es string/number → Muestra "Output: {truncated value}"
+   - Severidad: `success`
+   - Icono: `FileText`
+
+6. **Running State:**
+   - Si `runtimeState === 'running'` → Muestra "Running..."
+   - Severidad: `info`
+   - Icono: `Loader2`
+
+7. **Warning State:**
+   - Si `runtimeState === 'warning'` → Muestra "Warning" con mensaje
+   - Severidad: `warn`
+   - Icono: `AlertTriangle`
+
+8. **Default:**
+   - Si no hay información → Muestra "Ready"
+   - Severidad: `info`
+   - Icono: `Circle`
+
+#### Integración en UI:
+
+**BaseNode (Tarjeta del Nodo):**
+- Badge de severidad (pequeño) con icono
+- Título del resumen (texto pequeño, truncado)
+- Subtítulo opcional (más pequeño, gris)
+- Se muestra en el body del nodo, estilo minimalista
+
+**NodePropertiesPanel (Inspector):**
+- Bloque de resumen al inicio de la pestaña "Estado"
+- Badge de severidad (mediano) con icono
+- Título y subtítulo del resumen
+- Payload viewer colapsable debajo del resumen
+- El payload se puede expandir/colapsar con botón
+
+#### Archivos Creados/Modificados:
+
+- ✅ `src/utils/summaryEngine.ts` - Motor de resúmenes con heurísticas
+- ✅ `src/components/SummaryBadge.tsx` - Componente badge de severidad
+- ✅ `src/canvas/nodes/BaseNode.tsx` - Integración en tarjeta de nodo
+- ✅ `src/components/NodePropertiesPanel.tsx` - Integración en inspector con payload colapsable
+
+#### Funcionalidades:
+
+- ✅ Resúmenes generados automáticamente basados en estado y payload
+- ✅ Payload preview truncado (máximo 100 caracteres)
+- ✅ Cálculos ligeros con memoización (no congela UI)
+- ✅ Funciona para nodos desconocidos/personalizados
+- ✅ Usa colores del tema (CSS variables)
+- ✅ Payload viewer colapsable en inspector
+
+#### Ejemplos de Resúmenes Generados:
+
+- **HTTP Request exitoso:** "HTTP 200 OK" (success, verde)
+- **HTTP Request error:** "HTTP 404 Not Found" (error, rojo)
+- **Function node:** "Output: {name, age, email}" (success, verde)
+- **Array output:** "Output: 5 items" con "Structure: {id, name}" (success, verde)
+- **String output:** "Output: 'Hello World'" (success, verde)
+- **Error state:** "Error" con "Execution failed" (error, rojo)
+- **Running state:** "Running..." (info, azul)
+
+#### Próximos Pasos (PROMPT 9D):
+
+Con Semantic Summaries implementado, el siguiente paso es:
+- Agregar más heurísticas específicas por tipo de nodo
+- Mejorar la visualización de resúmenes en timeline de frames
+- Agregar tooltips con más detalles en los badges
+

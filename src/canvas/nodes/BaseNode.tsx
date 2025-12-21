@@ -9,7 +9,7 @@
  * - Estilos modernos con Tailwind
  */
 
-import { memo, useState, useEffect, useRef } from 'react'
+import { memo, useState, useEffect, useRef, useMemo } from 'react'
 import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
@@ -17,6 +17,8 @@ import { getNodeHeaderColor } from '@/utils/nodeColors'
 import type { LucideIcon } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
+import { generateNodeSummary } from '@/utils/summaryEngine'
+import { SummaryBadge } from '@/components/SummaryBadge'
 
 /**
  * Componente BaseNode
@@ -104,6 +106,77 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
   const runtimeState = nodeRedNode?.id ? nodeRuntimeStates.get(nodeRedNode.id) : undefined
   const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
+  
+  // Obtener snapshots y logs para generar resumen
+  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
+  const executionLogs = useCanvasStore((state) => state.executionLogs)
+  const currentFrame = useCanvasStore((state) => state.currentFrame)
+  
+  // Obtener último snapshot del nodo (del frame actual si existe)
+  const lastSnapshot = useMemo(() => {
+    if (!nodeRedNode?.id) return null
+    const snapshots = nodeSnapshots.get(nodeRedNode.id) || []
+    // Filtrar por frame actual si existe, sino tomar el más reciente
+    const frameSnapshots = currentFrame
+      ? snapshots.filter(s => s.frameId === currentFrame.id)
+      : snapshots
+    return frameSnapshots.length > 0 ? frameSnapshots[0] : null
+  }, [nodeRedNode?.id, nodeSnapshots, currentFrame])
+  
+  // Obtener último log del nodo
+  const lastLog = useMemo(() => {
+    if (!nodeRedNode?.id) return null
+    const nodeLogs = executionLogs.filter(log => log.nodeId === nodeRedNode.id)
+    return nodeLogs.length > 0 ? nodeLogs[0] : null
+  }, [nodeRedNode?.id, executionLogs])
+  
+  // Generar resumen del nodo
+  const nodeSummary = useMemo(() => {
+    // Intentar obtener payload del snapshot o log
+    let payload: any = undefined
+    let payloadPreview: string | undefined = undefined
+    let statusCode: number | undefined = undefined
+    let errorMessage: string | undefined = undefined
+    
+    if (lastSnapshot?.payloadPreview) {
+      payloadPreview = lastSnapshot.payloadPreview
+      // Intentar parsear el preview si es JSON
+      try {
+        payload = JSON.parse(lastSnapshot.payloadPreview)
+      } catch {
+        payload = lastSnapshot.payloadPreview
+      }
+    } else if (lastLog?.data) {
+      payload = lastLog.data
+      // Generar preview truncado
+      try {
+        const jsonString = JSON.stringify(payload)
+        payloadPreview = jsonString.length > 100 ? jsonString.substring(0, 100) + '...' : jsonString
+      } catch {
+        payloadPreview = String(payload)
+      }
+    }
+    
+    // Extraer statusCode si existe en el payload
+    if (payload && typeof payload === 'object' && 'statusCode' in payload) {
+      statusCode = payload.statusCode
+    }
+    
+    // Extraer errorMessage si existe
+    if (lastLog?.level === 'error' && lastLog?.message) {
+      errorMessage = lastLog.message
+    }
+    
+    return generateNodeSummary({
+      nodeType: nodeRedType || 'unknown',
+      nodeName: label,
+      runtimeState,
+      payloadPreview,
+      payload,
+      statusCode,
+      errorMessage,
+    })
+  }, [nodeRedType, label, runtimeState, lastSnapshot, lastLog])
   
   // Log para debugging (solo cuando cambia el estado)
   useEffect(() => {
@@ -265,7 +338,20 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
       <div className="px-3 py-2 min-h-[32px]">
         {bodyContent || (
           <div className="text-[11px] text-text-secondary">
-            {/* Contenido por defecto si no hay bodyContent */}
+            {/* Resumen semántico del nodo */}
+            <div className="flex items-start gap-1.5">
+              <SummaryBadge severity={nodeSummary.severity} size="sm" icon={nodeSummary.icon} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-medium text-text-primary truncate">
+                  {nodeSummary.title}
+                </div>
+                {nodeSummary.subtitle && (
+                  <div className="text-[10px] text-text-tertiary truncate mt-0.5">
+                    {nodeSummary.subtitle}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
