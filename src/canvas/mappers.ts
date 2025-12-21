@@ -187,8 +187,31 @@ export function filterNodesByFlow(
  * @returns Array de grupos (nodos con type === "group")
  */
 export function extractGroups(nodes: NodeRedNode[]): NodeRedGroup[] {
+  // Detectar grupos de forma robusta:
+  // 1. type === 'group' (forma estándar)
+  // 2. ID empieza con 'group-' (grupos creados por el editor, incluso si Node-RED alteró el type)
+  // 3. Tiene propiedades w y h (características de grupos)
+  const isGroupNode = (node: NodeRedNode): boolean => {
+    // Forma estándar
+    if (node.type === 'group') return true
+    
+    // Fallback 1: ID empieza con 'group-' (convención del editor)
+    if (node.id?.startsWith('group-')) {
+      mapperLogger('⚠️ Grupo detectado por ID (no por type):', { id: node.id, type: node.type })
+      return true
+    }
+    
+    // Fallback 2: tiene w y h pero no es un nodo normal (los nodos normales no tienen w/h)
+    if (typeof node.w === 'number' && typeof node.h === 'number' && !node.wires) {
+      mapperLogger('⚠️ Grupo detectado por estructura w/h (no por type):', { id: node.id, type: node.type })
+      return true
+    }
+    
+    return false
+  }
+  
   return nodes
-    .filter((node): node is NodeRedGroup => node.type === 'group')
+    .filter((node): node is NodeRedGroup => isGroupNode(node))
     .map((node) => ({
       ...node,
       type: 'group' as const,
@@ -246,8 +269,22 @@ export function transformNodeRedFlow(
   if (subflowDefinition) {
     // Si es un subflow, usar los nodos internos del subflow (flow[])
     mapperLogger('📦 Transformando subflow, usando nodos internos')
-    flowNodes = subflowDefinition.flow || []
-    // Los nodos internos de subflows no tienen z, así que no necesitamos filtrar por z
+    const internalNodes = subflowDefinition.flow || []
+    
+    // CRÍTICO: También incluir grupos del array principal que tienen z = subflowId
+    // Los grupos de subflows se guardan en el array principal (no en subflow.flow[])
+    // porque Node-RED no reconoce grupos dentro de subflow.flow[]
+    const groupsFromMainArray = allNodes.filter(n => 
+      n.z === flowId && (n.type === 'group' || n.id?.startsWith('group-'))
+    )
+    
+    mapperLogger('📦 Grupos encontrados en array principal para subflow:', {
+      subflowId: flowId,
+      count: groupsFromMainArray.length,
+      ids: groupsFromMainArray.map(g => g.id),
+    })
+    
+    flowNodes = [...internalNodes, ...groupsFromMainArray]
   } else {
     // Si es un tab (flow normal), filtrar nodos que pertenecen a este flow
     // Excluimos el nodo "tab" mismo ya que no se renderiza
@@ -266,15 +303,19 @@ export function transformNodeRedFlow(
   mapperLogger('📋 Nodos del flow filtrados:', { 
     total: allNodes.length, 
     enFlow: flowNodes.length,
-    tipos: [...new Set(flowNodes.map(n => n.type))]
+    tipos: [...new Set(flowNodes.map(n => n.type))],
+    // Log detallado para diagnosticar grupos
+    nodosConW: flowNodes.filter(n => typeof n.w === 'number').map(n => ({ id: n.id, type: n.type, w: n.w, h: n.h })),
+    nodosConIdGroup: flowNodes.filter(n => n.id?.startsWith('group-')).map(n => ({ id: n.id, type: n.type })),
   })
 
   // Extraer grupos del flow
   const groups = extractGroups(flowNodes)
-  mapperLogger('📦 Grupos encontrados:', { count: groups.length })
+  mapperLogger('📦 Grupos encontrados:', { count: groups.length, ids: groups.map(g => g.id) })
 
-  // Filtrar nodos que NO son grupos
-  const nonGroupNodes = flowNodes.filter((node) => node.type !== 'group')
+  // Filtrar nodos que NO son grupos (usando los IDs de grupos detectados)
+  const groupIds = new Set(groups.map(g => g.id))
+  const nonGroupNodes = flowNodes.filter((node) => !groupIds.has(node.id))
   
   // Convertir grupos a nodos React Flow
   const groupNodes: ReactFlowNode[] = groups.map((group) => {
@@ -289,8 +330,16 @@ export function transformNodeRedFlow(
         y: group.y || 0,
       },
       data: {
+        // CRÍTICO: Incluir nodeRedType y nodeRedNode para consistencia con la serialización
+        // Esto asegura que al guardar de nuevo, el grupo se serialice correctamente como 'group'
+        // y no como 'unknown'
+        nodeRedType: 'group',
+        nodeRedNode: group,
         group,
         nodesCount: nodesInGroup,
+        label: group.name || group.label || 'Grupo',
+        flowId: flowId,
+        outputPortsCount: 0,
       },
       style: {
         width: group.w || 300,
@@ -573,6 +622,24 @@ export function transformReactFlowToNodeRed(
       if (!subflowInternalNodes.has(targetSubflowId)) {
         subflowInternalNodes.set(targetSubflowId, [])
       }
+
+      // CRÍTICO: Si es un grupo dentro de un subflow, NO lo guardamos en subflow.flow[]
+      // porque Node-RED no reconoce grupos dentro de subflow.flow[] y los convierte a 'unknown'.
+      // En su lugar, lo tratamos como un nodo normal que irá al array principal con z = subflowId.
+      // Detectar grupos por: node.type === 'group' O node.data.nodeRedType === 'group'
+      const isGroupNode = node.type === 'group' || node.data?.nodeRedType === 'group'
+      
+      if (isGroupNode) {
+        // NO añadir a subflowInternalNodes - los grupos irán al array principal
+        // Esto se maneja más abajo en normalNodes
+        mapperLogger('📦 Grupo en subflow detectado, se guardará en array principal:', {
+          groupId: node.id,
+          subflowId: targetSubflowId,
+        })
+        normalNodes.push(node)
+        return
+      }
+
       // Convertir el nodo interno usando la misma lógica que los nodos normales
       // pero sin z (ya que está dentro del subflow)
       const originalNodeRedNode = node.data.nodeRedNode || {}
@@ -628,8 +695,12 @@ export function transformReactFlowToNodeRed(
   // Convertir cada nodo normal de React Flow a Node-RED
   const nodeRedNodes: NodeRedNode[] = normalNodes.map((node) => {
     // Si es un grupo, manejar de forma especial
-    if (node.type === 'group' && node.data.group) {
-      const group = node.data.group as NodeRedGroup
+    // Detectar grupos por: node.type === 'group' O node.data.nodeRedType === 'group'
+    const isGroupNode = node.type === 'group' || node.data?.nodeRedType === 'group'
+    const groupData = node.data?.group || (node.data?.nodeRedNode?.type === 'group' ? node.data.nodeRedNode : null)
+    
+    if (isGroupNode && groupData) {
+      const group = groupData as NodeRedGroup
       
       // Los grupos NO tienen wires, solo se preservan como nodos especiales
       return {
@@ -833,6 +904,8 @@ export function transformReactFlowToNodeRed(
       hasOut: !!subflow.out,
       outLength: subflow.out?.length || 0,
       flowLength: subflow.flow?.length || 0,
+      // Log detallado de nodos internos para diagnosticar grupos
+      flowNodes: (subflow.flow || []).map(n => ({ id: n.id, type: n.type, hasW: typeof n.w === 'number' })),
     })
   }
   

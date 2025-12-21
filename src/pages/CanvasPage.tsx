@@ -1739,21 +1739,32 @@ export function CanvasPage() {
     // Si es un grupo, crear nodo React Flow de tipo 'group'
     if (nodeType === 'group') {
       const groupId = `group-${Date.now()}`
+
+      // CRÍTICO: Persistencia correcta (especialmente en subflows)
+      // Si no seteamos nodeRedType/nodeRedNode, al guardar (transformReactFlowToNodeRed)
+      // puede degradar a type 'unknown'.
+      const newGroup: NodeRedGroup = {
+        id: groupId,
+        type: 'group',
+        name: 'Nuevo Grupo',
+        x: position.x,
+        y: position.y,
+        w: 400,
+        h: 300,
+        z: activeFlowId,
+      }
+
       const newGroupNode: Node = {
         id: groupId,
         type: 'group',
         position,
         data: {
-          group: {
-            id: groupId,
-            type: 'group',
-            name: 'Nuevo Grupo',
-            x: position.x,
-            y: position.y,
-            w: 400,
-            h: 300,
-            z: activeFlowId,
-          } as NodeRedGroup,
+          label: 'Nuevo Grupo',
+          nodeRedType: 'group',
+          flowId: activeFlowId,
+          outputPortsCount: 0,
+          nodeRedNode: newGroup,
+          group: newGroup,
           nodesCount: 0,
         },
         style: {
@@ -1762,6 +1773,8 @@ export function CanvasPage() {
         },
       }
 
+      // Mantener groups del store en sync con el nodo de grupo del canvas
+      setGroups([...storeGroups, newGroup])
 
       const updatedNodes = [...nodes, newGroupNode]
       setNodesLocal(updatedNodes)
@@ -1838,7 +1851,7 @@ export function CanvasPage() {
     setNodesLocal(updatedNodes)
     setNodes(updatedNodes)
     
-  }, [isEditMode, activeFlowId, nodes, setNodesLocal, setNodes, reactFlowInstanceRef])
+  }, [isEditMode, activeFlowId, nodes, storeGroups, setGroups, setNodesLocal, setNodes, reactFlowInstanceRef])
 
   // Función para organizar nodos de manera compacta (Tidy up)
   const handleTidyUp = useCallback(() => {
@@ -2109,7 +2122,51 @@ export function CanvasPage() {
 
   const handleDelete = useCallback((nodeIds: string[], edgeIds: string[]) => {
     const nodeIdsToDelete = new Set(nodeIds)
-    const updatedNodes = nodes.filter(n => !nodeIdsToDelete.has(n.id))
+
+    // Si se eliminan grupos, primero desasignar sus hijos (limpiar parentId y g)
+    const deletedGroupIds = nodes
+      .filter(n => nodeIdsToDelete.has(n.id) && n.type === 'group')
+      .map(n => n.id)
+    const deletedGroupIdsSet = new Set(deletedGroupIds)
+
+    if (deletedGroupIdsSet.size > 0) {
+      // Remover grupos del store de grupos
+      const updatedGroups = storeGroups.filter(g => !deletedGroupIdsSet.has(g.id))
+      setGroups(updatedGroups)
+    }
+
+    const updatedNodes = nodes
+      .filter(n => !nodeIdsToDelete.has(n.id))
+      .map(n => {
+        if (deletedGroupIdsSet.size === 0) return n
+
+        const nodeRedNode = n.data?.nodeRedNode
+        const isOrphanedByParentId = typeof (n as any).parentId === 'string' && deletedGroupIdsSet.has((n as any).parentId)
+        const isOrphanedByNodeRedG = nodeRedNode?.g && deletedGroupIdsSet.has(nodeRedNode.g)
+
+        if (!isOrphanedByParentId && !isOrphanedByNodeRedG) return n
+
+        const next: any = { ...n }
+
+        // Limpiar parentId (XYFlow) y cualquier config dependiente
+        next.parentId = undefined
+        if ('extent' in next) next.extent = undefined
+
+        // Limpiar g en el nodo Node-RED
+        if (nodeRedNode) {
+          const newNodeRedNode = { ...nodeRedNode }
+          if (newNodeRedNode.g && deletedGroupIdsSet.has(newNodeRedNode.g)) {
+            delete newNodeRedNode.g
+          }
+          next.data = {
+            ...n.data,
+            nodeRedNode: newNodeRedNode,
+          }
+        }
+
+        return next
+      })
+
     setNodesLocal(updatedNodes)
     setNodes(updatedNodes)
     const updatedEdges = edges.filter(
@@ -2117,7 +2174,7 @@ export function CanvasPage() {
     )
     setEdgesLocal(updatedEdges)
     setEdges(updatedEdges)
-  }, [nodes, edges, setNodesLocal, setEdgesLocal, setNodes, setEdges])
+  }, [nodes, edges, storeGroups, setGroups, setNodesLocal, setEdgesLocal, setNodes, setEdges])
 
   // Funciones para manejar grupos
   const handleCreateGroup = useCallback(() => {
@@ -2446,39 +2503,41 @@ export function CanvasPage() {
       return
     }
 
-    // Desasignar todos los nodos del grupo
-    setNodesLocal((prevNodes) => {
-      return prevNodes.map(n => {
-        const nodeRedNode = n.data?.nodeRedNode
-        if (nodeRedNode && nodeRedNode.g === groupId) {
-          const newNodeRedNode = { ...nodeRedNode }
-          delete newNodeRedNode.g
-          return {
-            ...n,
-            data: {
-              ...n.data,
-              nodeRedNode: newNodeRedNode,
-            },
-          }
-        }
-        return n
-      })
-    })
-
     // Remover grupo del store
     const updatedGroups = storeGroups.filter(g => g.id !== groupId)
     setGroups(updatedGroups)
 
-    // Remover nodo del grupo de React Flow
-    setNodesLocal((prevNodes) => {
-      const updatedNodes = prevNodes.filter((n: Node) => n.id !== groupId)
-      // Actualizar el store después del render usando el ref
-      if (isEditMode) {
-        pendingStoreUpdateRef.current.nodes = updatedNodes
-      }
-      return updatedNodes
-    })
-  }, [isEditMode, storeGroups, setGroups, setNodes, setNodesLocal])
+    // Desasignar hijos + eliminar el nodo del grupo (y sincronizar con store)
+    const updatedNodes = nodes
+      .filter(n => n.id !== groupId)
+      .map(n => {
+        const nodeRedNode = n.data?.nodeRedNode
+        const isChildByParentId = typeof (n as any).parentId === 'string' && (n as any).parentId === groupId
+        const isChildByNodeRedG = nodeRedNode?.g === groupId
+
+        if (!isChildByParentId && !isChildByNodeRedG) return n
+
+        const next: any = { ...n }
+        next.parentId = undefined
+        if ('extent' in next) next.extent = undefined
+
+        if (nodeRedNode) {
+          const newNodeRedNode = { ...nodeRedNode }
+          if (newNodeRedNode.g === groupId) {
+            delete newNodeRedNode.g
+          }
+          next.data = {
+            ...n.data,
+            nodeRedNode: newNodeRedNode,
+          }
+        }
+
+        return next
+      })
+
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+  }, [isEditMode, nodes, storeGroups, setGroups, setNodes, setNodesLocal])
 
   // Handler para duplicar grupo
   const handleDuplicateGroup = useCallback((groupId: string) => {

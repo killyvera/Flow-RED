@@ -135,6 +135,48 @@ export interface CanvasState {
   reset: () => void
 }
 
+function sanitizeOrphanGroupParents(nodes: ReactFlowNode[]): ReactFlowNode[] {
+  if (!nodes?.length) return nodes
+
+  const ids = new Set(nodes.map(n => n.id))
+  let changed = false
+
+  const sanitized = nodes.map((n) => {
+    const anyNode: any = n as any
+    const parentRef: string | undefined = anyNode.parentId || anyNode.parentNode
+    if (!parentRef) return n
+    if (ids.has(parentRef)) return n
+
+    changed = true
+
+    const next: any = { ...n }
+    // XYFlow usa parentId; versiones antiguas podían usar parentNode
+    next.parentId = undefined
+    next.parentNode = undefined
+    if ('extent' in next) next.extent = undefined
+
+    // Mantener consistencia con Node-RED (g)
+    const nodeRedNode = next.data?.nodeRedNode
+    if (nodeRedNode?.g === parentRef) {
+      const newNodeRedNode = { ...nodeRedNode }
+      delete newNodeRedNode.g
+      next.data = {
+        ...next.data,
+        nodeRedNode: newNodeRedNode,
+      }
+    }
+
+    return next
+  })
+
+  if (process.env.NODE_ENV === 'development' && changed) {
+    // eslint-disable-next-line no-console
+    console.warn('[canvasStore] Sanitizados nodos con parentId/parentNode huérfano (grupo no existe)')
+  }
+
+  return changed ? sanitized : nodes
+}
+
 const initialState: Omit<CanvasState, 
   'setNodes' | 'setEdges' | 'setGroups' | 'setCollapsedGroupIds' | 'toggleGroupCollapsed' |
   'setNodeRuntimeState' | 'clearNodeRuntimeState' | 'clearAllRuntimeStates' | 'setWsConnected' |
@@ -176,7 +218,7 @@ const initialState: Omit<CanvasState,
 export const useCanvasStore = create<CanvasState>((set) => ({
   ...initialState,
   
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => set({ nodes: sanitizeOrphanGroupParents(nodes) }),
   setEdges: (edges) => set({ edges }),
   setGroups: (groups) => set({ groups }),
   setCollapsedGroupIds: (collapsedGroupIds) => set({ collapsedGroupIds }),
