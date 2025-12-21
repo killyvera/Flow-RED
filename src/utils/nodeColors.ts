@@ -2,181 +2,180 @@
  * Sistema de colores de header por categoría de nodo
  * 
  * Asigna colores de fondo al header del nodo según su categoría o tipo.
- * Soporta modo claro y oscuro.
+ * Usa el sistema de temas centralizado.
  */
 
+import { getTheme } from '@/theme/themes'
+
 /**
- * Detecta si el tema actual es oscuro
+ * Mapeo de tipos de nodos a categorías
+ * Permite mapear tipos específicos directamente a categorías
  */
-function isDarkMode(): boolean {
-  if (typeof window === 'undefined') return false
-  return document.documentElement.classList.contains('dark')
+const nodeTypeToCategoryMap: Record<string, keyof ReturnType<typeof getNodeCategoryColors>> = {
+  inject: 'input',
+  debug: 'output',
+  function: 'function',
+  template: 'function',
+  switch: 'function',
+  change: 'function',
+  'http in': 'network',
+  'http out': 'output',
+  'http request': 'network',
+  'mqtt in': 'network',
+  'mqtt out': 'output',
+  'mqtt-broker': 'network',
+  delay: 'time',
+  trigger: 'time',
 }
 
 /**
- * Categorías de nodos y sus colores - Modo claro
+ * Obtiene los colores de categoría desde el tema actual
+ * 
+ * @param themeName Nombre del tema actual (opcional, se detecta automáticamente si no se proporciona)
+ * @returns Record con los colores de categorías de nodos
  */
-const nodeCategoryColorsLight: Record<string, string> = {
-  // Input nodes (verde suave)
-  input: '#e8f5e9',
-  inject: '#e8f5e9',
+function getNodeCategoryColors(themeName?: string): Record<string, string> {
+  // Si estamos en el navegador, intentar obtener el tema desde el contexto o localStorage
+  if (typeof window !== 'undefined') {
+    const currentThemeName = themeName || localStorage.getItem('theme') || 'light'
+    const theme = getTheme(currentThemeName)
+    
+    if (theme && theme.colors.nodeCategories) {
+      return {
+        input: theme.colors.nodeCategories.input,
+        inject: theme.colors.nodeCategories.input,
+        output: theme.colors.nodeCategories.output,
+        debug: theme.colors.nodeCategories.output,
+        'http out': theme.colors.nodeCategories.output,
+        'mqtt out': theme.colors.nodeCategories.output,
+        'file out': theme.colors.nodeCategories.output,
+        function: theme.colors.nodeCategories.function,
+        template: theme.colors.nodeCategories.function,
+        switch: theme.colors.nodeCategories.function,
+        change: theme.colors.nodeCategories.function,
+        network: theme.colors.nodeCategories.network,
+        'http in': theme.colors.nodeCategories.network,
+        'http request': theme.colors.nodeCategories.network,
+        'mqtt in': theme.colors.nodeCategories.network,
+        'mqtt-broker': theme.colors.nodeCategories.network,
+        tcp: theme.colors.nodeCategories.network,
+        udp: theme.colors.nodeCategories.network,
+        websocket: theme.colors.nodeCategories.network,
+        storage: theme.colors.nodeCategories.storage,
+        'file in': theme.colors.nodeCategories.storage,
+        'file': theme.colors.nodeCategories.storage,
+        mongodb: theme.colors.nodeCategories.storage,
+        mysql: theme.colors.nodeCategories.storage,
+        postgresql: theme.colors.nodeCategories.storage,
+        time: theme.colors.nodeCategories.time,
+        delay: theme.colors.nodeCategories.time,
+        trigger: theme.colors.nodeCategories.time,
+        default: theme.colors.nodeCategories.default,
+      }
+    }
+  }
   
-  // Output nodes (azul suave)
-  output: '#e3f2fd',
-  debug: '#e3f2fd',
-  'http out': '#e3f2fd',
-  'mqtt out': '#e3f2fd',
-  'file out': '#e3f2fd',
+  // Fallback a tema light si no se puede obtener el tema
+  const lightTheme = getTheme('light')
+  if (lightTheme && lightTheme.colors.nodeCategories) {
+    return {
+      input: lightTheme.colors.nodeCategories.input,
+      inject: lightTheme.colors.nodeCategories.input,
+      output: lightTheme.colors.nodeCategories.output,
+      debug: lightTheme.colors.nodeCategories.output,
+      'http out': lightTheme.colors.nodeCategories.output,
+      'mqtt out': lightTheme.colors.nodeCategories.output,
+      'file out': lightTheme.colors.nodeCategories.output,
+      function: lightTheme.colors.nodeCategories.function,
+      template: lightTheme.colors.nodeCategories.function,
+      switch: lightTheme.colors.nodeCategories.function,
+      change: lightTheme.colors.nodeCategories.function,
+      network: lightTheme.colors.nodeCategories.network,
+      'http in': lightTheme.colors.nodeCategories.network,
+      'http request': lightTheme.colors.nodeCategories.network,
+      'mqtt in': lightTheme.colors.nodeCategories.network,
+      'mqtt-broker': lightTheme.colors.nodeCategories.network,
+      tcp: lightTheme.colors.nodeCategories.network,
+      udp: lightTheme.colors.nodeCategories.network,
+      websocket: lightTheme.colors.nodeCategories.network,
+      storage: lightTheme.colors.nodeCategories.storage,
+      'file in': lightTheme.colors.nodeCategories.storage,
+      'file': lightTheme.colors.nodeCategories.storage,
+      mongodb: lightTheme.colors.nodeCategories.storage,
+      mysql: lightTheme.colors.nodeCategories.storage,
+      postgresql: lightTheme.colors.nodeCategories.storage,
+      time: lightTheme.colors.nodeCategories.time,
+      delay: lightTheme.colors.nodeCategories.time,
+      trigger: lightTheme.colors.nodeCategories.time,
+      default: lightTheme.colors.nodeCategories.default,
+    }
+  }
   
-  // Function nodes (amarillo suave)
-  function: '#fff9c4',
-  template: '#fff9c4',
-  switch: '#fff9c4',
-  change: '#fff9c4',
-  
-  // Network nodes (naranja suave)
-  network: '#ffe0b2',
-  'http in': '#ffe0b2',
-  'http request': '#ffe0b2',
-  'mqtt in': '#ffe0b2',
-  'mqtt-broker': '#ffe0b2',
-  tcp: '#ffe0b2',
-  udp: '#ffe0b2',
-  websocket: '#ffe0b2',
-  
-  // Storage nodes (morado suave)
-  storage: '#f3e5f5',
-  'file in': '#f3e5f5',
-  'file': '#f3e5f5',
-  mongodb: '#f3e5f5',
-  mysql: '#f3e5f5',
-  postgresql: '#f3e5f5',
-  
-  // Time nodes (rosa suave)
-  time: '#fce4ec',
-  delay: '#fce4ec',
-  trigger: '#fce4ec',
-  
-  // Default (gris suave)
-  default: '#f8f9fa',
+  // Último fallback - valores por defecto
+  return {
+    input: '#e8f5e9',
+    inject: '#e8f5e9',
+    output: '#e3f2fd',
+    debug: '#e3f2fd',
+    'http out': '#e3f2fd',
+    'mqtt out': '#e3f2fd',
+    'file out': '#e3f2fd',
+    function: '#fff9c4',
+    template: '#fff9c4',
+    switch: '#fff9c4',
+    change: '#fff9c4',
+    network: '#ffe0b2',
+    'http in': '#ffe0b2',
+    'http request': '#ffe0b2',
+    'mqtt in': '#ffe0b2',
+    'mqtt-broker': '#ffe0b2',
+    tcp: '#ffe0b2',
+    udp: '#ffe0b2',
+    websocket: '#ffe0b2',
+    storage: '#f3e5f5',
+    'file in': '#f3e5f5',
+    'file': '#f3e5f5',
+    mongodb: '#f3e5f5',
+    mysql: '#f3e5f5',
+    postgresql: '#f3e5f5',
+    time: '#fce4ec',
+    delay: '#fce4ec',
+    trigger: '#fce4ec',
+    default: '#f8f9fa',
+  }
 }
 
 /**
- * Categorías de nodos y sus colores - Modo oscuro
+ * Obtiene los colores de tipos desde el tema actual
+ * Usa el mapeo de tipos a categorías
  */
-const nodeCategoryColorsDark: Record<string, string> = {
-  // Input nodes (verde oscuro)
-  input: '#1b5e20',
-  inject: '#1b5e20',
+function getNodeTypeColors(themeName?: string): Record<string, string> {
+  const categoryColors = getNodeCategoryColors(themeName)
+  const typeColors: Record<string, string> = {}
   
-  // Output nodes (azul oscuro)
-  output: '#0d47a1',
-  debug: '#0d47a1',
-  'http out': '#0d47a1',
-  'mqtt out': '#0d47a1',
-  'file out': '#0d47a1',
+  // Mapear tipos específicos a sus categorías
+  Object.entries(nodeTypeToCategoryMap).forEach(([nodeType, category]) => {
+    typeColors[nodeType] = categoryColors[category] || categoryColors.default
+  })
   
-  // Function nodes (amarillo oscuro)
-  function: '#f57f17',
-  template: '#f57f17',
-  switch: '#f57f17',
-  change: '#f57f17',
-  
-  // Network nodes (naranja oscuro)
-  network: '#e65100',
-  'http in': '#e65100',
-  'http request': '#e65100',
-  'mqtt in': '#e65100',
-  'mqtt-broker': '#e65100',
-  tcp: '#e65100',
-  udp: '#e65100',
-  websocket: '#e65100',
-  
-  // Storage nodes (morado oscuro)
-  storage: '#4a148c',
-  'file in': '#4a148c',
-  'file': '#4a148c',
-  mongodb: '#4a148c',
-  mysql: '#4a148c',
-  postgresql: '#4a148c',
-  
-  // Time nodes (rosa oscuro)
-  time: '#880e4f',
-  delay: '#880e4f',
-  trigger: '#880e4f',
-  
-  // Default (gris oscuro)
-  default: '#353535',
-}
-
-/**
- * Obtiene los colores de categoría según el tema actual
- */
-function getNodeCategoryColors(): Record<string, string> {
-  return isDarkMode() ? nodeCategoryColorsDark : nodeCategoryColorsLight
-}
-
-/**
- * Mapeo directo de tipos específicos a colores - Modo claro
- */
-const nodeTypeColorsLight: Record<string, string> = {
-  inject: '#e8f5e9',
-  debug: '#e3f2fd',
-  function: '#fff9c4',
-  template: '#fff9c4',
-  switch: '#fff9c4',
-  change: '#fff9c4',
-  'http in': '#ffe0b2',
-  'http out': '#e3f2fd',
-  'http request': '#ffe0b2',
-  'mqtt in': '#ffe0b2',
-  'mqtt out': '#e3f2fd',
-  'mqtt-broker': '#ffe0b2',
-  delay: '#fce4ec',
-  trigger: '#fce4ec',
-}
-
-/**
- * Mapeo directo de tipos específicos a colores - Modo oscuro
- */
-const nodeTypeColorsDark: Record<string, string> = {
-  inject: '#1b5e20',
-  debug: '#0d47a1',
-  function: '#f57f17',
-  template: '#f57f17',
-  switch: '#f57f17',
-  change: '#f57f17',
-  'http in': '#e65100',
-  'http out': '#0d47a1',
-  'http request': '#e65100',
-  'mqtt in': '#e65100',
-  'mqtt out': '#0d47a1',
-  'mqtt-broker': '#e65100',
-  delay: '#880e4f',
-  trigger: '#880e4f',
-}
-
-/**
- * Obtiene los colores de tipos según el tema actual
- */
-function getNodeTypeColors(): Record<string, string> {
-  return isDarkMode() ? nodeTypeColorsDark : nodeTypeColorsLight
+  return typeColors
 }
 
 /**
  * Obtiene el color de header para un tipo de nodo
  * 
  * @param nodeType Tipo del nodo (ej: "inject", "debug", "http in")
+ * @param themeName Nombre del tema (opcional, se detecta automáticamente)
  * @returns Color hexadecimal para el header (se adapta al tema actual)
  */
-export function getNodeHeaderColor(nodeType: string | undefined): string {
+export function getNodeHeaderColor(nodeType: string | undefined, themeName?: string): string {
   if (!nodeType) {
-    const colors = getNodeCategoryColors()
+    const colors = getNodeCategoryColors(themeName)
     return colors.default
   }
   
-  const nodeTypeColors = getNodeTypeColors()
-  const nodeCategoryColors = getNodeCategoryColors()
+  const nodeTypeColors = getNodeTypeColors(themeName)
+  const nodeCategoryColors = getNodeCategoryColors(themeName)
   
   // Buscar coincidencia exacta en mapeo directo
   if (nodeTypeColors[nodeType]) {
@@ -207,26 +206,5 @@ export function getNodeHeaderColor(nodeType: string | undefined): string {
   }
   
   return nodeCategoryColors.default
-}
-
-/**
- * Registra un color personalizado para un tipo de nodo
- * 
- * @param nodeType Tipo del nodo
- * @param colorLight Color hexadecimal para modo claro
- * @param colorDark Color hexadecimal para modo oscuro (opcional, usa colorLight si no se proporciona)
- */
-export function registerNodeColor(
-  nodeType: string, 
-  colorLight: string, 
-  colorDark?: string
-): void {
-  nodeTypeColorsLight[nodeType] = colorLight
-  if (colorDark) {
-    nodeTypeColorsDark[nodeType] = colorDark
-  } else {
-    // Si no se proporciona color oscuro, usar el claro (puede no verse bien, pero evita errores)
-    nodeTypeColorsDark[nodeType] = colorLight
-  }
 }
 

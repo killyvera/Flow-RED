@@ -25,6 +25,7 @@ export interface ThemeOverride {
     accent?: Partial<Theme['colors']['accent']>
     status?: Partial<Theme['colors']['status']>
     group?: Partial<Theme['colors']['group']>
+    nodeCategories?: Partial<Theme['colors']['nodeCategories']>
   }
   shadows?: Partial<Theme['shadows']>
 }

@@ -93,6 +93,28 @@ export const colorTokens = {
     error: '#ef4444',
     info: '#3b82f6',
   },
+  /**
+   * Paleta de colores recomendada para grupos y elementos UI
+   * Esta paleta es estática y no cambia entre temas
+   */
+  palette: [
+    '#3b82f6', // Azul
+    '#10b981', // Verde
+    '#f59e0b', // Amarillo/Naranja
+    '#ef4444', // Rojo
+    '#8b5cf6', // Púrpura
+    '#ec4899', // Rosa
+    '#06b6d4', // Cyan
+    '#84cc16', // Lima
+    '#f97316', // Naranja
+    '#6366f1', // Índigo
+    '#14b8a6', // Teal
+    '#a855f7', // Violeta
+    '#f43f5e', // Rose
+    '#64748b', // Gris
+    '#000000', // Negro
+    '#ffffff', // Blanco
+  ],
 } as const
 
 /**

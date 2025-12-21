@@ -60,6 +60,19 @@ export interface Theme {
       border: string
       text: string
     }
+    /**
+     * Colores de categorías de nodos para headers
+     * Estos colores cambian entre temas (light/dark)
+     */
+    nodeCategories: {
+      input: string
+      output: string
+      function: string
+      network: string
+      storage: string
+      time: string
+      default: string
+    }
   }
   shadows: {
     node: string
@@ -121,6 +134,15 @@ export const lightTheme: Theme = {
       border: 'rgba(59, 130, 246, 0.3)',
       text: '#3b82f6',
     },
+    nodeCategories: {
+      input: '#e8f5e9',
+      output: '#e3f2fd',
+      function: '#fff9c4',
+      network: '#ffe0b2',
+      storage: '#f3e5f5',
+      time: '#fce4ec',
+      default: '#f8f9fa',
+    },
   },
   shadows: {
     node: '0 1px 3px rgba(0, 0, 0, 0.1)',
@@ -181,6 +203,15 @@ export const darkTheme: Theme = {
       default: 'rgba(59, 130, 246, 0.15)',
       border: 'rgba(59, 130, 246, 0.4)',
       text: '#60a5fa',
+    },
+    nodeCategories: {
+      input: '#1b5e20',
+      output: '#0d47a1',
+      function: '#f57f17',
+      network: '#e65100',
+      storage: '#4a148c',
+      time: '#880e4f',
+      default: '#353535',
     },
   },
   shadows: {
@@ -244,6 +275,15 @@ export const highContrastTheme: Theme = {
       border: 'rgba(0, 102, 204, 0.5)',
       text: '#0066cc',
     },
+    nodeCategories: {
+      input: '#e8f5e9',
+      output: '#e3f2fd',
+      function: '#fff9c4',
+      network: '#ffe0b2',
+      storage: '#f3e5f5',
+      time: '#fce4ec',
+      default: '#f8f9fa',
+    },
   },
   shadows: {
     node: '0 2px 4px rgba(0, 0, 0, 0.2)',
@@ -305,6 +345,15 @@ export const corporateTheme: Theme = {
       default: 'rgba(0, 102, 204, 0.1)',
       border: 'rgba(0, 102, 204, 0.3)',
       text: '#0066cc',
+    },
+    nodeCategories: {
+      input: '#e8f5e9',
+      output: '#e3f2fd',
+      function: '#fff9c4',
+      network: '#ffe0b2',
+      storage: '#f3e5f5',
+      time: '#fce4ec',
+      default: '#f8f9fa',
     },
   },
   shadows: {
