@@ -41,6 +41,11 @@ export const storeLogger = debug(`${namespace}:store`)
 export const appLogger = debug(`${namespace}:app`)
 
 /**
+ * Logger para WebSocket
+ */
+export const wsLogger = debug(`${namespace}:websocket`)
+
+/**
  * Configurar el sistema de logging
  * Se ejecuta automáticamente al importar este módulo
  */

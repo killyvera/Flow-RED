@@ -243,8 +243,6 @@ export async function getAvailableNodes(): Promise<Array<{
     
     
     entries.forEach(([moduleId, moduleInfo]: [string, any]) => {
-      if (moduleId && moduleInfo) {
-      }
       
       if (moduleInfo && moduleInfo.types && Array.isArray(moduleInfo.types)) {
         moduleInfo.types.forEach((nodeType: string) => {
@@ -322,6 +320,40 @@ export interface SaveFlowError extends Error {
   nodeRedError?: any
 }
 
+/**
+ * Activa un nodo inject manualmente
+ * 
+ * @param nodeId ID del nodo inject a activar
+ * @returns Promise que se resuelve cuando el nodo se activa
+ */
+export async function triggerInjectNode(nodeId: string): Promise<void> {
+  apiLogger(`🖱️ Activando nodo inject: ${nodeId}`)
+  
+  try {
+    // Node-RED API para activar un nodo inject: POST /inject/:id
+    // Esta es la ruta del admin API de Node-RED
+    const baseUrl = getNodeRedBaseUrl()
+    const url = `${baseUrl}/inject/${nodeId}`
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error')
+      throw new Error(`HTTP ${response.status}: ${errorText}`)
+    }
+    
+    apiLogger(`✅ Nodo inject activado: ${nodeId}`)
+  } catch (err: any) {
+    apiLogger(`❌ Error al activar nodo inject ${nodeId}:`, err.message)
+    throw err
+  }
+}
+
 export async function saveFlow(
   flowId: string,
   nodes: NodeRedNode[],
@@ -371,6 +403,8 @@ export async function saveFlow(
       label: `Flow ${flowId.slice(0, 8)}`,
       disabled: false,
       info: '',
+      x: 0,  // Los tabs necesitan x e y para pasar la validación
+      y: 0,  // aunque no los usen visualmente
     } as NodeRedNode,
     ...nodes,
   ]

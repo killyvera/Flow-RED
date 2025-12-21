@@ -31,6 +31,7 @@
   --color-edge-default: #adb5bd;
   --color-edge-selected: #ff6d5a;
   --color-edge-hover: #ff8a7a;
+  --color-edge-active: #10b981;
   
   /* Sombras para nodos - Modo claro */
   --shadow-node: 0 1px 3px rgba(0, 0, 0, 0.1);

@@ -15,6 +15,8 @@ import type { BaseNodeProps } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { getNodeHeaderColor } from '@/utils/nodeColors'
 import type { LucideIcon } from 'lucide-react'
+import { useCanvasStore } from '@/state/canvasStore'
+import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 
 /**
  * Componente BaseNode
@@ -95,6 +97,11 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
   const statusColor = hasStatus ? getStatusColor(nodeStatus.fill) : undefined
   const statusShape = nodeStatus?.shape || 'dot'
 
+  // Obtener estado de runtime del store
+  const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
+  const runtimeState = nodeRedNode?.id ? nodeRuntimeStates.get(nodeRedNode.id) : undefined
+  const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
+
   // Calcular posiciones de los handles de salida
   // Si hay múltiples puertos, distribuirlos verticalmente
   const getOutputHandlePosition = (index: number, total: number) => {
@@ -168,8 +175,24 @@ export const BaseNode = memo(({ data, selected, dragging }: BaseNodeProps) => {
             {label || nodeRedType || 'Node'}
           </h3>
 
-          {/* Badge de status en esquina superior derecha */}
-          {hasStatus && statusColor && (
+          {/* Indicador de estado de runtime (prioridad sobre status estático) */}
+          {runtimeStateColor && (
+            <div
+              className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white shadow-sm"
+              style={{
+                backgroundColor: runtimeStateColor,
+              }}
+              title={
+                runtimeState === 'running' ? 'Ejecutando' :
+                runtimeState === 'error' ? 'Error' :
+                runtimeState === 'warning' ? 'Advertencia' :
+                'Inactivo'
+              }
+            />
+          )}
+          
+          {/* Badge de status estático (solo si no hay estado de runtime) */}
+          {!runtimeStateColor && hasStatus && statusColor && (
             <div
               className="absolute top-2 right-2 flex items-center gap-1"
               title={nodeStatus.text || ''}
