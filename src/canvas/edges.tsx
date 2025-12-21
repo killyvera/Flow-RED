@@ -30,7 +30,8 @@ const AnimatedEdge = memo(function AnimatedEdge({
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
   const explainMode = useCanvasStore((state) => state.explainMode)
-  const isActive = activeEdges.has(id)
+  const perfMode = useCanvasStore((state) => state.perfMode)
+  const isActive = activeEdges.has(id) && !perfMode // Deshabilitar activación en perf mode
   const [isHovered, setIsHovered] = useState(false)
   
   // Log cuando el edge se activa/desactiva
@@ -65,24 +66,22 @@ const AnimatedEdge = memo(function AnimatedEdge({
         path={edgePath}
         style={{
           ...style,
-          strokeWidth: isActive ? 4 : (style.strokeWidth as number) || 2,
-          stroke: isActive 
+          strokeWidth: isActive && !perfMode ? 4 : (style.strokeWidth as number) || 2,
+          stroke: isActive && !perfMode
             ? 'var(--color-edge-active)' // Color activo del tema
             : (style.stroke as string) || 'var(--color-edge-default)', // Color por defecto del tema
           fill: 'none',
-          transition: 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
-          filter: isActive 
-            ? 'drop-shadow(0 0 6px var(--color-edge-active-glow))' 
-            : 'none',
+          transition: perfMode ? 'none' : 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
+          filter: perfMode || !isActive ? 'none' : 'drop-shadow(0 0 6px var(--color-edge-active-glow))',
         }}
-        className={isActive ? 'edge-active' : ''}
+        className={isActive && !perfMode ? 'edge-active' : ''}
         markerEnd={markerEnd}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       />
       
-      {/* Capa de pulso cuando está activo */}
-      {isActive && (
+      {/* Capa de pulso cuando está activo (solo si no está en perf mode) */}
+      {isActive && !perfMode && (
         <>
           {/* Path de pulso con animación CSS */}
           <BaseEdge

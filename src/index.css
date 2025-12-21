@@ -348,3 +348,34 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-secondary);
 }
+
+/* Performance Mode - Deshabilitar animaciones y sombras pesadas */
+.perf-mode .react-flow__node {
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+.perf-mode .react-flow__edge {
+  transition: none !important;
+  filter: none !important;
+}
+
+.perf-mode .react-flow__edge-path {
+  filter: none !important;
+}
+
+.perf-mode .edge-active {
+  animation: none !important;
+}
+
+.perf-mode .edge-pulse {
+  animation: none !important;
+}
+
+.perf-mode .react-flow__handle {
+  transition: none !important;
+}
+
+.perf-mode .react-flow__handle:hover {
+  transform: none !important;
+}

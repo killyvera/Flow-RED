@@ -31,6 +31,9 @@ import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
 import { ExecutionBar } from '@/components/ExecutionBar'
 import { ExplainModeStepper } from '@/components/ExplainModeStepper'
+import { PerfModeToggle } from '@/components/PerfModeToggle'
+import { PerfReadout } from '@/components/PerfReadout'
+import { getPerformanceMonitor } from '@/utils/performance'
 import { HelpCircle } from 'lucide-react'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
@@ -167,6 +170,7 @@ export function CanvasPage() {
   const setCollapsedGroupIds = useCanvasStore((state) => state.setCollapsedGroupIds)
   const explainMode = useCanvasStore((state) => state.explainMode)
   const toggleExplainMode = useCanvasStore((state) => state.toggleExplainMode)
+  const perfMode = useCanvasStore((state) => state.perfMode)
 
   // Cargar estado de grupos colapsados desde localStorage inicialmente
   const hasInitializedCollapsedRef = React.useRef(false)
@@ -239,9 +243,16 @@ export function CanvasPage() {
   // Ref para almacenar los nodos actualizados y actualizar el store después del render
   const pendingStoreUpdateRef = React.useRef<{ nodes: Node[] | null; edges: Edge[] | null }>({ nodes: null, edges: null })
   
+  // Performance monitor (solo en dev mode)
+  const perfMonitorRef = React.useRef(import.meta.env.DEV ? getPerformanceMonitor() : null)
+  
   // Efecto para aplicar actualizaciones pendientes al store después del render
   // Usar useLayoutEffect para ejecutar antes del paint, pero después del render
   React.useLayoutEffect(() => {
+    // Medir tiempo de render (solo en dev mode)
+    if (perfMonitorRef.current) {
+      perfMonitorRef.current.startRender()
+    }
     if (pendingStoreUpdateRef.current.nodes) {
       const nodesToUpdate = pendingStoreUpdateRef.current.nodes
       pendingStoreUpdateRef.current.nodes = null
@@ -1683,7 +1694,7 @@ export function CanvasPage() {
   }
 
   return (
-    <div className="w-full h-full bg-canvas-bg flex flex-col">
+    <div className={`w-full h-full bg-canvas-bg flex flex-col ${perfMode ? 'perf-mode' : ''}`}>
       {/* Barra superior con selector de flow y estado */}
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center gap-4">
 
@@ -1717,6 +1728,10 @@ export function CanvasPage() {
           <HelpCircle className="w-3.5 h-3.5" />
           <span>Explain Mode</span>
         </button>
+
+        {/* Botón Performance Mode */}
+        <div className="w-px h-6 bg-canvas-grid" />
+        <PerfModeToggle />
 
         {/* Botón de guardar (solo en modo edición) */}
         {isEditMode && activeFlowId && (
@@ -2325,6 +2340,9 @@ export function CanvasPage() {
       {/* Execution Bar - Barra de estado de Execution Frames */}
       <ExecutionBar />
       <ExplainModeStepper />
+      
+      {/* Performance Readout (dev-only) */}
+      <PerfReadout />
     </div>
   )
 }

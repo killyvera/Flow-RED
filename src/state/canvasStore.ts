@@ -81,6 +81,10 @@ export interface CanvasState {
   executionFramesEnabled: boolean
   /** Si Explain Mode está activo */
   explainMode: boolean
+  /** Si Performance Mode está activo */
+  perfMode: boolean
+  /** Tamaño de la cola de eventos WebSocket (para métricas) */
+  wsEventQueueSize: number
   
   // Acciones
   setNodes: (nodes: ReactFlowNode[]) => void
@@ -121,6 +125,10 @@ export interface CanvasState {
   setExplainMode: (enabled: boolean) => void
   toggleExplainMode: () => void
   
+  // Acciones para Performance Mode
+  setPerfMode: (enabled: boolean) => void
+  togglePerfMode: () => void
+  
   reset: () => void
 }
 
@@ -147,6 +155,10 @@ const initialState: CanvasState = {
   nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
   executionFramesEnabled: true, // Habilitado por defecto
   explainMode: false, // Deshabilitado por defecto
+  perfMode: typeof window !== 'undefined' 
+    ? localStorage.getItem('perfMode') === 'true' 
+    : false, // Leer desde localStorage si está disponible
+  wsEventQueueSize: 0, // Tamaño de cola de eventos WebSocket
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -309,6 +321,25 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   // Explain Mode actions
   setExplainMode: (enabled) => set({ explainMode: enabled }),
   toggleExplainMode: () => set((state) => ({ explainMode: !state.explainMode })),
+  
+  // Performance Mode actions
+  setPerfMode: (enabled) => {
+    set({ perfMode: enabled })
+    // Persistir en localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('perfMode', enabled.toString())
+    }
+  },
+  togglePerfMode: () => set((state) => {
+    const newValue = !state.perfMode
+    // Persistir en localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('perfMode', newValue.toString())
+    }
+    return { perfMode: newValue }
+  }),
+  
+  setWsEventQueueSize: (size) => set({ wsEventQueueSize: size }),
   
   reset: () => set({
     ...initialState,

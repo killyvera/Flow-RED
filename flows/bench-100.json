@@ -1,0 +1,2103 @@
+{
+  "flows": [
+    {
+      "id": "bench-flow",
+      "type": "tab",
+      "label": "Benchmark Flow (100 nodes)",
+      "disabled": false,
+      "info": "Flow sintético generado para benchmarks de performance con 100 nodos",
+      "env": []
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-0",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 0",
+      "x": 100,
+      "y": 100,
+      "wires": [
+        [
+          "node-1"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 0",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 0",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-1",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 1",
+      "x": 350,
+      "y": 100,
+      "wires": [
+        [
+          "node-2"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 1",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 1",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-2",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 2",
+      "x": 600,
+      "y": 100,
+      "wires": [
+        [
+          "node-3"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-3",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 3",
+      "x": 850,
+      "y": 100,
+      "wires": [
+        [
+          "node-4"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-4",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 4",
+      "x": 1100,
+      "y": 100,
+      "wires": [
+        [
+          "node-5"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 4",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 4",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-5",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 5",
+      "x": 1350,
+      "y": 100,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 5",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 5",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-6",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 6",
+      "x": 1600,
+      "y": 100,
+      "wires": [
+        [
+          "node-7"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 6",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 6",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-7",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 7",
+      "x": 1850,
+      "y": 100,
+      "wires": [
+        [
+          "node-8"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 7",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 7",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-8",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 8",
+      "x": 2100,
+      "y": 100,
+      "wires": [
+        [
+          "node-9"
+        ]
+      ],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-9",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 9",
+      "x": 2350,
+      "y": 100,
+      "wires": [
+        [
+          "node-10"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-10",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 10",
+      "x": 100,
+      "y": 220,
+      "wires": [
+        [
+          "node-11"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-11",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 11",
+      "x": 350,
+      "y": 220,
+      "wires": [],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-12",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 12",
+      "x": 600,
+      "y": 220,
+      "wires": [
+        [
+          "node-13"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 12",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 12",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-13",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 13",
+      "x": 850,
+      "y": 220,
+      "wires": [
+        [
+          "node-14"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-14",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 14",
+      "x": 1100,
+      "y": 220,
+      "wires": [
+        [
+          "node-15"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-15",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 15",
+      "x": 1350,
+      "y": 220,
+      "wires": [
+        [
+          "node-16"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-16",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 16",
+      "x": 1600,
+      "y": 220,
+      "wires": [
+        [
+          "node-17"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 16",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 16",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-17",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 17",
+      "x": 1850,
+      "y": 220,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-18",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 18",
+      "x": 2100,
+      "y": 220,
+      "wires": [
+        [
+          "node-19"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 18",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 18",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-19",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 19",
+      "x": 2350,
+      "y": 220,
+      "wires": [
+        [
+          "node-20"
+        ]
+      ],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-20",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 20",
+      "x": 100,
+      "y": 340,
+      "wires": [
+        [
+          "node-21"
+        ]
+      ],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-21",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 21",
+      "x": 350,
+      "y": 340,
+      "wires": [
+        [
+          "node-22"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 21",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 21",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-22",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 22",
+      "x": 600,
+      "y": 340,
+      "wires": [
+        [
+          "node-23"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-23",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 23",
+      "x": 850,
+      "y": 340,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 23",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 23",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-24",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 24",
+      "x": 1100,
+      "y": 340,
+      "wires": [
+        [
+          "node-25"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-25",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 25",
+      "x": 1350,
+      "y": 340,
+      "wires": [
+        [
+          "node-26"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-26",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 26",
+      "x": 1600,
+      "y": 340,
+      "wires": [
+        [
+          "node-27"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-27",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 27",
+      "x": 1850,
+      "y": 340,
+      "wires": [
+        [
+          "node-28"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-28",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 28",
+      "x": 2100,
+      "y": 340,
+      "wires": [
+        [
+          "node-29"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 28",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 28",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-29",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 29",
+      "x": 2350,
+      "y": 340,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-30",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 30",
+      "x": 100,
+      "y": 460,
+      "wires": [
+        [
+          "node-31"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-31",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 31",
+      "x": 350,
+      "y": 460,
+      "wires": [
+        [
+          "node-32"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-32",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 32",
+      "x": 600,
+      "y": 460,
+      "wires": [
+        [
+          "node-33"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-33",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 33",
+      "x": 850,
+      "y": 460,
+      "wires": [
+        [
+          "node-34"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 33",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 33",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-34",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 34",
+      "x": 1100,
+      "y": 460,
+      "wires": [
+        [
+          "node-35"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-35",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 35",
+      "x": 1350,
+      "y": 460,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-36",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 36",
+      "x": 1600,
+      "y": 460,
+      "wires": [
+        [
+          "node-37"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-37",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 37",
+      "x": 1850,
+      "y": 460,
+      "wires": [
+        [
+          "node-38"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-38",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 38",
+      "x": 2100,
+      "y": 460,
+      "wires": [
+        [
+          "node-39"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-39",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 39",
+      "x": 2350,
+      "y": 460,
+      "wires": [
+        [
+          "node-40"
+        ]
+      ],
+      "method": "GET",
+      "url": "https://api.example.com/data/39",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-40",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 40",
+      "x": 100,
+      "y": 580,
+      "wires": [
+        [
+          "node-41"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 40",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 40",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-41",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 41",
+      "x": 350,
+      "y": 580,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 41",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 41",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-42",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 42",
+      "x": 600,
+      "y": 580,
+      "wires": [
+        [
+          "node-43",
+          "node-44",
+          "node-45"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-43",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 43",
+      "x": 850,
+      "y": 580,
+      "wires": [],
+      "method": "GET",
+      "url": "https://api.example.com/data/43",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-44",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 44",
+      "x": 1100,
+      "y": 580,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-45",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 45",
+      "x": 1350,
+      "y": 580,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-46",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 46",
+      "x": 1600,
+      "y": 580,
+      "wires": [
+        [
+          "node-47",
+          "node-48",
+          "node-49"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-47",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 47",
+      "x": 1850,
+      "y": 580,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-48",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 48",
+      "x": 2100,
+      "y": 580,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-49",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 49",
+      "x": 2350,
+      "y": 580,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-50",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 50",
+      "x": 100,
+      "y": 700,
+      "wires": [
+        [
+          "node-51",
+          "node-52"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 50",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 50",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-51",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 51",
+      "x": 350,
+      "y": 700,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 51",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 51",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-52",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 52",
+      "x": 600,
+      "y": 700,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 52",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 52",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-53",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 53",
+      "x": 850,
+      "y": 700,
+      "wires": [
+        [
+          "node-54",
+          "node-55",
+          "node-56"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-54",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 54",
+      "x": 1100,
+      "y": 700,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-55",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 55",
+      "x": 1350,
+      "y": 700,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-56",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 56",
+      "x": 1600,
+      "y": 700,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 56",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 56",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-57",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 57",
+      "x": 1850,
+      "y": 700,
+      "wires": [
+        [
+          "node-58",
+          "node-59",
+          "node-60"
+        ]
+      ],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-58",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 58",
+      "x": 2100,
+      "y": 700,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-59",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 59",
+      "x": 2350,
+      "y": 700,
+      "wires": [],
+      "method": "GET",
+      "url": "https://api.example.com/data/59",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-60",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 60",
+      "x": 100,
+      "y": 820,
+      "wires": [],
+      "method": "GET",
+      "url": "https://api.example.com/data/60",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-61",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 61",
+      "x": 350,
+      "y": 820,
+      "wires": [
+        [
+          "node-62",
+          "node-63",
+          "node-64",
+          "node-65"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-62",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 62",
+      "x": 600,
+      "y": 820,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-63",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 63",
+      "x": 850,
+      "y": 820,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 63",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 63",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-64",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 64",
+      "x": 1100,
+      "y": 820,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 64",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 64",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-65",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 65",
+      "x": 1350,
+      "y": 820,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-66",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 66",
+      "x": 1600,
+      "y": 820,
+      "wires": [
+        [
+          "node-67",
+          "node-68",
+          "node-69",
+          "node-70"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-67",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 67",
+      "x": 1850,
+      "y": 820,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 67",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 67",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-68",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 68",
+      "x": 2100,
+      "y": 820,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-69",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 69",
+      "x": 2350,
+      "y": 820,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-70",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 70",
+      "x": 100,
+      "y": 940,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-71",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 71",
+      "x": 350,
+      "y": 940,
+      "wires": [
+        [
+          "node-72",
+          "node-73",
+          "node-74",
+          "node-75"
+        ]
+      ],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-72",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 72",
+      "x": 600,
+      "y": 940,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-73",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 73",
+      "x": 850,
+      "y": 940,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-74",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 74",
+      "x": 1100,
+      "y": 940,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-75",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 75",
+      "x": 1350,
+      "y": 940,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-76",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 76",
+      "x": 1600,
+      "y": 940,
+      "wires": [
+        [
+          "node-77",
+          "node-78"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 76",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 76",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-77",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 77",
+      "x": 1850,
+      "y": 940,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-78",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 78",
+      "x": 2100,
+      "y": 940,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-79",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 79",
+      "x": 2350,
+      "y": 940,
+      "wires": [
+        [
+          "node-80",
+          "node-81"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-80",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 80",
+      "x": 100,
+      "y": 1060,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-81",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 81",
+      "x": 350,
+      "y": 1060,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-82",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 82",
+      "x": 600,
+      "y": 1060,
+      "wires": [
+        [
+          "node-83",
+          "node-84"
+        ]
+      ],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 82",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 82",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-83",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 83",
+      "x": 850,
+      "y": 1060,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 83",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 83",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-84",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 84",
+      "x": 1100,
+      "y": 1060,
+      "wires": [],
+      "method": "GET",
+      "url": "https://api.example.com/data/84",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-85",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 85",
+      "x": 1350,
+      "y": 1060,
+      "wires": [
+        [
+          "node-86",
+          "node-87"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-86",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 86",
+      "x": 1600,
+      "y": 1060,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-87",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 87",
+      "x": 1850,
+      "y": 1060,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-88",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 88",
+      "x": 2100,
+      "y": 1060,
+      "wires": [
+        [
+          "node-89",
+          "node-90"
+        ]
+      ],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-89",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 89",
+      "x": 2350,
+      "y": 1060,
+      "wires": [],
+      "method": "GET",
+      "url": "https://api.example.com/data/89",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-90",
+      "type": "debug",
+      "z": "bench-flow",
+      "name": "Debug 90",
+      "x": 100,
+      "y": 1180,
+      "wires": [],
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "payload",
+      "targetType": "msg",
+      "statusVal": "",
+      "statusType": "auto"
+    },
+    {
+      "id": "node-91",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 91",
+      "x": 350,
+      "y": 1180,
+      "wires": [
+        [
+          "node-92",
+          "node-93",
+          "node-94",
+          "node-95"
+        ]
+      ],
+      "method": "GET",
+      "url": "https://api.example.com/data/91",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-92",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 92",
+      "x": 600,
+      "y": 1180,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-93",
+      "type": "change",
+      "z": "bench-flow",
+      "name": "Change 93",
+      "x": 850,
+      "y": 1180,
+      "wires": [],
+      "rules": [
+        {
+          "t": "set",
+          "p": "payload",
+          "pt": "msg",
+          "to": "test",
+          "tot": "str"
+        }
+      ],
+      "action": "",
+      "property": "",
+      "from": "",
+      "to": "",
+      "reg": false
+    },
+    {
+      "id": "node-94",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 94",
+      "x": 1100,
+      "y": 1180,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 94",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 94",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-95",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 95",
+      "x": 1350,
+      "y": 1180,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-96",
+      "type": "http request",
+      "z": "bench-flow",
+      "name": "HTTP 96",
+      "x": 1600,
+      "y": 1180,
+      "wires": [
+        [
+          "node-97",
+          "node-98",
+          "node-99"
+        ]
+      ],
+      "method": "GET",
+      "url": "https://api.example.com/data/96",
+      "paytoqs": "ignore",
+      "tls": "",
+      "persist": false,
+      "proxy": "",
+      "authType": "",
+      "senderr": false
+    },
+    {
+      "id": "node-97",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 97",
+      "x": 1850,
+      "y": 1180,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    },
+    {
+      "id": "node-98",
+      "type": "inject",
+      "z": "bench-flow",
+      "name": "Trigger 98",
+      "x": 2100,
+      "y": 1180,
+      "wires": [],
+      "props": [
+        {
+          "p": "payload",
+          "v": "Test 98",
+          "vt": "str"
+        }
+      ],
+      "repeat": "",
+      "cron": "",
+      "once": false,
+      "onceDelay": 0.1,
+      "topic": "",
+      "payload": "Test 98",
+      "payloadType": "str"
+    },
+    {
+      "id": "node-99",
+      "type": "function",
+      "z": "bench-flow",
+      "name": "Process 99",
+      "x": 2350,
+      "y": 1180,
+      "wires": [],
+      "func": "msg.payload = \"Processed: \" + msg.payload;\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "timeout": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": []
+    }
+  ]
+}

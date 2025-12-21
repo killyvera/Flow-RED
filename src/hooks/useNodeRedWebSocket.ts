@@ -11,6 +11,8 @@ import { useCanvasStore } from '@/state/canvasStore'
 import { mapNodeRedStatusToRuntimeState } from '@/utils/runtimeStatusMapper'
 import { wsLogger } from '@/utils/logger'
 import { isTriggerNode, shouldStartNewFrame, shouldEndFrame, createPayloadPreview, extractNodeIdFromEvent } from '@/utils/executionFrameManager'
+import { BoundedQueue, EventCoalescer, extractNodeIdFromEvent as extractNodeIdFromBackpressure } from '@/utils/backpressure'
+import { getPerformanceMonitor } from '@/utils/performance'
 import type { Edge } from 'reactflow'
 
 /**
@@ -27,6 +29,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const addExecutionLog = useCanvasStore((state) => state.addExecutionLog)
   const setActiveEdge = useCanvasStore((state) => state.setActiveEdge)
   const clearActiveEdges = useCanvasStore((state) => state.clearActiveEdges)
+  const setWsEventQueueSize = useCanvasStore((state) => state.setWsEventQueueSize)
   const edges = useCanvasStore((state) => state.edges)
   const nodes = useCanvasStore((state) => state.nodes)
   
@@ -42,6 +45,10 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const nodeExecutionStartTimes = useRef<Map<string, number>>(new Map())
   const lastEventTimeRef = useRef<number>(Date.now())
   const frameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  // Backpressure: Cola acotada y coalescedor de eventos
+  const eventQueue = useRef(new BoundedQueue<NodeRedWebSocketEvent>(1000))
+  const eventCoalescer = useRef(new EventCoalescer())
 
   useEffect(() => {
     // console.log('🎣 [useNodeRedWebSocket] Hook montado, enabled:', enabled)
@@ -150,16 +157,21 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
     }
 
-    // Handler para eventos de WebSocket
-    const handleEvent = (event: NodeRedWebSocketEvent) => {
-      // Log todos los eventos para debugging
-      console.log('🎯 [WebSocket] Evento recibido:', {
-        topic: event.topic,
-        hasPayload: !!event.payload,
-        hasData: !!event.data,
-        payload: event.payload,
-        data: event.data
+    // Configurar coalescer para procesar eventos en batch
+    eventCoalescer.current.setProcessCallback((events: NodeRedWebSocketEvent[]) => {
+      // Procesar todos los eventos coalescidos
+      events.forEach(event => {
+        processEvent(event)
       })
+    })
+
+    // Handler interno que procesa eventos (llamado desde coalescer)
+    const processEvent = (event: NodeRedWebSocketEvent) => {
+      // Registrar evento para métricas de performance
+      if (import.meta.env.DEV) {
+        const monitor = getPerformanceMonitor()
+        monitor.recordEvent()
+      }
       
       try {
         // Node-RED envía eventos de status con topic 'status/nodeId'
@@ -424,6 +436,24 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
     }
 
+    // Handler externo que recibe eventos del WebSocket y aplica backpressure
+    const handleEvent = (event: NodeRedWebSocketEvent) => {
+      // Agregar a cola acotada (puede descartar eventos antiguos si está llena)
+      const enqueued = eventQueue.current.enqueue(event)
+      if (!enqueued) {
+        console.warn('⚠️ [WebSocket] Cola de eventos llena, descartando evento antiguo')
+      }
+      
+      // Coalescer por nodo (mantiene solo el último evento por nodo en un tick)
+      const nodeId = extractNodeIdFromBackpressure(event)
+      if (nodeId) {
+        eventCoalescer.current.addEvent(nodeId, event)
+      } else {
+        // Si no se puede extraer nodeId, procesar inmediatamente
+        processEvent(event)
+      }
+    }
+
     // IMPORTANTE: Registrar el handler ANTES de conectar para no perder mensajes
     // console.log('📝 [useNodeRedWebSocket] Registrando handler ANTES de conectar...')
     const unsubscribe = client.onEvent(handleEvent)
@@ -453,6 +483,10 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
         frameTimeoutRef.current = null
       }
       
+      // Limpiar backpressure
+      eventQueue.current.clear()
+      eventCoalescer.current.clear()
+      
       if (unsubscribeRef.current) {
         unsubscribeRef.current()
         unsubscribeRef.current = null
@@ -462,7 +496,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       // Solo limpiar la suscripción
       wsLogger('Hook desmontado, limpiando suscripción')
     }
-  }, [enabled, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, edges, nodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
+  }, [enabled, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setWsEventQueueSize, edges, nodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
 
   // Limpiar estados cuando se deshabilita
   useEffect(() => {

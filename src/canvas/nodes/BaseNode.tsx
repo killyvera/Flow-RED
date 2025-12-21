@@ -10,7 +10,7 @@
  */
 
 import { memo, useState, useEffect, useRef, useMemo } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position, useReactFlow } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { getNodeHeaderColor } from '@/utils/nodeColors'
@@ -32,6 +32,13 @@ import { getNodeExplanation } from '@/utils/nodeExplanations'
 export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) => {
   // Refs para detectar doble clic en handles
   const handleDoubleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Obtener zoom level para LOD
+  const { getViewport } = useReactFlow()
+  const perfMode = useCanvasStore((state) => state.perfMode)
+  const viewport = getViewport()
+  const zoom = viewport.zoom
+  const shouldUseLOD = perfMode && zoom < 0.5
   
   // Estado para detectar cambios de tema
   const [isDark, setIsDark] = useState(() => {
@@ -211,6 +218,84 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
     nodeRedNode?.name && `Nombre: ${nodeRedNode.name}`,
   ].filter(Boolean).join('\n')
 
+  // Renderizar versión simplificada si LOD está activo
+  if (shouldUseLOD) {
+    return (
+      <div
+        className={`
+          relative
+          bg-node-default
+          border
+          rounded-xl
+          min-w-[120px]
+          max-w-[160px]
+          ${dragging ? '' : 'transition-none'}
+          ${isDisabled ? 'opacity-50 border-dashed cursor-not-allowed' : ''}
+          ${isSelected ? 'border-node-border-selected ring-1 ring-accent-primary ring-opacity-50' : 'border-node-border'}
+        `}
+        style={{
+          opacity: isDisabled ? 'var(--node-disabled-opacity)' : undefined,
+          willChange: 'transform',
+          boxShadow: 'none', // Sin sombras en LOD
+        }}
+        title={tooltipContent}
+      >
+        {/* Header simplificado */}
+        <div
+          className="px-2 py-1.5 rounded-t-xl border-b border-node-border/50"
+          style={{
+            backgroundColor: nodeHeaderColor,
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            {IconComponent && (
+              <IconComponent 
+                className="w-3 h-3 text-text-primary flex-shrink-0" 
+                strokeWidth={2}
+              />
+            )}
+            <h3 className="text-[10px] font-semibold text-text-primary truncate flex-1">
+              {label || nodeRedType || 'Node'}
+            </h3>
+            {runtimeStateColor && (
+              <div
+                className="w-2 h-2 rounded-full border border-white"
+                style={{
+                  backgroundColor: runtimeStateColor,
+                }}
+              />
+            )}
+          </div>
+        </div>
+        
+        {/* Handles simplificados */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="input"
+          className="!w-2 !h-2 !bg-node-default !border !border-node-border"
+          style={{ left: -4, top: '50%' }}
+        />
+        {Array.from({ length: outputPortsCount }, (_, index) => {
+          const handleId = `output-${index}`
+          return (
+            <Handle
+              key={handleId}
+              type="source"
+              position={Position.Right}
+              id={handleId}
+              className="!w-2 !h-2 !bg-node-default !border !border-node-border"
+              style={{
+                right: -4,
+                top: getOutputHandlePosition(index, outputPortsCount),
+              }}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div
       className={`
@@ -240,6 +325,10 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
         ...(dragging ? {
           willChange: 'transform',
           transition: 'none', // Forzar sin transiciones durante arrastre
+        } : {}),
+        // Deshabilitar sombras en perf mode
+        ...(perfMode ? {
+          boxShadow: 'none',
         } : {}),
       }}
       title={tooltipContent}
