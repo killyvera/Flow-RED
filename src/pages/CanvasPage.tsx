@@ -1577,7 +1577,7 @@ export function CanvasPage() {
                 id="flow-selector"
                 value={activeFlowId || ''}
                 onChange={(e) => handleSwitchFlow(e.target.value)}
-                className="px-2.5 py-1 text-xs border border-canvas-grid rounded-md bg-bg-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="px-2.5 py-1 text-xs border border-canvas-grid rounded-md bg-bg-primary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               >
                 {flows.map((flow) => (
                   <option key={flow.id} value={flow.id}>

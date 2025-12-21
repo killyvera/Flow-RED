@@ -29,6 +29,7 @@ export default {
         'edge-default': 'var(--color-edge-default)',
         'edge-selected': 'var(--color-edge-selected)',
         'edge-hover': 'var(--color-edge-hover)',
+        'edge-active': 'var(--color-edge-active)',
         // Colores de estado
         'status-success': 'var(--color-success)',
         'status-warning': 'var(--color-warning)',
@@ -38,6 +39,10 @@ export default {
         'accent-primary': 'var(--color-accent-primary)',
         'accent-secondary': 'var(--color-accent-secondary)',
         'accent-tertiary': 'var(--color-accent-tertiary)',
+        // Colores de grupos
+        'group-default': 'var(--color-group-default)',
+        'group-border': 'var(--color-group-border)',
+        'group-text': 'var(--color-group-text)',
       },
       fontFamily: {
         sans: 'var(--font-family-sans)',
@@ -57,16 +62,46 @@ export default {
         'md': 'var(--radius-md)',
         'lg': 'var(--radius-lg)',
         'xl': 'var(--radius-xl)',
-        '2xl': '1rem',
+        '2xl': 'var(--radius-2xl)',
       },
       boxShadow: {
         'node': 'var(--shadow-node)',
         'node-hover': 'var(--shadow-node-hover)',
         'node-selected': 'var(--shadow-node-selected)',
       },
+      spacing: {
+        'xs': 'var(--spacing-xs)',
+        'sm': 'var(--spacing-sm)',
+        'md': 'var(--spacing-md)',
+        'lg': 'var(--spacing-lg)',
+        'xl': 'var(--spacing-xl)',
+        '2xl': 'var(--spacing-2xl)',
+        '3xl': 'var(--spacing-3xl)',
+      },
+      zIndex: {
+        'base': 'var(--z-index-base)',
+        'dropdown': 'var(--z-index-dropdown)',
+        'sticky': 'var(--z-index-sticky)',
+        'fixed': 'var(--z-index-fixed)',
+        'modal': 'var(--z-index-modal)',
+        'popover': 'var(--z-index-popover)',
+        'tooltip': 'var(--z-index-tooltip)',
+      },
+      // Tokens de accesibilidad - focus rings
+      ringWidth: {
+        'focus': 'var(--focus-ring-width)',
+      },
+      ringOffsetWidth: {
+        'focus': 'var(--focus-ring-offset)',
+      },
+      ringColor: {
+        'focus': 'var(--focus-ring-color)',
+      },
+      ringOffsetColor: {
+        'focus': 'var(--focus-ring-offset-color)',
+      },
     },
   },
   plugins: [],
   darkMode: 'class', // Soporte para dark mode mediante clase
 }
-
