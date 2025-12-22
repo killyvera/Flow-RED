@@ -71,6 +71,12 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
   const handleNodeInput = useCallback((event: ObservabilityNodeInputEvent) => {
     const { frameId, nodeId, data } = event
     
+    // Validar datos requeridos
+    if (!nodeId || !frameId || !data) {
+      wsLogger('[Observability] node:input evento incompleto:', event)
+      return
+    }
+    
     // Marcar nodo como procesando
     setNodeRuntimeState(nodeId, 'running')
     
@@ -85,21 +91,24 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
       }, delay)
     })
     
+    // Extraer payload preview de forma segura
+    const payloadPreview = data.input?.payload?.preview
+      ? (typeof data.input.payload.preview === 'string' 
+          ? data.input.payload.preview 
+          : JSON.stringify(data.input.payload.preview))
+      : undefined
+    
     // Crear snapshot de input
     const snapshot: NodeExecutionSnapshot = {
       nodeId,
       frameId,
       status: 'running',
       ts: event.ts,
-      nodeType: data.nodeType,
+      nodeType: data.nodeType || 'unknown',
       input: data.input,
-      sampled: data.sampled,
+      sampled: data.sampled ?? true,
       summary: 'Input received',
-      payloadPreview: data.input.payload.preview 
-        ? (typeof data.input.payload.preview === 'string' 
-            ? data.input.payload.preview 
-            : JSON.stringify(data.input.payload.preview))
-        : undefined
+      payloadPreview
     }
     
     addNodeSnapshot(snapshot)
@@ -111,14 +120,19 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
   const handleNodeOutput = useCallback((event: ObservabilityNodeOutputEvent) => {
     const { frameId, nodeId, data } = event
     
-    // Determinar estado final basado en semantics
-    let finalState: 'idle' | 'success' | 'warning' = 'idle'
-    if (data.semantics.behavior === 'filtered') {
+    // Validar datos requeridos
+    if (!nodeId || !frameId || !data) {
+      wsLogger('[Observability] node:output evento incompleto:', event)
+      return
+    }
+    
+    // Determinar estado final basado en semantics (con fallback seguro)
+    let finalState: 'idle' | 'success' | 'warning' = 'success'
+    const behavior = data.semantics?.behavior
+    if (behavior === 'filtered') {
       finalState = 'warning' // Nodo filtró el mensaje
-    } else if (data.semantics.behavior === 'terminated') {
+    } else if (behavior === 'terminated') {
       finalState = 'idle' // Nodo terminó la ejecución (sink)
-    } else {
-      finalState = 'success' // Nodo procesó exitosamente
     }
     
     // Actualizar estado del nodo después de un pequeño delay
@@ -128,8 +142,9 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
       setTimeout(() => setNodeRuntimeState(nodeId, null), 2000)
     }, 100)
     
-    // Animar edges salientes por puerto
-    data.outputs.forEach((output, outputIndex) => {
+    // Animar edges salientes por puerto (solo si hay outputs)
+    const outputs = data.outputs || []
+    outputs.forEach((output, outputIndex) => {
       const port = output.port ?? outputIndex
       
       // Encontrar edges que salen de este nodo en este puerto
@@ -151,23 +166,31 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
     })
     
     // Crear snapshot de output con todos los datos enriquecidos
-    const primaryOutput = data.outputs[0]
+    const primaryOutput = outputs[0]
+    
+    // Extraer payload preview de forma segura
+    const payloadPreview = primaryOutput?.payload?.preview 
+      ? (typeof primaryOutput.payload.preview === 'string' 
+          ? primaryOutput.payload.preview 
+          : JSON.stringify(primaryOutput.payload.preview))
+      : undefined
+    
+    // Construir summary de forma segura
+    const role = data.semantics?.role || 'unknown'
+    const behaviorSummary = data.semantics?.behavior || 'processed'
+    
     const snapshot: NodeExecutionSnapshot = {
       nodeId,
       frameId,
       status: finalState,
       ts: event.ts,
-      nodeType: data.nodeType,
-      outputs: data.outputs,
+      nodeType: data.nodeType || 'unknown',
+      outputs: outputs,
       semantics: data.semantics,
       timing: data.timing,
-      sampled: data.sampled,
-      summary: `${data.semantics.role} - ${data.semantics.behavior}`,
-      payloadPreview: primaryOutput?.payload.preview 
-        ? (typeof primaryOutput.payload.preview === 'string' 
-            ? primaryOutput.payload.preview 
-            : JSON.stringify(primaryOutput.payload.preview))
-        : undefined
+      sampled: data.sampled ?? true,
+      summary: `${role} - ${behaviorSummary}`,
+      payloadPreview
     }
     
     addNodeSnapshot(snapshot)
