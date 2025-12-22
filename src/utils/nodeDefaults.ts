@@ -10,6 +10,14 @@
 import type { PropertyDefinition } from './nodeSchema'
 
 /**
+ * Nodos que usan custom editors
+ */
+export const nodesWithCustomEditors = new Set<string>([
+  'http request',
+  // Future: 'mqtt in', 'mqtt out', 'websocket in', etc.
+])
+
+/**
  * Propiedades conocidas por tipo de nodo
  */
 const knownNodeProperties: Record<string, PropertyDefinition[]> = {
@@ -384,6 +392,8 @@ const knownNodeProperties: Record<string, PropertyDefinition[]> = {
   ],
 
   // ===== NODOS DE RED =====
+  // http request usa custom editor (ver nodesWithCustomEditors)
+  // Estas properties son fallback si el custom editor falla
   'http request': [
     { id: 'name', type: 'str', label: 'Name', default: '' },
     { id: 'method', type: 'select', label: 'Method', default: 'GET', options: [
