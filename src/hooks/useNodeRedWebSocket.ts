@@ -43,6 +43,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const setWsEventQueueSize = useCanvasStore((state) => state.setWsEventQueueSize)
   const edges = useCanvasStore((state) => state.edges)
   const nodes = useCanvasStore((state) => state.nodes)
+  const nodeRedNodes = useCanvasStore((state) => state.nodeRedNodes)
   
   // Execution Frames
   const currentFrame = useCanvasStore((state) => state.currentFrame)
@@ -127,7 +128,29 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       return {
         name: node?.data?.label || nodeId,
         type: node?.data?.nodeRedType || 'unknown',
+        subflowDefinition: node?.data?.subflowDefinition,
       }
+    }
+    
+    // Helper para obtener la definición de subflow desde una instancia
+    const getSubflowDefinition = (nodeId: string, nodeType?: string) => {
+      // Primero intentar desde el nodo React Flow
+      const node = nodes.find(n => n.id === nodeId)
+      if (node?.data?.subflowDefinition) {
+        return node.data.subflowDefinition
+      }
+      
+      // Si no, buscar en nodeRedNodes
+      if (nodeType && nodeType.startsWith('subflow:')) {
+        const subflowId = nodeType.replace('subflow:', '')
+        const subflowDef = nodeRedNodes.find(
+          (n): n is import('@/api/types').NodeRedSubflowDefinition => 
+            n.type === 'subflow' && n.id === subflowId
+        )
+        return subflowDef || null
+      }
+      
+      return null
     }
 
     // Helper para encontrar todos los edges en una cadena desde un nodo inicial
@@ -590,6 +613,14 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     // Handler para eventos de observability
     const handleObservabilityEvent = (event: ObservabilityEvent) => {
       try {
+        // #region agent log
+        // H1: Registrar todos los eventos que llegan para diagnosticar si node:output está llegando
+        if (event.event === 'node:output' || event.event === 'node:input') {
+          const nodeEvent = event as NodeInputEvent | NodeOutputEvent
+          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:handleObservabilityEvent:entry',message:'Evento de observability recibido',data:{eventType:event.event,nodeId:nodeEvent.nodeId,nodeType:event.event === 'node:output' ? (event as NodeOutputEvent).data.nodeType : (event as NodeInputEvent).data.nodeType,frameId:nodeEvent.frameId,hasOutputs:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length > 0 : false,outputsCount:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length : 0},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+        }
+        // #endregion
+        
         switch (event.event) {
           case 'connected':
             wsLogger('[Observability] Conectado al plugin')
@@ -620,7 +651,108 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           
           case 'node:input': {
             const nodeInput = event as NodeInputEvent
+            wsLogger('[Observability] node:input recibido:', {
+              nodeId: nodeInput.nodeId,
+              nodeType: nodeInput.data.nodeType,
+              frameId: nodeInput.frameId,
+              hasInput: !!nodeInput.data.input,
+              hasPayload: !!nodeInput.data.input?.payload,
+              hasPreview: !!nodeInput.data.input?.payload?.preview,
+            })
             const snapshot = mapNodeInputToSnapshot(nodeInput)
+            wsLogger('[Observability] Snapshot creado:', {
+              nodeId: snapshot.nodeId,
+              hasPayloadPreview: !!snapshot.payloadPreview,
+              summary: snapshot.summary,
+            })
+            
+            // Detectar si es un subflow y obtener información del puerto
+            const subflowDef = getSubflowDefinition(nodeInput.nodeId, nodeInput.data.nodeType)
+            
+            // Obtener edges entrantes al subflow
+            const incomingEdges = edges.filter(e => e.target === nodeInput.nodeId)
+            
+            // Obtener edges activos actualmente (para inferir qué puerto se usó)
+            const activeEdgesSet = useCanvasStore.getState().activeEdges
+            const activeIncomingEdges = incomingEdges.filter(e => activeEdgesSet.has(e.id))
+            
+            // Si es un subflow, intentar inferir el puerto de entrada
+            if (subflowDef && subflowDef.in && subflowDef.in.length > 1) {
+              let inferredPort: number | undefined
+              
+              // Estrategia 1: Si hay un edge activo, usar ese para inferir el puerto
+              if (activeIncomingEdges.length === 1) {
+                const activeEdge = activeIncomingEdges[0]
+                // Intentar extraer puerto desde targetHandle
+                if (activeEdge.targetHandle && activeEdge.targetHandle.startsWith('input-')) {
+                  const port = parseInt(activeEdge.targetHandle.replace('input-', ''), 10)
+                  if (!isNaN(port) && port < subflowDef.in.length) {
+                    inferredPort = port
+                  }
+                }
+                // Si no hay targetHandle, usar el índice del edge en la lista
+                if (inferredPort === undefined) {
+                  const edgeIndex = incomingEdges.indexOf(activeEdge)
+                  if (edgeIndex >= 0 && edgeIndex < subflowDef.in.length) {
+                    inferredPort = edgeIndex
+                  }
+                }
+              }
+              
+              // Estrategia 2: Si hay un solo edge total, es el puerto 0
+              if (inferredPort === undefined && incomingEdges.length === 1) {
+                inferredPort = 0
+              }
+              
+              // Estrategia 3: Si hay múltiples edges, intentar usar targetHandle de cualquier edge
+              if (inferredPort === undefined && incomingEdges.length > 1) {
+                const edgeWithPort = incomingEdges.find(e => {
+                  if (e.targetHandle && e.targetHandle.startsWith('input-')) {
+                    const port = parseInt(e.targetHandle.replace('input-', ''), 10)
+                    return !isNaN(port) && port < subflowDef.in.length
+                  }
+                  return false
+                })
+                
+                if (edgeWithPort && edgeWithPort.targetHandle) {
+                  const port = parseInt(edgeWithPort.targetHandle.replace('input-', ''), 10)
+                  if (!isNaN(port)) {
+                    inferredPort = port
+                  }
+                }
+              }
+              
+              if (inferredPort !== undefined && inferredPort < subflowDef.in.length) {
+                snapshot.summary = `Input port ${inferredPort + 1}/${subflowDef.in.length}: ${snapshot.summary || 'Input received'}`
+                
+                // Animar solo el edge correspondiente al puerto
+                const edgeForPort = incomingEdges.find(e => {
+                  if (e.targetHandle === `input-${inferredPort}`) return true
+                  return incomingEdges.indexOf(e) === inferredPort
+                }) || incomingEdges[inferredPort] || incomingEdges[0]
+                
+                if (edgeForPort) {
+                  setActiveEdge(edgeForPort.id, true)
+                  setTimeout(() => setActiveEdge(edgeForPort.id, false), 2000)
+                }
+              } else {
+                // No pudimos inferir el puerto, mostrar información general
+                snapshot.summary = `Subflow input (${subflowDef.in.length} port${subflowDef.in.length > 1 ? 's' : ''}): ${snapshot.summary || 'Input received'}`
+                
+                // Animar todos los edges entrantes
+                incomingEdges.forEach(edge => {
+                  setActiveEdge(edge.id, true)
+                  setTimeout(() => setActiveEdge(edge.id, false), 2000)
+                })
+              }
+            } else {
+              // Nodo normal o subflow con un solo puerto
+              // Animar todos los edges entrantes
+              incomingEdges.forEach(edge => {
+                setActiveEdge(edge.id, true)
+                setTimeout(() => setActiveEdge(edge.id, false), 2000)
+              })
+            }
             
             // Actualizar estado del nodo a "processing"
             setNodeRuntimeState(nodeInput.nodeId, 'running')
@@ -638,19 +770,49 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
             existingData.input = nodeInput.data.input
             frameNodes.set(nodeInput.nodeId, existingData)
             frameNodesDataRef.current.set(nodeInput.frameId, frameNodes)
-            
-            // Animar edges entrantes
-            const incomingEdges = edges.filter(e => e.target === nodeInput.nodeId)
-            incomingEdges.forEach(edge => {
-              setActiveEdge(edge.id, true)
-              setTimeout(() => setActiveEdge(edge.id, false), 2000)
-            })
             break
           }
           
           case 'node:output': {
             const nodeOutput = event as NodeOutputEvent
+            
+            // #region agent log
+            // H1: Comparar input vs output payloads para el mismo nodo
+            const frameNodesForComparison = frameNodesDataRef.current.get(nodeOutput.frameId) || new Map()
+            const existingNodeData = frameNodesForComparison.get(nodeOutput.nodeId)
+            const inputPayload = existingNodeData?.input?.payload?.preview
+            const outputPayload = nodeOutput.data.outputs[0]?.payload?.preview
+            const payloadsAreEqual = JSON.stringify(inputPayload) === JSON.stringify(outputPayload)
+            const safeStringify = (val: any) => {
+              if (val === undefined || val === null) return 'undefined'
+              if (typeof val === 'string') return val.substring(0, 50)
+              try {
+                const str = JSON.stringify(val)
+                return str ? str.substring(0, 50) : 'empty'
+              } catch {
+                return 'unserializable'
+              }
+            }
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:node:output',message:'Comparación input vs output',data:{nodeId:nodeOutput.nodeId,nodeType:nodeOutput.data.nodeType,frameId:nodeOutput.frameId,hasInput:!!existingNodeData?.input,hasOutput:nodeOutput.data.outputs.length > 0,inputPayload:safeStringify(inputPayload),outputPayload:safeStringify(outputPayload),payloadsAreEqual,outputsCount:nodeOutput.data.outputs.length,allOutputs:nodeOutput.data.outputs.map((o, idx) => ({index: idx, port: o.port, hasPreview: !!o.payload?.preview, previewType: o.payload?.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
+            
             const snapshot = mapNodeOutputToSnapshot(nodeOutput)
+            
+            // Detectar si es un subflow y obtener información de los puertos
+            const nodeInfo = getNodeInfo(nodeOutput.nodeId)
+            const subflowDef = getSubflowDefinition(nodeOutput.nodeId, nodeOutput.data.nodeType)
+            
+            // Si es un subflow, agregar información de los puertos al snapshot
+            if (subflowDef && nodeOutput.data.outputs.length > 0) {
+              const portsInfo = nodeOutput.data.outputs
+                .map((output, idx) => {
+                  const port = output.port ?? idx
+                  const totalPorts = subflowDef.out?.length || 1
+                  return `Port ${port + 1}/${totalPorts}`
+                })
+                .join(', ')
+              snapshot.summary = `${snapshot.summary || 'Output sent'} (${portsInfo})`
+            }
             
             // Determinar estado basado en semantics
             const runtimeState = mapSemanticsToRuntimeState(nodeOutput.data.semantics) || 'idle'
@@ -671,18 +833,35 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
             frameNodesDataRef.current.set(nodeOutput.frameId, frameNodes)
             
             // Animar edges salientes (uno por cada output)
-            nodeOutput.data.outputs.forEach((_output, index) => {
+            // Para subflows, mapear el port del output al edge correcto
+            nodeOutput.data.outputs.forEach((output, index) => {
               const outgoingEdges = edges.filter(e => e.source === nodeOutput.nodeId)
-              // Si hay múltiples outputs, activar diferentes edges
-              const edgeToActivate = outgoingEdges[index] || outgoingEdges[0]
-              if (edgeToActivate) {
-                setActiveEdge(edgeToActivate.id, true)
-                setTimeout(() => setActiveEdge(edgeToActivate.id, false), 2000)
+              
+              if (subflowDef && output.port !== undefined) {
+                // Para subflows, usar el port del output para encontrar el edge correcto
+                // Los edges de React Flow tienen sourceHandle que indica el puerto
+                const portIndex = output.port
+                const edgeForPort = outgoingEdges.find(e => {
+                  // El sourceHandle puede ser "output-0", "output-1", etc.
+                  const handlePort = e.sourceHandle ? parseInt(e.sourceHandle.replace('output-', '')) : 0
+                  return handlePort === portIndex
+                }) || outgoingEdges[portIndex] || outgoingEdges[0]
+                
+                if (edgeForPort) {
+                  setActiveEdge(edgeForPort.id, true)
+                  setTimeout(() => setActiveEdge(edgeForPort.id, false), 2000)
+                }
+              } else {
+                // Para nodos normales, usar el índice
+                const edgeToActivate = outgoingEdges[index] || outgoingEdges[0]
+                if (edgeToActivate) {
+                  setActiveEdge(edgeToActivate.id, true)
+                  setTimeout(() => setActiveEdge(edgeToActivate.id, false), 2000)
+                }
               }
             })
             
             // Agregar log de ejecución
-            const nodeInfo = getNodeInfo(nodeOutput.nodeId)
             addExecutionLog({
               nodeId: nodeOutput.nodeId,
               nodeName: nodeInfo.name,
@@ -691,7 +870,9 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
                      runtimeState === 'warning' ? 'warning' : 'success',
               message: nodeOutput.data.semantics 
                 ? `${nodeOutput.data.semantics.role} - ${nodeOutput.data.semantics.behavior}`
-                : 'Output sent',
+                : subflowDef && nodeOutput.data.outputs.length > 0
+                  ? `Output sent (${nodeOutput.data.outputs.map(o => `port ${(o.port ?? 0) + 1}`).join(', ')})`
+                  : 'Output sent',
               duration: nodeOutput.data.timing?.durationMs,
               data: nodeOutput.data,
             })
@@ -800,7 +981,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
       wsLogger('Hook desmontado, limpiando suscripción')
     }
-  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setWsEventQueueSize, edges, nodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
+  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setWsEventQueueSize, edges, nodes, nodeRedNodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
 
   // Limpiar estados cuando se deshabilita
   useEffect(() => {

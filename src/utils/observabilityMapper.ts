@@ -93,15 +93,39 @@ export function mapFrameStartToExecutionFrame(event: FrameStartEvent): Partial<E
 export function mapNodeInputToSnapshot(
   event: NodeInputEvent
 ): NodeExecutionSnapshot {
-  const payloadPreview = event.data.input?.payload?.preview
-    ? createPayloadPreview(event.data.input.payload.preview)
+  const inputPayloadPreview = event.data.input?.payload?.preview
+  const inputPayloadType = event.data.input?.payload?.type
+  const inputPayloadSize = event.data.input?.payload?.size
+  const inputPayloadTruncated = event.data.input?.payload?.truncated
+  
+  // #region agent log
+  // H1: Verificar payload de input
+  const safeStringify = (val: any) => {
+    if (val === undefined || val === null) return 'undefined'
+    if (typeof val === 'string') return val.substring(0, 50)
+    try {
+      const str = JSON.stringify(val)
+      return str ? str.substring(0, 50) : 'empty'
+    } catch {
+      return 'unserializable'
+    }
+  }
+  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'observabilityMapper.ts:mapNodeInputToSnapshot',message:'Payload de input recibido',data:{nodeId:event.nodeId,nodeType:event.data.nodeType,frameId:event.frameId,inputPayloadPreview:safeStringify(inputPayloadPreview),inputPayloadType,inputPayloadSize,inputPayloadTruncated,hasInput:!!event.data.input,timestamp:event.data.input?.timestamp},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  
+  const payloadPreview = inputPayloadPreview
+    ? createPayloadPreview(inputPayloadPreview)
     : undefined
+
+  // CRÍTICO: event.data.input puede ser null o undefined
+  // Usar event.ts como fallback si no hay timestamp en input
+  const timestamp = event.data.input?.timestamp || event.ts
 
   return {
     nodeId: event.nodeId,
     frameId: event.frameId,
     status: 'running', // El nodo está procesando
-    ts: event.data.input.timestamp,
+    ts: timestamp,
     summary: 'Input received',
     payloadPreview,
   }
@@ -114,8 +138,37 @@ export function mapNodeOutputToSnapshot(
   event: NodeOutputEvent
 ): NodeExecutionSnapshot {
   const output = event.data.outputs[0]
-  const payloadPreview = output?.payload?.preview
-    ? createPayloadPreview(output.payload.preview)
+  
+  // #region agent log
+  // H1: Verificar payload de output vs input
+  const outputPayloadPreview = output?.payload?.preview
+  const outputPayloadType = output?.payload?.type
+  const outputPayloadSize = output?.payload?.size
+  const outputPayloadTruncated = output?.payload?.truncated
+  const outputsCount = event.data.outputs.length
+  const safeStringify = (val: any) => {
+    if (val === undefined || val === null) return 'undefined'
+    if (typeof val === 'string') return val.substring(0, 50)
+    try {
+      const str = JSON.stringify(val)
+      return str ? str.substring(0, 50) : 'empty'
+    } catch {
+      return 'unserializable'
+    }
+  }
+  const allOutputsPayloads = event.data.outputs.map((o, idx) => ({
+    index: idx,
+    port: o.port,
+    hasPreview: !!o.payload?.preview,
+    previewType: o.payload?.type,
+    previewValue: safeStringify(o.payload?.preview),
+    timestamp: o.timestamp,
+  }))
+  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'observabilityMapper.ts:mapNodeOutputToSnapshot',message:'Payload de output recibido',data:{nodeId:event.nodeId,nodeType:event.data.nodeType,frameId:event.frameId,outputsCount,outputPayloadPreview:safeStringify(outputPayloadPreview),outputPayloadType,outputPayloadSize,outputPayloadTruncated,allOutputsPayloads,semantics:event.data.semantics},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  
+  const payloadPreview = outputPayloadPreview
+    ? createPayloadPreview(outputPayloadPreview)
     : undefined
 
   // Determinar el estado basado en semantics

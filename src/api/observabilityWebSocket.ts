@@ -283,6 +283,15 @@ export class ObservabilityWebSocketClient {
    * Maneja mensajes recibidos
    */
   private handleMessage(data: any): void {
+    // #region agent log
+    // H1: Registrar TODOS los eventos que llegan del plugin, sin filtrar
+    const eventType = data.event || 'unknown'
+    const nodeId = data.nodeId
+    const nodeType = data.data?.nodeType
+    const hasOutputs = eventType === 'node:output' && data.data?.outputs && Array.isArray(data.data.outputs) && data.data.outputs.length > 0
+    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'observabilityWebSocket.ts:handleMessage',message:'Evento RAW recibido del plugin',data:{eventType,nodeId,nodeType,frameId:data.frameId,hasOutputs,outputsCount:eventType === 'node:output' ? (data.data?.outputs?.length || 0) : 0,rawDataKeys:Object.keys(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    
     // El plugin envía eventos en formato ObservabilityEvent
     const event: ObservabilityEvent = {
       event: data.event || 'unknown',

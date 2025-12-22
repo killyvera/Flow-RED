@@ -1618,6 +1618,13 @@ export function CanvasPage() {
         activeFlowId,
       })
       
+      // #region agent log
+      // H1,H4: Verificar propiedades después de recargar desde Node-RED
+      const functionNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'function')
+      const injectNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'inject')
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave:afterReload',message:'Estado después de recargar desde Node-RED',data:{activeFlowId,totalNodes:updatedNodeRedNodes.length,functionNodes:functionNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasFunc:!!n.func,funcLength:n.func?.length||0,funcPreview:n.func?.substring?.(0,30),outputs:n.outputs,noerr:n.noerr,wires:n.wires})),injectNodes:injectNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasProps:!!n.props,propsCount:Array.isArray(n.props)?n.props.length:0,payloadType:n.payloadType,payload:typeof n.payload,topic:n.topic,repeat:n.repeat,crontab:n.crontab,once:n.once,wires:n.wires}))},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H4'})}).catch(()=>{});
+      // #endregion
+      
       // Renderizar el flow activo con los datos actualizados desde Node-RED
       // Usar los nodos del store directamente para asegurar que tenemos la versión más reciente
       const { nodes: updatedNodes, edges: updatedEdges } = transformNodeRedFlow(updatedNodeRedNodes, activeFlowId)
