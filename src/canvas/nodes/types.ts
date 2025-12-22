@@ -29,6 +29,10 @@ export interface BaseNodeData {
   icon?: LucideIcon | string
   /** Número de puertos de salida (para renderizar handles dinámicamente) */
   outputPortsCount?: number
+  /** Handler de click personalizado para el nodo completo (opcional) */
+  onNodeClick?: (e: React.MouseEvent) => void | Promise<void>
+  /** Handler de click específico para el icono (opcional) */
+  onIconClick?: (e: React.MouseEvent) => void | Promise<void>
 }
 
 /**

@@ -11,7 +11,7 @@
 
 import { memo, useState, useEffect, useMemo } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
-import type { BaseNodeProps } from './types'
+import type { BaseNodeProps, BaseNodeData } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { getNodeHeaderColor } from '@/utils/nodeColors'
 import type { LucideIcon } from 'lucide-react'
@@ -63,7 +63,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   }, [])
 
   // Extraer datos del nodo
-  const nodeData = data.data || data as any
+  const nodeData: BaseNodeData = (data.data || data) as BaseNodeData
   const label = nodeData.label || ''
   const nodeRedType = nodeData.nodeRedType || 'unknown'
   const bodyContent = nodeData.bodyContent
@@ -72,6 +72,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const outputPortsCount = nodeData.outputPortsCount || 1
   const nodeRedNode = nodeData.nodeRedNode
   const onNodeClick = nodeData.onNodeClick // Handler de click personalizado (para triggers)
+  const onIconClick = nodeData.onIconClick // Handler de click específico para el icono
 
   // Obtener icono y color automáticamente si no se proporcionan
   // Si icon es un componente Lucide, usarlo directamente; si es string (legacy), usar getNodeIcon
@@ -383,13 +384,14 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
         relative
         bg-node-default
         border-2
-        rounded-xl
+        rounded-lg
         shadow-node
-        min-w-[160px]
-        max-w-[220px]
+        w-[80px]
+        min-w-[80px]
+        max-w-[80px]
         ${dragging ? '' : 'transition-all duration-200 ease-in-out'}
         group
-        ${onNodeClick ? 'cursor-pointer' : ''}
+        ${onNodeClick && !onIconClick ? 'cursor-pointer' : ''}
         ${
           isDisabled
             ? 'opacity-50 border-dashed cursor-not-allowed'
@@ -425,44 +427,43 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
       } as React.CSSProperties}
       title={tooltipContent}
     >
-      {/* Header del nodo - más compacto estilo n8n */}
+      {/* Header del nodo - solo icono grande */}
       <div
-        className="px-3 py-2 rounded-t-xl border-b border-node-border/50 relative"
+        className="px-4 py-4 rounded-lg relative flex items-center justify-center min-h-[80px]"
         style={{
           backgroundColor: nodeHeaderColor,
         }}
       >
-        <div className="flex items-center gap-2">
-          {/* Icono Lucide */}
+        <div className="flex items-center justify-center relative">
+          {/* Icono Lucide - grande y centrado */}
           {IconComponent && (
             <IconComponent 
-              className="w-4 h-4 text-text-primary flex-shrink-0" 
-              strokeWidth={2}
+              className={`w-8 h-8 text-text-primary flex-shrink-0 ${onIconClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+              strokeWidth={2.5}
+              onClick={onIconClick ? (e) => {
+                e.stopPropagation()
+                onIconClick(e)
+              } : undefined}
             />
           )}
-          
-          {/* Título del nodo */}
-          <h3 className="text-xs font-semibold text-text-primary truncate flex-1 leading-tight">
-            {label || nodeRedType || 'Node'}
-          </h3>
 
-          {/* Indicador de link node (portal) */}
+          {/* Indicador de link node (portal) - más pequeño, en esquina */}
           {(isLinkIn(nodeRedNode) || isLinkOut(nodeRedNode)) && (
             <div
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-primary/20 border border-accent-primary/30"
+              className="absolute -top-1 -right-1 flex items-center gap-1 px-1 py-0.5 rounded bg-accent-primary/20 border border-accent-primary/30"
               title={isLinkIn(nodeRedNode) ? 'Link In: Recibe mensajes de Link Out' : 'Link Out: Envía mensajes a Link In'}
             >
-              <Link className="w-2.5 h-2.5 text-accent-primary" strokeWidth={2.5} />
+              <Link className="w-2 h-2 text-accent-primary" strokeWidth={2.5} />
             </div>
           )}
 
-          {/* Indicador de estado de runtime (prioridad sobre status estático) */}
+          {/* Indicador de estado de runtime (pequeño, en esquina superior izquierda) */}
           {runtimeStateColor && (
             <div
-              className="absolute top-2 right-2 w-3 h-3 rounded-full border-2 border-white shadow-lg z-10"
+              className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full border border-white shadow-sm flex-shrink-0"
               style={{
                 backgroundColor: runtimeStateColor,
-                boxShadow: `0 0 8px ${runtimeStateColor}, 0 0 4px ${runtimeStateColor}`,
+                boxShadow: `0 0 4px ${runtimeStateColor}`,
               }}
               title={
                 runtimeState === 'running' ? 'Running: Node is currently executing' :
@@ -487,69 +488,31 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           {/* Badge de status estático (solo si no hay estado de runtime) */}
           {!runtimeStateColor && hasStatus && statusColor && (
             <div
-              className="absolute top-2 right-2 flex items-center gap-1"
+              className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: statusColor }}
               title={nodeStatus.text || ''}
-            >
-              {statusShape === 'dot' ? (
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: statusColor }}
-                />
-              ) : statusShape === 'ring' ? (
-                <div
-                  className="w-2 h-2 rounded-full border-2"
-                  style={{ 
-                    borderColor: statusColor,
-                    backgroundColor: 'transparent',
-                  }}
-                />
-              ) : (
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: statusColor }}
-                />
-              )}
-            </div>
+            />
           )}
         </div>
         
-        {/* Badge de tipo (más pequeño, en segunda línea) */}
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-[10px] text-text-tertiary font-mono opacity-70">
-            {nodeRedType}
-          </span>
-          {/* Badge de disabled */}
-          {isDisabled && (
-            <span className="text-[9px] px-1.5 py-0.5 bg-text-tertiary/20 text-text-tertiary rounded font-medium">
+        {/* Badge de disabled - solo si está disabled */}
+        {isDisabled && (
+          <div className="absolute bottom-0 left-0 right-0">
+            <span className="text-[9px] px-1 py-0.5 bg-text-tertiary/20 text-text-tertiary rounded font-medium">
               Disabled
             </span>
-          )}
-        </div>
-      </div>
-
-      {/* Body del nodo - más compacto */}
-      <div className="px-3 py-2 min-h-[32px]">
-        {bodyContent || (
-          <div className="text-[11px] text-text-secondary">
-            {/* Resumen semántico del nodo */}
-            <div className="flex items-start gap-1.5">
-              <SummaryBadge severity={nodeSummary.severity} size="sm" icon={nodeSummary.icon} />
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-medium text-text-primary truncate">
-                  {nodeSummary.title}
-                </div>
-                {nodeSummary.subtitle && (
-                  <div className="text-[10px] text-text-tertiary truncate mt-0.5">
-                    {nodeSummary.subtitle}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         )}
       </div>
 
-      {/* Handles - Puertos de entrada (izquierda) - estilo n8n */}
+      {/* Texto del nodo debajo del contenedor */}
+      <div className="absolute top-full left-0 right-0 mt-1 text-center">
+        <span className="text-[10px] text-text-secondary font-medium">
+          {label || nodeRedType || 'Node'}
+        </span>
+      </div>
+
+      {/* Handles - Puertos de entrada (izquierda) - estilo n8n compacto */}
       <div
         onDoubleClick={(e) => {
           e.stopPropagation()
@@ -564,13 +527,13 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           })
           window.dispatchEvent(event)
         }}
-        style={{ position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, zIndex: 10 }}
+        style={{ position: 'absolute', left: -5, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, zIndex: 10 }}
       >
         <Handle
           type="target"
           position={Position.Left}
           id="input"
-          className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
           style={{
             left: 0,
             top: '50%',
@@ -600,11 +563,11 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
             }}
             style={{
               position: 'absolute',
-              right: -6,
+              right: -5,
               top: topPosition,
               transform: 'translateY(-50%)',
-              width: 12,
-              height: 12,
+              width: 10,
+              height: 10,
               zIndex: 10,
             }}
           >
@@ -613,7 +576,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
               type="source"
               position={Position.Right}
               id={handleId}
-              className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+              className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
               style={{
                 right: 0,
                 top: '50%',
@@ -622,19 +585,6 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           </div>
         )
       })}
-
-      {/* Texto de status debajo del nodo */}
-      {hasStatus && nodeStatus.text && (
-        <div
-          className="absolute top-full left-0 right-0 mt-1 px-2 py-1 rounded-b-md text-[10px] font-medium text-text-primary"
-          style={{
-            backgroundColor: statusColor ? `${statusColor}20` : 'var(--color-bg-secondary)',
-            color: statusColor || 'var(--color-text-secondary)',
-          }}
-        >
-          {nodeStatus.text}
-        </div>
-      )}
 
       {/* Overlay de explicación en Explain Mode */}
       {explainMode && (
