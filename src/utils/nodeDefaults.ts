@@ -325,9 +325,9 @@ const knownNodeProperties: Record<string, PropertyDefinition[]> = {
     { id: 'name', type: 'str', label: 'Name', default: '' },
     { id: 'property', type: 'str', label: 'Property', default: 'payload', required: true },
     { id: 'action', type: 'select', label: 'Action', default: '', options: [
-      { value: '', label: 'Convert to JSON string' },
-      { value: 'str', label: 'Convert to JSON string' },
-      { value: 'obj', label: 'Parse JSON string' },
+      { value: '', label: 'Auto-detect (Object ↔ JSON String)' },
+      { value: 'str', label: 'Always convert to JSON String' },
+      { value: 'obj', label: 'Always convert to JavaScript Object' },
     ]},
     { id: 'pretty', type: 'bool', label: 'Pretty', default: false },
   ],
