@@ -82,7 +82,7 @@ export interface Theme {
 }
 
 /**
- * Tema claro (light) - estilo n8n
+ * Tema claro (light) - estilo n8n con rojos cyberpunk
  */
 export const lightTheme: Theme = {
   name: 'light',
@@ -102,26 +102,26 @@ export const lightTheme: Theme = {
       grid: '#dee2e6',
       node: {
         default: '#ffffff',
-        selected: '#fff4f2',
+        selected: '#fff0f0',
         hover: '#f8f9fa',
         border: '#dee2e6',
-        'border-hover': '#ff6d5a',
-        'border-selected': '#ff6d5a',
+        'border-hover': '#ff0040',
+        'border-selected': '#ff0040',
         header: '#f8f9fa',
-        'header-accent': '#ff6d5a',
+        'header-accent': '#ff0040',
       },
       edge: {
         default: '#adb5bd',
-        selected: '#ff6d5a',
-        hover: '#ff8a7a',
+        selected: '#ff0040',
+        hover: '#ff3366',
         active: '#10b981',
         'active-glow': 'rgba(16, 185, 129, 0.8)',
       },
     },
     accent: {
-      primary: '#ff6d5a',
-      secondary: '#ff8a7a',
-      tertiary: '#ffa99b',
+      primary: '#ff0040',
+      secondary: '#ff3366',
+      tertiary: '#ff6699',
     },
     status: {
       success: colorTokens.semantic.success,
@@ -147,12 +147,12 @@ export const lightTheme: Theme = {
   shadows: {
     node: '0 1px 3px rgba(0, 0, 0, 0.1)',
     'node-hover': '0 2px 6px rgba(0, 0, 0, 0.12)',
-    'node-selected': '0 0 0 2px rgba(255, 109, 90, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12)',
+    'node-selected': '0 0 0 2px rgba(255, 0, 64, 0.3), 0 2px 6px rgba(0, 0, 0, 0.12), 0 0 12px rgba(255, 0, 64, 0.2)',
   },
 }
 
 /**
- * Tema oscuro (dark) - estilo n8n
+ * Tema oscuro (dark) - estilo n8n con rojos cyberpunk
  */
 export const darkTheme: Theme = {
   name: 'dark',
@@ -172,26 +172,26 @@ export const darkTheme: Theme = {
       grid: '#2d2d2d',
       node: {
         default: '#2d2d2d',
-        selected: '#3d2a26',
+        selected: '#3d1a1a',
         hover: '#353535',
         border: '#404040',
-        'border-hover': '#ff6d5a',
-        'border-selected': '#ff6d5a',
+        'border-hover': '#ff0040',
+        'border-selected': '#ff0040',
         header: '#353535',
-        'header-accent': '#ff6d5a',
+        'header-accent': '#ff0040',
       },
       edge: {
         default: '#6b7280',
-        selected: '#ff6d5a',
-        hover: '#ff8a7a',
+        selected: '#ff0040',
+        hover: '#ff3366',
         active: '#10b981',
         'active-glow': 'rgba(16, 185, 129, 0.8)',
       },
     },
     accent: {
-      primary: '#ff6d5a',
-      secondary: '#ff8a7a',
-      tertiary: '#ffa99b',
+      primary: '#ff0040',
+      secondary: '#ff3366',
+      tertiary: '#ff6699',
     },
     status: {
       success: colorTokens.semantic.success,
@@ -216,8 +216,8 @@ export const darkTheme: Theme = {
   },
   shadows: {
     node: '0 1px 3px rgba(0, 0, 0, 0.3)',
-    'node-hover': '0 2px 6px rgba(0, 0, 0, 0.4)',
-    'node-selected': '0 0 0 2px rgba(255, 109, 90, 0.3), 0 2px 6px rgba(0, 0, 0, 0.4)',
+    'node-hover': '0 2px 6px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 0, 64, 0.1)',
+    'node-selected': '0 0 0 2px rgba(255, 0, 64, 0.4), 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 16px rgba(255, 0, 64, 0.3)',
   },
 }
 
@@ -364,6 +364,76 @@ export const corporateTheme: Theme = {
 }
 
 /**
+ * Tema Cyberpunk - Estilo futurista con rojos neón
+ */
+export const cyberpunkTheme: Theme = {
+  name: 'cyberpunk',
+  colors: {
+    background: {
+      primary: '#0a0a0a',
+      secondary: '#1a1a1a',
+      tertiary: '#2a1a1a',
+    },
+    foreground: {
+      primary: '#ffffff',
+      secondary: '#ff3366',
+      tertiary: '#ff6699',
+    },
+    canvas: {
+      background: '#0a0a0a',
+      grid: '#1a0a0a',
+      node: {
+        default: '#1a1a1a',
+        selected: '#2a0a0a',
+        hover: '#2a1a1a',
+        border: '#330000',
+        'border-hover': '#ff0040',
+        'border-selected': '#ff0040',
+        header: '#1a0a0a',
+        'header-accent': '#ff0040',
+      },
+      edge: {
+        default: '#4a0000',
+        selected: '#ff0040',
+        hover: '#ff3366',
+        active: '#00ff88',
+        'active-glow': 'rgba(0, 255, 136, 0.8)',
+      },
+    },
+    accent: {
+      primary: '#ff0040',
+      secondary: '#ff3366',
+      tertiary: '#ff6699',
+    },
+    status: {
+      success: '#00ff88',
+      warning: '#ffaa00',
+      error: '#ff0040',
+      info: '#00aaff',
+    },
+    group: {
+      default: 'rgba(255, 0, 64, 0.1)',
+      border: 'rgba(255, 0, 64, 0.4)',
+      text: '#ff3366',
+    },
+    nodeCategories: {
+      input: '#1a3300',
+      output: '#001a33',
+      function: '#331a00',
+      network: '#330000',
+      storage: '#1a0033',
+      time: '#33001a',
+      default: '#1a1a1a',
+    },
+  },
+  shadows: {
+    node: '0 2px 8px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 0, 64, 0.1)',
+    'node-hover': '0 4px 12px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 0, 64, 0.3)',
+    'node-selected': '0 0 0 2px rgba(255, 0, 64, 0.6), 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 0, 64, 0.5)',
+  },
+}
+
+/**
  * Registro de todos los temas disponibles
  */
 export const themes: Record<string, Theme> = {
@@ -371,6 +441,7 @@ export const themes: Record<string, Theme> = {
   dark: darkTheme,
   highContrast: highContrastTheme,
   corporate: corporateTheme,
+  cyberpunk: cyberpunkTheme,
 }
 
 /**
