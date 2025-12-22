@@ -10,7 +10,7 @@ import { getAvailableNodes } from '@/api/client'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { useCanvasStore } from '@/state/canvasStore'
 import type { NodeRedSubflowDefinition } from '@/api/types'
-import { Workflow } from 'lucide-react'
+import { Workflow, ChevronDown, ChevronRight } from 'lucide-react'
 
 /**
  * Lista de nodos comunes de Node-RED como fallback
@@ -83,6 +83,7 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
   }>>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const hasLoadedRef = useRef(false) // Ref para evitar cargas duplicadas
   
   // Obtener subflows desde el store
@@ -197,6 +198,231 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     }
   }, [isOpen, nodes.length, isLoading, subflows]) // Incluir subflows en dependencias
 
+  // Función para formatear nombres de subcategorías para mejor legibilidad
+  const formatSubcategoryName = (subcategory: string): string => {
+    const nameMap: Record<string, string> = {
+      'in': 'Entrada',
+      'out': 'Salida',
+      'call': 'Llamada',
+      'request': 'Petición',
+      'response': 'Respuesta',
+      'broker': 'Broker',
+      'client': 'Cliente',
+      'server': 'Servidor',
+      // Formatos de parser
+      'json': 'JSON',
+      'xml': 'XML',
+      'csv': 'CSV',
+      'yaml': 'YAML',
+      'html': 'HTML',
+      'msgpack': 'MessagePack',
+      'cbor': 'CBOR',
+      'base64': 'Base64',
+    }
+    
+    const lowerSubcategory = subcategory.toLowerCase()
+    if (nameMap[lowerSubcategory]) {
+      return nameMap[lowerSubcategory]
+    }
+    
+    // Si es un formato conocido (solo letras mayúsculas), mantenerlo en mayúsculas
+    if (/^[a-z]+$/.test(lowerSubcategory) && ['json', 'xml', 'csv', 'yaml', 'html'].includes(lowerSubcategory)) {
+      return subcategory.toUpperCase()
+    }
+    
+    return subcategory
+  }
+
+  // Función para extraer categoría y subcategoría de un nodo
+  const getNodeCategoryAndSubcategory = (nodeType: string, category?: string): { mainCategory: string; subcategory: string | null } => {
+    const normalizedType = nodeType.toLowerCase().trim()
+    const normalizedCategory = category?.toLowerCase() || ''
+    
+    // Patrones comunes para detectar subcategorías
+    // link call, link in, link out
+    if (normalizedType.startsWith('link ')) {
+      const subcategory = normalizedType.replace('link ', '').trim()
+      return { mainCategory: 'link', subcategory: subcategory || null }
+    }
+    
+    // http in, http out, http request, etc.
+    if (normalizedType.startsWith('http ')) {
+      const subcategory = normalizedType.replace('http ', '').trim()
+      return { mainCategory: 'http', subcategory: subcategory || null }
+    }
+    
+    // mqtt in, mqtt out, mqtt broker, etc.
+    if (normalizedType.startsWith('mqtt ')) {
+      const subcategory = normalizedType.replace('mqtt ', '').trim()
+      return { mainCategory: 'mqtt', subcategory: subcategory || null }
+    }
+    
+    // tcp in, tcp out, etc.
+    if (normalizedType.startsWith('tcp ')) {
+      const subcategory = normalizedType.replace('tcp ', '').trim()
+      return { mainCategory: 'tcp', subcategory: subcategory || null }
+    }
+    
+    // udp in, udp out, etc.
+    if (normalizedType.startsWith('udp ')) {
+      const subcategory = normalizedType.replace('udp ', '').trim()
+      return { mainCategory: 'udp', subcategory: subcategory || null }
+    }
+    
+    // websocket in, websocket out, etc.
+    if (normalizedType.startsWith('websocket ') || normalizedType.startsWith('ws ')) {
+      const subcategory = normalizedType.replace(/^(websocket|ws) /, '').trim()
+      return { mainCategory: 'websocket', subcategory: subcategory || null }
+    }
+    
+    // Nodos de parser (JSON, XML, CSV, YAML, HTML, etc.)
+    const parserFormats = ['json', 'xml', 'csv', 'yaml', 'html', 'msgpack', 'cbor', 'base64']
+    
+    // Verificar si es un formato de parser (exacto o que comience con el formato)
+    const formatMatch = normalizedType.match(/^(json|xml|csv|yaml|html|msgpack|cbor|base64)(\s|$)/)
+    const isParserFormat = formatMatch !== null || parserFormats.includes(normalizedType)
+    
+    if (isParserFormat || normalizedCategory === 'parser') {
+      // Extraer el formato del tipo de nodo
+      if (formatMatch) {
+        return { mainCategory: 'parser', subcategory: formatMatch[1] }
+      }
+      // Si el tipo completo es un formato de parser
+      if (parserFormats.includes(normalizedType)) {
+        return { mainCategory: 'parser', subcategory: normalizedType }
+      }
+      // Si no se puede extraer el formato, usar el tipo completo como subcategoría
+      return { mainCategory: 'parser', subcategory: normalizedType }
+    }
+    
+    // Detectar categorías comunes basándose en el tipo o categoría
+    // Input nodes
+    if (normalizedCategory === 'input' || 
+        normalizedType === 'inject' || 
+        normalizedType === 'catch' || 
+        normalizedType === 'status' ||
+        normalizedType.includes('input')) {
+      return { mainCategory: 'input', subcategory: null }
+    }
+    
+    // Output nodes
+    if (normalizedCategory === 'output' || 
+        normalizedType === 'debug' || 
+        normalizedType === 'complete' ||
+        normalizedType.includes('output')) {
+      return { mainCategory: 'output', subcategory: null }
+    }
+    
+    // Function nodes
+    if (normalizedCategory === 'function' || 
+        normalizedType === 'function' || 
+        normalizedType === 'switch' || 
+        normalizedType === 'change' || 
+        normalizedType === 'template' ||
+        normalizedType === 'range' ||
+        normalizedType.includes('function')) {
+      return { mainCategory: 'function', subcategory: null }
+    }
+    
+    // Sequence nodes
+    if (normalizedCategory === 'sequence' || 
+        normalizedType === 'delay' || 
+        normalizedType === 'trigger' || 
+        normalizedType === 'join' || 
+        normalizedType === 'split' ||
+        normalizedType.includes('sequence')) {
+      return { mainCategory: 'sequence', subcategory: null }
+    }
+    
+    // Layout nodes
+    if (normalizedCategory === 'layout' || 
+        normalizedType === 'group' ||
+        normalizedType === 'tab') {
+      return { mainCategory: 'layout', subcategory: null }
+    }
+    
+    // Network nodes (genéricos)
+    if (normalizedCategory === 'network' && 
+        !normalizedType.startsWith('http') && 
+        !normalizedType.startsWith('mqtt') && 
+        !normalizedType.startsWith('tcp') && 
+        !normalizedType.startsWith('udp') &&
+        !normalizedType.startsWith('websocket') &&
+        !normalizedType.startsWith('ws ')) {
+      return { mainCategory: 'network', subcategory: null }
+    }
+    
+    // Storage/Database nodes
+    if (normalizedCategory === 'storage' || 
+        normalizedCategory === 'database' ||
+        normalizedType.includes('file') || 
+        normalizedType.includes('mongodb') || 
+        normalizedType.includes('mysql') || 
+        normalizedType.includes('postgresql') ||
+        normalizedType.includes('sqlite') ||
+        normalizedType.includes('redis')) {
+      return { mainCategory: 'storage', subcategory: null }
+    }
+    
+    // Dashboard/UI nodes
+    if (normalizedCategory === 'dashboard' || 
+        normalizedCategory === 'ui' ||
+        normalizedType.includes('dashboard') ||
+        normalizedType.includes('ui_') ||
+        normalizedType.startsWith('ui ')) {
+      return { mainCategory: 'dashboard', subcategory: null }
+    }
+    
+    // Subflows
+    if (normalizedType.startsWith('subflow:') || normalizedCategory === 'subflows') {
+      return { mainCategory: 'subflows', subcategory: null }
+    }
+    
+    // Lista de categorías válidas conocidas
+    const validCategories = [
+      'input', 'output', 'function', 'link', 'http', 'mqtt', 'tcp', 'udp', 'websocket',
+      'network', 'sequence', 'parser', 'storage', 'database', 'layout', 'dashboard', 'ui',
+      'subflows', 'time', 'social', 'analysis', 'advanced'
+    ]
+    
+    // Si tiene categoría, verificar si es válida
+    if (category) {
+      const normalizedCat = category.toLowerCase().trim()
+      
+      // Si la categoría es un número o parece un ID/índice, poner en "Otros"
+      if (/^\d+$/.test(category.trim()) || category.trim().length <= 2) {
+        return { mainCategory: 'Otros', subcategory: null }
+      }
+      
+      // Si la categoría es válida, usarla
+      if (validCategories.includes(normalizedCat)) {
+        return { mainCategory: category, subcategory: null }
+      }
+      
+      // Si la categoría no es válida pero parece un nombre legible, usarla
+      // (puede ser una categoría personalizada de un módulo)
+      if (normalizedCat.length > 2 && !/^\d+$/.test(normalizedCat)) {
+        return { mainCategory: category, subcategory: null }
+      }
+    }
+    
+    // Si no se puede determinar, poner en "Otros"
+    return { mainCategory: 'Otros', subcategory: null }
+  }
+  
+  // Función para toggle de categoría expandida
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(category)) {
+        newSet.delete(category)
+      } else {
+        newSet.add(category)
+      }
+      return newSet
+    })
+  }
+
   // Filtrar nodos por búsqueda
   const filteredNodes = useMemo(() => {
     if (!searchQuery) return nodes
@@ -209,16 +435,38 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     )
   }, [nodes, searchQuery])
 
-  // Agrupar nodos por categoría
-  const nodesByCategory = useMemo(() => {
-    const grouped: Record<string, typeof nodes> = {}
+  // Agrupar nodos por categoría y subcategoría
+  const nodesByCategoryAndSubcategory = useMemo(() => {
+    // Estructura: { mainCategory: { subcategory: [nodes] } }
+    const grouped: Record<string, Record<string, typeof nodes>> = {}
+    
     filteredNodes.forEach(node => {
-      const category = node.category || 'Otros'
-      if (!grouped[category]) {
-        grouped[category] = []
+      let { mainCategory, subcategory } = getNodeCategoryAndSubcategory(node.type, node.category)
+      
+      // Normalizar "Otros" para que siempre tenga la primera letra mayúscula
+      if (mainCategory.toLowerCase() === 'otros') {
+        mainCategory = 'Otros'
       }
-      grouped[category].push(node)
+      
+      // Si la categoría es numérica o parece un ID, forzar a "Otros"
+      if (/^\d+$/.test(mainCategory.trim()) || (mainCategory.trim().length <= 2 && !['ui', 'ws'].includes(mainCategory.toLowerCase()))) {
+        mainCategory = 'Otros'
+      }
+      
+      if (!grouped[mainCategory]) {
+        grouped[mainCategory] = {}
+      }
+      
+      // Si no hay subcategoría, usar 'general' como clave
+      const subcategoryKey = subcategory || 'general'
+      
+      if (!grouped[mainCategory][subcategoryKey]) {
+        grouped[mainCategory][subcategoryKey] = []
+      }
+      
+      grouped[mainCategory][subcategoryKey].push(node)
     })
+    
     return grouped
   }, [filteredNodes])
 
@@ -265,71 +513,127 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
           </div>
         )}
 
-        {!isLoading && !error && Object.keys(nodesByCategory).length === 0 && (
+        {!isLoading && !error && Object.keys(nodesByCategoryAndSubcategory).length === 0 && (
           <div className="p-3 text-center text-text-secondary text-xs">
             No se encontraron nodos
           </div>
         )}
 
-        {!isLoading && !error && Object.entries(nodesByCategory).map(([category, categoryNodes]) => (
-          <div key={category} className="mb-4">
-            <div className="px-3 py-1.5 bg-bg-secondary text-[10px] font-semibold text-text-secondary uppercase">
-              {category}
-            </div>
-            <div className="space-y-1">
-              {categoryNodes.map((node, index) => (
-                <div
-                  key={`${node.type}-${category}-${index}`}
-                  draggable
-                  onDragStart={(e) => {
-                    if (onNodeDragStart) {
-                      onNodeDragStart(node.type, e)
-                    } else {
-                      // Default: pasar el tipo de nodo en dataTransfer
-                      e.dataTransfer.setData('application/reactflow', node.type)
-                      e.dataTransfer.effectAllowed = 'move'
-                    }
-                  }}
-                  onClick={() => {
-                    if (onNodeClick) {
-                      onNodeClick(node.type)
-                    }
-                  }}
-                  className="px-3 py-1.5 hover:bg-node-hover cursor-pointer transition-colors flex items-center gap-2"
+        {!isLoading && !error && Object.entries(nodesByCategoryAndSubcategory)
+          .sort(([a], [b]) => {
+            // Ordenar categorías: orden preferido primero, luego alfabéticamente
+            const categoryOrder = ['input', 'output', 'function', 'link', 'http', 'mqtt', 'tcp', 'udp', 'websocket', 'network', 'sequence', 'parser', 'storage', 'layout', 'dashboard', 'subflows', 'Otros']
+            const indexA = categoryOrder.indexOf(a)
+            const indexB = categoryOrder.indexOf(b)
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB
+            if (indexA !== -1) return -1
+            if (indexB !== -1) return 1
+            return a.localeCompare(b)
+          })
+          .map(([mainCategory, subcategories]) => {
+            const isExpanded = expandedCategories.has(mainCategory)
+            const totalNodes = Object.values(subcategories).reduce((sum, nodes) => sum + nodes.length, 0)
+            
+            return (
+              <div key={mainCategory} className="mb-1">
+                {/* Encabezado de categoría principal - clickeable para expandir/colapsar */}
+                <button
+                  onClick={() => toggleCategory(mainCategory)}
+                  className="w-full px-3 py-1.5 bg-bg-secondary hover:bg-bg-secondary/80 text-[10px] font-semibold text-text-secondary uppercase flex items-center justify-between transition-colors"
                 >
-                  {(() => {
-                    // Si es un subflow, usar icono de Workflow
-                    if (node.type.startsWith('subflow:')) {
-                      return (
-                        <Workflow 
-                          className="w-4 h-4 text-text-primary flex-shrink-0" 
-                          strokeWidth={2}
-                        />
-                      )
-                    }
-                    const IconComponent = getNodeIcon(node.type)
-                    return (
-                      <IconComponent 
-                        className="w-4 h-4 text-text-primary flex-shrink-0" 
-                        strokeWidth={2}
-                      />
-                    )
-                  })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-text-primary truncate">
-                      {node.name || node.type}
-                    </div>
-                    {node.name !== node.type && (
-                      <div className="text-[10px] text-text-tertiary truncate">
-                        {node.type}
-                      </div>
+                  <span>{mainCategory}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-text-tertiary font-normal">
+                      ({totalNodes})
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="w-3 h-3" strokeWidth={2} />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" strokeWidth={2} />
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+                </button>
+                
+                {/* Subcategorías - solo visible si está expandido */}
+                {isExpanded && (
+                  <div className="mt-1">
+                    {Object.entries(subcategories)
+                      .sort(([a], [b]) => {
+                        // Ordenar: 'general' primero, luego alfabéticamente
+                        if (a === 'general') return -1
+                        if (b === 'general') return 1
+                        return a.localeCompare(b)
+                      })
+                      .map(([subcategory, subcategoryNodes]) => (
+                        <div key={`${mainCategory}-${subcategory}`} className="mb-2">
+                          {/* Encabezado de subcategoría (solo si no es 'general' y hay más de una subcategoría) */}
+                          {subcategory !== 'general' && Object.keys(subcategories).length > 1 && (
+                            <div className="px-3 py-1 text-[10px] font-medium text-text-tertiary uppercase mt-1">
+                              {formatSubcategoryName(subcategory)}
+                            </div>
+                          )}
+                          
+                          {/* Nodos de la subcategoría */}
+                          <div className="space-y-1">
+                            {subcategoryNodes.map((node, index) => (
+                              <div
+                                key={`${node.type}-${mainCategory}-${subcategory}-${index}`}
+                                draggable
+                                onDragStart={(e) => {
+                                  if (onNodeDragStart) {
+                                    onNodeDragStart(node.type, e)
+                                  } else {
+                                    // Default: pasar el tipo de nodo en dataTransfer
+                                    e.dataTransfer.setData('application/reactflow', node.type)
+                                    e.dataTransfer.effectAllowed = 'move'
+                                  }
+                                }}
+                                onClick={() => {
+                                  if (onNodeClick) {
+                                    onNodeClick(node.type)
+                                  }
+                                }}
+                                className="px-3 py-1.5 hover:bg-node-hover cursor-pointer transition-colors flex items-center gap-2"
+                              >
+                                {(() => {
+                                  // Si es un subflow, usar icono de Workflow
+                                  if (node.type.startsWith('subflow:')) {
+                                    return (
+                                      <Workflow 
+                                        className="w-4 h-4 text-text-primary flex-shrink-0" 
+                                        strokeWidth={2}
+                                      />
+                                    )
+                                  }
+                                  const IconComponent = getNodeIcon(node.type)
+                                  return (
+                                    <IconComponent 
+                                      className="w-4 h-4 text-text-primary flex-shrink-0" 
+                                      strokeWidth={2}
+                                    />
+                                  )
+                                })()}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-medium text-text-primary truncate">
+                                    {node.name || node.type}
+                                  </div>
+                                  {node.name !== node.type && (
+                                    <div className="text-[10px] text-text-tertiary truncate">
+                                      {node.type}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
       </div>
     </div>
   )
