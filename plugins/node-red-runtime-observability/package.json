@@ -1,0 +1,37 @@
+{
+  "name": "node-red-runtime-observability",
+  "version": "0.1.0",
+  "description": "Runtime observability plugin for Node-RED - captures Input/Output per node without modifying core",
+  "main": "index.js",
+  "engines": {
+    "node": ">=14"
+  },
+  "node-red": {
+    "version": ">=3.0.0",
+    "plugins": {
+      "runtime-observability": "index.js"
+    }
+  },
+  "keywords": [
+    "node-red",
+    "plugin",
+    "observability",
+    "runtime",
+    "debugging",
+    "monitoring",
+    "tracing"
+  ],
+  "dependencies": {
+    "ws": "^8.0.0"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/node-red-runtime-observability.git"
+  },
+  "bugs": {
+    "url": "https://github.com/user/node-red-runtime-observability/issues"
+  }
+}
+

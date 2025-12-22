@@ -1,0 +1,21 @@
+# Ignorar node_modules en plugins
+**/node_modules/
+
+# Ignorar archivos de build
+**/dist/
+**/build/
+
+# Ignorar archivos de log
+**/*.log
+
+# Ignorar archivos temporales
+**/.DS_Store
+**/Thumbs.db
+
+# Mantener los archivos fuente del plugin
+!**/package.json
+!**/README.md
+!**/*.js
+!**/*.ts
+!**/*.json
+
