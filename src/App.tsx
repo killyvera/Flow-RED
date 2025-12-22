@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { FlowManagerProvider } from '@/context/FlowManagerContext'
 import { Sidebar, SidebarToggleButton } from '@/components/Sidebar'
 import { CanvasPage } from '@/pages/CanvasPage'
 
@@ -34,15 +35,17 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="w-full h-full overflow-hidden grid grid-cols-[auto_1fr] relative">
-        <Sidebar 
-          isCollapsed={isCollapsed} 
-          onToggleCollapse={toggleCollapse}
-          onCollapse={handleCollapse}
-        />
-        <CanvasPage />
-        <SidebarToggleButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
-      </div>
+      <FlowManagerProvider>
+        <div className="w-full h-full overflow-hidden grid grid-cols-[auto_1fr] relative">
+          <Sidebar 
+            isCollapsed={isCollapsed} 
+            onToggleCollapse={toggleCollapse}
+            onCollapse={handleCollapse}
+          />
+          <CanvasPage />
+          <SidebarToggleButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
+        </div>
+      </FlowManagerProvider>
     </ThemeProvider>
   )
 }

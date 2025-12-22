@@ -68,6 +68,17 @@ export function generateCSSVariables(theme: Theme): string {
   variables.push(`  --color-group-border: ${colors.group.border};`)
   variables.push(`  --color-group-text: ${colors.group.text};`)
 
+  // Colores de categorías de nodos
+  if (colors.nodeCategories) {
+    variables.push(`  --color-node-category-input: ${colors.nodeCategories.input};`)
+    variables.push(`  --color-node-category-output: ${colors.nodeCategories.output};`)
+    variables.push(`  --color-node-category-function: ${colors.nodeCategories.function};`)
+    variables.push(`  --color-node-category-network: ${colors.nodeCategories.network};`)
+    variables.push(`  --color-node-category-storage: ${colors.nodeCategories.storage};`)
+    variables.push(`  --color-node-category-time: ${colors.nodeCategories.time};`)
+    variables.push(`  --color-node-category-default: ${colors.nodeCategories.default};`)
+  }
+
   // Sombras
   variables.push(`  --shadow-node: ${shadows.node};`)
   variables.push(`  --shadow-node-hover: ${shadows['node-hover']};`)

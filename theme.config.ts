@@ -12,6 +12,10 @@
  *     colors: {
  *       accent: {
  *         primary: '#0066cc', // Tu color de marca
+ *       },
+ *       nodeCategories: {
+ *         input: '#e8f5e9', // Color personalizado para nodos de entrada
+ *         output: '#e3f2fd', // Color personalizado para nodos de salida
  *       }
  *     }
  *   }
