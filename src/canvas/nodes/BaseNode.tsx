@@ -114,6 +114,12 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const runtimeState = nodeRedNode?.id ? nodeRuntimeStates.get(nodeRedNode.id) : undefined
   const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
   
+  // Obtener snapshots y logs para generar resumen (necesario antes de usar en useMemo)
+  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
+  const executionLogs = useCanvasStore((state) => state.executionLogs)
+  const currentFrame = useCanvasStore((state) => state.currentFrame)
+  const explainMode = useCanvasStore((state) => state.explainMode)
+  
   // Determinar si el nodo se ejecutó correctamente (usando snapshots)
   const hasSuccessfulExecution = useMemo(() => {
     if (!nodeRedNode?.id) return false
@@ -193,12 +199,6 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   }
   
   const statusIcons = getStatusIcons()
-  
-  // Obtener snapshots y logs para generar resumen
-  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
-  const executionLogs = useCanvasStore((state) => state.executionLogs)
-  const currentFrame = useCanvasStore((state) => state.currentFrame)
-  const explainMode = useCanvasStore((state) => state.explainMode)
   
   // Obtener último snapshot del nodo (del frame actual si existe)
   const lastSnapshot = useMemo(() => {
