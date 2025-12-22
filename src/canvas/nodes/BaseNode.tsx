@@ -21,7 +21,7 @@ import { generateNodeSummary } from '@/utils/summaryEngine'
 import { SummaryBadge } from '@/components/SummaryBadge'
 import { getNodeExplanation } from '@/utils/nodeExplanations'
 import { isLinkIn, isLinkOut } from '@/utils/linkUtils'
-import { Link } from 'lucide-react'
+import { Link, CheckCircle2, XCircle, AlertCircle, Info } from 'lucide-react'
 
 /**
  * Componente BaseNode
@@ -71,6 +71,7 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const icon = nodeData.icon
   const outputPortsCount = nodeData.outputPortsCount || 1
   const nodeRedNode = nodeData.nodeRedNode
+  const onNodeClick = nodeData.onNodeClick // Handler de click personalizado (para triggers)
 
   // Obtener icono y color automáticamente si no se proporcionan
   // Si icon es un componente Lucide, usarlo directamente; si es string (legacy), usar getNodeIcon
@@ -112,6 +113,86 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
   const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
   const runtimeState = nodeRedNode?.id ? nodeRuntimeStates.get(nodeRedNode.id) : undefined
   const runtimeStateColor = runtimeState ? getRuntimeStateColor(runtimeState) : undefined
+  
+  // Determinar si el nodo se ejecutó correctamente (usando snapshots)
+  const hasSuccessfulExecution = useMemo(() => {
+    if (!nodeRedNode?.id) return false
+    const snapshots = nodeSnapshots.get(nodeRedNode.id) || []
+    if (snapshots.length === 0) return false
+    
+    // Si hay un snapshot reciente con status 'idle' o 'warning' (no error), es éxito
+    const recentSnapshot = snapshots[0]
+    return recentSnapshot.status === 'idle' || recentSnapshot.status === 'warning'
+  }, [nodeRedNode?.id, nodeSnapshots])
+  
+  // Determinar color del borde según estado de ejecución (estilo n8n)
+  const getBorderColorByStatus = () => {
+    if (!runtimeState) {
+      // Si no hay runtimeState pero hubo ejecución exitosa reciente, mostrar verde
+      if (hasSuccessfulExecution) {
+        return '#10b981' // Verde
+      }
+      return undefined
+    }
+    
+    // Verde para éxito (idle después de ejecución o running), rojo para error, amarillo para warning
+    if (runtimeState === 'idle' && hasSuccessfulExecution) {
+      return '#10b981' // Verde - ejecutado correctamente
+    }
+    if (runtimeState === 'running') {
+      return '#3b82f6' // Azul - ejecutando
+    }
+    if (runtimeState === 'error') {
+      return '#ef4444' // Rojo
+    }
+    if (runtimeState === 'warning') {
+      return '#f59e0b' // Amarillo
+    }
+    return undefined
+  }
+  
+  const borderStatusColor = getBorderColorByStatus()
+  
+  // Determinar iconos de estado para esquina inferior derecha (estilo n8n)
+  const getStatusIcons = () => {
+    const icons: Array<{ icon: LucideIcon; color: string; title: string }> = []
+    
+    // Icono de éxito/error según runtimeState y snapshots
+    if (runtimeState === 'error') {
+      icons.push({
+        icon: XCircle,
+        color: '#ef4444',
+        title: 'Error en ejecución'
+      })
+    } else if (runtimeState === 'warning') {
+      icons.push({
+        icon: AlertCircle,
+        color: '#f59e0b',
+        title: 'Advertencia'
+      })
+    } else if (runtimeState === 'idle' && hasSuccessfulExecution) {
+      icons.push({
+        icon: CheckCircle2,
+        color: '#10b981',
+        title: 'Ejecutado correctamente'
+      })
+    } else if (runtimeState === 'running') {
+      // No mostrar icono cuando está ejecutando (ya hay indicador en el header)
+    }
+    
+    // Agregar icono de información si hay status text importante
+    if (hasStatus && nodeStatus?.text && nodeStatus.text.length > 0) {
+      icons.push({
+        icon: Info,
+        color: statusColor || '#6b7280',
+        title: nodeStatus.text
+      })
+    }
+    
+    return icons
+  }
+  
+  const statusIcons = getStatusIcons()
   
   // Obtener snapshots y logs para generar resumen
   const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
@@ -294,18 +375,21 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
     )
   }
 
+  // Handler de click en el nodo (para triggers) - No necesario, se maneja desde React Flow
+  
   return (
     <div
       className={`
         relative
         bg-node-default
-        border
+        border-2
         rounded-xl
         shadow-node
         min-w-[160px]
         max-w-[220px]
         ${dragging ? '' : 'transition-all duration-200 ease-in-out'}
         group
+        ${onNodeClick ? 'cursor-pointer' : ''}
         ${
           isDisabled
             ? 'opacity-50 border-dashed cursor-not-allowed'
@@ -313,12 +397,18 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
         }
         ${
           isSelected
-            ? 'border-node-border-selected shadow-node-selected ring-2 ring-accent-primary ring-opacity-50'
-            : 'border-node-border hover:border-node-border-hover hover:shadow-node-hover'
+            ? borderStatusColor
+              ? `shadow-node-selected ring-2 ring-opacity-50`
+              : 'border-node-border-selected shadow-node-selected ring-2 ring-accent-primary ring-opacity-50'
+            : borderStatusColor
+              ? 'hover:shadow-node-hover'
+              : 'border-node-border hover:border-node-border-hover hover:shadow-node-hover'
         }
       `}
       style={{
         opacity: isDisabled ? 'var(--node-disabled-opacity)' : undefined,
+        // Borde según estado de ejecución (estilo n8n)
+        borderColor: borderStatusColor || (isSelected ? undefined : undefined),
         // Optimizar renderizado durante el arrastre
         ...(dragging ? {
           willChange: 'transform',
@@ -328,7 +418,11 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
         ...(perfMode ? {
           boxShadow: 'none',
         } : {}),
-      }}
+        // Ring color según estado
+        ...(isSelected && borderStatusColor ? {
+          '--tw-ring-color': borderStatusColor,
+        } : {}),
+      } as React.CSSProperties}
       title={tooltipContent}
     >
       {/* Header del nodo - más compacto estilo n8n */}
@@ -548,6 +642,28 @@ export const BaseNode = memo(({ data, selected, dragging, id }: BaseNodeProps) =
           <p className="text-[10px] text-text-primary font-medium text-center">
             {getNodeExplanation(nodeRedType)}
           </p>
+        </div>
+      )}
+
+      {/* Iconos de estado en esquina inferior derecha (estilo n8n) */}
+      {statusIcons.length > 0 && (
+        <div className="absolute bottom-1 right-1 flex items-center gap-1 z-20">
+          {statusIcons.map((statusIcon, index) => {
+            const Icon = statusIcon.icon
+            return (
+              <div
+                key={index}
+                className="bg-node-default rounded-full p-0.5 shadow-sm border border-node-border/50"
+                title={statusIcon.title}
+              >
+                <Icon 
+                  className="w-3 h-3" 
+                  style={{ color: statusIcon.color }}
+                  strokeWidth={2.5}
+                />
+              </div>
+            )
+          })}
         </div>
       )}
 

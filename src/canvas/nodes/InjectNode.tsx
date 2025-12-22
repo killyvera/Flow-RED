@@ -91,6 +91,25 @@ export const InjectNode = memo((props: BaseNodeProps) => {
   }
 
   const baseNodeData = data.data || data as any
+  
+  // Handler para click en el nodo completo (estilo n8n)
+  const handleNodeClick = async (e: React.MouseEvent) => {
+    // Solo ejecutar si no se está haciendo click en un handle o en el panel de propiedades
+    if (e.target instanceof HTMLElement) {
+      // Si el click es en un handle, no hacer nada (dejar que React Flow lo maneje)
+      if (e.target.closest('.react-flow__handle')) {
+        return
+      }
+      // Si el click es para abrir el panel, no ejecutar
+      if (e.target.closest('[data-node-properties]')) {
+        return
+      }
+    }
+    
+    // Ejecutar trigger
+    await handleTrigger(e)
+  }
+  
   return (
     <BaseNode
       {...props}
@@ -119,40 +138,26 @@ export const InjectNode = memo((props: BaseNodeProps) => {
               <span className="font-medium">Payload:</span> {payloadType}
             </div>
             
-            {/* Botón trigger funcional */}
-            <div className="mt-1.5 pt-1.5 border-t border-node-border/50">
-              <button
-                onClick={handleTrigger}
-                disabled={isTriggering || !nodeId || !canTrigger}
-                className={`
-                  w-full px-2 py-1 text-[10px] font-medium rounded
-                  transition-all duration-200
-                  ${isTriggering 
-                    ? 'bg-accent-primary/50 text-text-primary cursor-wait' 
-                    : canTrigger
-                    ? 'bg-accent-primary hover:bg-accent-primary/90 text-white cursor-pointer active:scale-95'
-                    : 'bg-node-border text-text-secondary cursor-not-allowed'
-                  }
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                `}
-                title={
-                  isTriggering 
-                    ? 'Activando...' 
-                    : !canTrigger 
-                    ? 'Guarda el flow primero usando "Save & Deploy"'
-                    : 'Haz clic para activar este nodo'
-                }
-              >
-                {isTriggering 
-                  ? '⏳ Activando...' 
-                  : !canTrigger 
-                  ? '💾 Guardar primero'
-                  : '▶️ Activar'
-                }
-              </button>
-            </div>
+            {/* Indicador de que se puede hacer click (estilo n8n) */}
+            {canTrigger && !isTriggering && (
+              <div className="mt-1.5 pt-1.5 border-t border-node-border/50 text-[10px] text-text-tertiary text-center">
+                Click para ejecutar
+              </div>
+            )}
+            {isTriggering && (
+              <div className="mt-1.5 pt-1.5 border-t border-node-border/50 text-[10px] text-accent-primary text-center font-medium">
+                ⏳ Ejecutando...
+              </div>
+            )}
+            {!canTrigger && (
+              <div className="mt-1.5 pt-1.5 border-t border-node-border/50 text-[10px] text-text-tertiary text-center">
+                Guarda el flow primero
+              </div>
+            )}
           </div>
         ),
+        // Agregar handler de click al nodo
+        onNodeClick: handleNodeClick,
       } as any}
       selected={selected}
       dragging={dragging}
