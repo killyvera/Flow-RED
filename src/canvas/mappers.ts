@@ -105,15 +105,21 @@ export function mapNodeRedNodeToReactFlowNode(
  * Mapeo a React Flow edges:
  * - Para cada puerto de salida i en wires
  *   - Para cada targetId en wires[i]
- *     - Crear edge con sourceHandle: `output-${i}` y targetHandle: "input"
+ *     - Crear edge con sourceHandle: `output-${i}` y targetHandle: "input" o "input-0", "input-1" para subflows
  * 
  * @param sourceNodeId ID del nodo fuente (el que tiene los wires)
  * @param wires Array de arrays de IDs de nodos destino
+ * @param subflowDefinitions Definiciones de subflows (opcional, para detectar puertos de entrada)
+ * @param targetNodeMap Map de nodeId -> ReactFlowNode (opcional, para detectar si el target es subflow)
+ * @param subflowInputPortCounters Map para rastrear qué puerto de entrada usar para cada subflow
  * @returns Array de edges de React Flow
  */
 export function mapNodeRedWiresToReactFlowEdges(
   sourceNodeId: string,
-  wires: string[][] | undefined
+  wires: string[][] | undefined,
+  subflowDefinitions?: NodeRedSubflowDefinition[],
+  targetNodeMap?: Map<string, ReactFlowNode>,
+  subflowInputPortCounters?: Map<string, number>
 ): ReactFlowEdge[] {
   if (!wires || wires.length === 0) {
     return []
@@ -121,6 +127,18 @@ export function mapNodeRedWiresToReactFlowEdges(
 
   const edges: ReactFlowEdge[] = []
   let edgeCounter = 0
+
+  // Crear map de subflow definitions por ID si no existe
+  const subflowDefMap = new Map<string, NodeRedSubflowDefinition>()
+  if (subflowDefinitions) {
+    subflowDefinitions.forEach(def => {
+      subflowDefMap.set(def.id, def)
+    })
+  }
+
+  // Inicializar contadores si no existen
+  // Usamos un contador por subflow para asignar puertos en orden
+  const portCounters = subflowInputPortCounters || new Map<string, number>()
 
   // Iterar sobre cada puerto de salida
   wires.forEach((targetIds, outputPortIndex) => {
@@ -133,15 +151,58 @@ export function mapNodeRedWiresToReactFlowEdges(
       // Crear un edge único
       const edgeId = `${sourceNodeId}-${outputPortIndex}-${targetId}-${edgeCounter++}`
 
+      // Determinar targetHandle basado en si el target es un subflow
+      let targetHandle = 'input' // Default para nodos normales
+      
+      // Verificar si el target es un subflow
+      const targetNode = targetNodeMap?.get(targetId)
+      const isSubflow = targetNode?.data?.subflowDefinition || 
+                       (targetNode?.data?.nodeRedType && 
+                        typeof targetNode.data.nodeRedType === 'string' && 
+                        targetNode.data.nodeRedType.startsWith('subflow:'))
+      
+      if (isSubflow) {
+        // Obtener la definición del subflow
+        const subflowDef = targetNode?.data?.subflowDefinition
+        const subflowType = targetNode?.data?.nodeRedType as string
+        const subflowId = subflowType?.startsWith('subflow:') 
+          ? subflowType.replace('subflow:', '')
+          : subflowDef?.id
+        
+        let subflowDefinition: NodeRedSubflowDefinition | undefined = subflowDef
+        if (!subflowDefinition && subflowId) {
+          subflowDefinition = subflowDefMap.get(subflowId)
+        }
+        
+        if (subflowDefinition && subflowDefinition.in && subflowDefinition.in.length > 1) {
+          // Subflow con múltiples puertos de entrada
+          // Usar un contador por subflow para asignar puertos en orden
+          // Esto asigna puertos secuencialmente: el primer edge al subflow usa input-0, el segundo input-1, etc.
+          const currentPort = portCounters.get(targetId) || 0
+          
+          // Asegurar que no excedamos el número de puertos disponibles
+          const maxPort = subflowDefinition.in.length - 1
+          const assignedPort = Math.min(currentPort, maxPort)
+          targetHandle = `input-${assignedPort}`
+          
+          // Incrementar contador para el siguiente edge a este subflow
+          portCounters.set(targetId, currentPort + 1)
+        } else {
+          // Subflow con un solo puerto o no se pudo determinar
+          targetHandle = 'input'
+        }
+      }
+
       const edge: ReactFlowEdge = {
         id: edgeId,
         source: sourceNodeId,
         target: targetId,
         // sourceHandle identifica el puerto de salida
         sourceHandle: `output-${outputPortIndex}`,
-        // targetHandle identifica el puerto de entrada (por ahora asumimos "input")
-        // En el futuro se puede mejorar para manejar múltiples puertos de entrada
-        targetHandle: 'input',
+        // targetHandle identifica el puerto de entrada
+        // Para subflows con múltiples puertos: "input-0", "input-1", etc.
+        // Para nodos normales o subflows con un puerto: "input"
+        targetHandle,
         // Tipo de edge: usar smoothstep para curvas suaves estilo Flowise/n8n
         type: 'smoothstep',
         // Estilos modernos
@@ -374,11 +435,27 @@ export function transformNodeRedFlow(
   // Crear un Set de IDs de nodos para validación rápida (incluyendo grupos)
   const nodeIds = new Set(allReactFlowNodes.map((node) => node.id))
 
+  // Crear un Map de nodeId -> ReactFlowNode para búsqueda rápida
+  const targetNodeMap = new Map<string, ReactFlowNode>()
+  allReactFlowNodes.forEach(node => {
+    targetNodeMap.set(node.id, node)
+  })
+
+  // Map para rastrear puertos de entrada de subflows
+  // Esto nos permite asignar targetHandle correctos (input-0, input-1, etc.)
+  const subflowInputPortCounters = new Map<string, number>()
+
   // Convertir todos los wires a edges
   const allEdges: ReactFlowEdge[] = []
   flowNodes.forEach((node) => {
     if (node.wires && node.wires.length > 0) {
-      const edges = mapNodeRedWiresToReactFlowEdges(node.id, node.wires)
+      const edges = mapNodeRedWiresToReactFlowEdges(
+        node.id, 
+        node.wires,
+        subflowDefinitions,
+        targetNodeMap,
+        subflowInputPortCounters
+      )
       allEdges.push(...edges)
     }
   })
@@ -563,6 +640,11 @@ export function transformReactFlowToNodeRed(
     // Esto previene que los nodos de un tab normal se traten como "nodos internos de subflow"
   }
 
+  // #region agent log
+  // H2: Verificar edges antes de reconstruir wires
+  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed:init',message:'Inicio de transformación',data:{flowId,nodesCount:nodes.length,edgesCount:edges.length,nodeIds:nodes.map(n=>n.id),edgeSample:edges.slice(0,5).map(e=>({id:e.id,source:e.source,target:e.target,sourceHandle:e.sourceHandle,targetHandle:e.targetHandle}))},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+
   // Agrupar edges por nodo fuente para reconstruir wires
   const edgesBySource = new Map<string, Map<number, string[]>>()
 
@@ -588,6 +670,19 @@ export function transformReactFlowToNodeRed(
   // Separar nodos normales de nodos internos de subflows
   const normalNodes: ReactFlowNode[] = []
   const subflowInternalNodes = new Map<string, NodeRedNode[]>() // subflowId -> nodos internos
+
+  // CRÍTICO: Crear un Set inicial de IDs de nodos válidos para validar wires
+  // Esto incluye todos los nodos del canvas y nodos de otros flows
+  const validNodeIds = new Set<string>()
+  nodes.forEach(n => validNodeIds.add(n.id))
+  // También incluir nodos de otros flows que se preservarán
+  if (allNodeRedNodes) {
+    allNodeRedNodes.forEach(n => {
+      if (n.type !== 'tab' && n.type !== 'subflow' && n.z !== flowId) {
+        validNodeIds.add(n.id)
+      }
+    })
+  }
 
   // Log para debug
   mapperLogger('🔍 Identificando nodos internos:', {
@@ -653,8 +748,29 @@ export function transformReactFlowToNodeRed(
       if (sourceEdges) {
         const maxPort = Math.max(...Array.from(sourceEdges.keys()), -1)
         for (let i = 0; i <= maxPort; i++) {
-          wires[i] = sourceEdges.get(i) || []
+          const edgeTargets = sourceEdges.get(i) || []
+          // CRÍTICO: Filtrar solo targets que existen en validNodeIds (incluyendo nodos internos del subflow)
+          wires[i] = edgeTargets.filter(targetId => validNodeIds.has(targetId))
         }
+      }
+      
+      // CRÍTICO: También validar wires originales del nodo interno si existen
+      if (originalNodeRedNode.wires && Array.isArray(originalNodeRedNode.wires)) {
+        const originalWires = originalNodeRedNode.wires as string[][]
+        originalWires.forEach((portWires, portIndex) => {
+          if (Array.isArray(portWires)) {
+            const validOriginalWires = portWires.filter(targetId => 
+              typeof targetId === 'string' && validNodeIds.has(targetId)
+            )
+            if (validOriginalWires.length > 0) {
+              if (!wires[portIndex]) {
+                wires[portIndex] = []
+              }
+              const combinedWires = [...new Set([...wires[portIndex], ...validOriginalWires])]
+              wires[portIndex] = combinedWires
+            }
+          }
+        })
       }
       
       // CRÍTICO: Preservar el ID original de Node-RED si existe
@@ -668,7 +784,8 @@ export function transformReactFlowToNodeRed(
         y: node.position.y,
         // NO incluir z - los nodos internos no tienen z
         ...(nodeName && { name: nodeName }),
-        ...(wires.length > 0 && { wires }),
+        // CRÍTICO: Siempre sobrescribir wires, incluso si está vacío, para eliminar referencias a nodos inexistentes
+        wires, // Siempre usar los wires validados, incluso si es un array vacío
       }
       
       // targetSubflowId ya está definido arriba
@@ -690,6 +807,14 @@ export function transformReactFlowToNodeRed(
     bySubflow: Object.fromEntries(
       Array.from(subflowInternalNodes.entries()).map(([id, nodes]) => [id, nodes.length])
     ),
+  })
+
+  // CRÍTICO: Actualizar validNodeIds con los nodos internos procesados
+  // Esto asegura que los wires de nodos normales puedan validarse correctamente
+  Array.from(subflowInternalNodes.values()).forEach(internalNodes => {
+    internalNodes.forEach(internalNode => {
+      validNodeIds.add(internalNode.id)
+    })
   })
 
   // Convertir cada nodo normal de React Flow a Node-RED
@@ -727,8 +852,45 @@ export function transformReactFlowToNodeRed(
       // Obtener el número máximo de puertos de salida
       const maxPort = Math.max(...Array.from(sourceEdges.keys()), -1)
       for (let i = 0; i <= maxPort; i++) {
-        wires[i] = sourceEdges.get(i) || []
+        const edgeTargets = sourceEdges.get(i) || []
+        // CRÍTICO: Filtrar solo targets que existen en validNodeIds
+        const validTargets = edgeTargets.filter(targetId => validNodeIds.has(targetId))
+        const invalidTargets = edgeTargets.filter(targetId => !validNodeIds.has(targetId))
+        if (invalidTargets.length > 0) {
+          console.warn(`[transformReactFlowToNodeRed] Filtrando wires inválidos del nodo ${node.id} puerto ${i}:`, invalidTargets)
+        }
+        wires[i] = validTargets
       }
+    }
+    
+    // CRÍTICO: Si el nodo original tenía wires preservados, también validarlos
+    // Esto es necesario porque algunos nodos pueden tener wires que no están en los edges de React Flow
+    // (por ejemplo, si se eliminó un nodo pero el originalNodeRedNode todavía tiene los wires)
+    if (originalNodeRedNode.wires && Array.isArray(originalNodeRedNode.wires)) {
+      const originalWires = originalNodeRedNode.wires as string[][]
+      // Validar y limpiar wires originales
+      originalWires.forEach((portWires, portIndex) => {
+        if (Array.isArray(portWires)) {
+          const validOriginalWires = portWires.filter(targetId => 
+            typeof targetId === 'string' && validNodeIds.has(targetId)
+          )
+          const invalidOriginalWires = portWires.filter(targetId => 
+            typeof targetId === 'string' && !validNodeIds.has(targetId)
+          )
+          if (invalidOriginalWires.length > 0) {
+            console.warn(`[transformReactFlowToNodeRed] Filtrando wires originales inválidos del nodo ${node.id} puerto ${portIndex}:`, invalidOriginalWires)
+          }
+          // Si hay wires válidos del original que no están en los wires reconstruidos, agregarlos
+          if (validOriginalWires.length > 0) {
+            if (!wires[portIndex]) {
+              wires[portIndex] = []
+            }
+            // Combinar wires de edges y wires originales válidos, eliminando duplicados
+            const combinedWires = [...new Set([...wires[portIndex], ...validOriginalWires])]
+            wires[portIndex] = combinedWires
+          }
+        }
+      })
     }
 
     // Propiedades que se actualizan desde React Flow
@@ -770,9 +932,20 @@ export function transformReactFlowToNodeRed(
       // Propiedades que pueden haber cambiado (solo si tienen valor)
       // IMPORTANTE: Preservar name original si nodeName está vacío
       ...(nodeName !== undefined && nodeName !== '' ? { name: nodeName } : (originalNodeRedNode.name !== undefined ? { name: originalNodeRedNode.name } : {})),
-      ...(wires.length > 0 && { wires }),
+      // CRÍTICO: Siempre sobrescribir wires, incluso si está vacío, para eliminar referencias a nodos inexistentes
+      wires, // Siempre usar los wires validados, incluso si es un array vacío
       ...(isLinkNode && preservedLinks !== undefined && { links: preservedLinks }),
     }
+    
+    // #region agent log
+    // H1, H4: Verificar preservación de propiedades críticas
+    const criticalProps = ['func', 'props', 'payloadType', 'payload', 'topic', 'repeat', 'crontab', 'once', 'onceDelay', 'outputs', 'noerr', 'initialize', 'finalize', 'libs']
+    const missingCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] === undefined)
+    const changedCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] !== undefined && JSON.stringify(originalNodeRedNode[p]) !== JSON.stringify(nodeRedNode[p]))
+    if (missingCritical.length > 0 || changedCritical.length > 0 || node.data.nodeRedType === 'function' || node.data.nodeRedType === 'inject') {
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformNode',message:'Verificación de propiedades críticas',data:{nodeId:preservedId,nodeType:node.data.nodeRedType,missingCritical,changedCritical,originalProps:Object.keys(originalNodeRedNode).filter(k=>criticalProps.includes(k)),transformedProps:Object.keys(nodeRedNode).filter(k=>criticalProps.includes(k)),originalFunc:originalNodeRedNode.func?.substring?.(0,50),transformedFunc:nodeRedNode.func?.substring?.(0,50),originalWires:originalNodeRedNode.wires,transformedWires:nodeRedNode.wires,hasNodeRedNode:!!node.data.nodeRedNode},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H4'})}).catch(()=>{});
+    }
+    // #endregion
     
     // CRÍTICO: Para nodos inject, asegurar que todas las propiedades necesarias estén presentes
     // Si el nodo original tenía estas propiedades, preservarlas exactamente como estaban
@@ -1048,6 +1221,14 @@ export function transformReactFlowToNodeRed(
     subflowInternalNodes: Array.from(subflowInternalNodes.values()).reduce((sum, arr) => sum + arr.length, 0),
     internalNodesInArray: internalNodesToAdd.length,
   })
+
+  // #region agent log
+  // H1-H5: Verificar resultado final de la transformación
+  const functionNodes = orderedFinalNodes.filter(n => n.type === 'function')
+  const injectNodes = orderedFinalNodes.filter(n => n.type === 'inject')
+  const nodesWithoutWires = orderedFinalNodes.filter(n => n.type !== 'tab' && n.type !== 'subflow' && n.type !== 'group' && !n.wires)
+  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed:final',message:'Resultado final de transformación',data:{flowId,totalNodes:orderedFinalNodes.length,functionNodes:functionNodes.map(n=>({id:n.id,hasFunc:!!n.func,funcLength:n.func?.length||0,outputs:n.outputs,wires:n.wires})),injectNodes:injectNodes.map(n=>({id:n.id,hasProps:!!n.props,payloadType:n.payloadType,payload:typeof n.payload,wires:n.wires})),nodesWithoutWires:nodesWithoutWires.map(n=>({id:n.id,type:n.type})),subflowsProcessed:processedSubflows.size,internalNodesInArray:internalNodesToAdd.length},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H2,H3,H4,H5'})}).catch(()=>{});
+  // #endregion
 
   return orderedFinalNodes
 }

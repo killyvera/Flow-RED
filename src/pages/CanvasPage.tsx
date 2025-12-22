@@ -767,17 +767,17 @@ export function CanvasPage() {
             }
             return true // SIEMPRE preservar otras definiciones de subflow
           }
-          // CRÍTICO: Excluir instancias de subflow del flow activo si ya están en nodeRedNodes
-          // Esto previene duplicados cuando se guarda un flow que contiene instancias de subflow
-          if (typeof n.type === 'string' && n.type.startsWith('subflow:') && n.z === activeFlowId) {
-            // Si la instancia está en los transformados, excluirla (será reemplazada)
-            if (transformedNodeIds.has(n.id)) {
-              return false
+          // Manejar instancias de subflow (type === 'subflow:ID')
+          if (typeof n.type === 'string' && n.type.startsWith('subflow:')) {
+            // Preservar instancias de subflow de OTROS flows (z !== activeFlowId)
+            if (n.z && n.z !== activeFlowId) {
+              return true
             }
-          }
-          // Preservar instancias de subflow de otros flows (type === 'subflow:ID' con z diferente al flow activo)
-          if (typeof n.type === 'string' && n.type.startsWith('subflow:') && n.z && n.z !== activeFlowId) {
-            return true // Preservar instancias de subflow de otros flows
+            // Las instancias del flow activo (z === activeFlowId) NO se preservan aquí
+            // porque vienen de nodeRedNodes. Esto aplica tanto a:
+            // - Instancias existentes (estarán en nodeRedNodes si siguen en el canvas)
+            // - Instancias eliminadas (no estarán en nodeRedNodes, así que desaparecen)
+            // No necesitamos return false aquí porque el fix más abajo lo maneja
           }
           // Excluir tabs
           if (n.type === 'tab') {
@@ -800,6 +800,14 @@ export function CanvasPage() {
             if (!isEditingSubflow || n.z !== activeFlowId) {
               return false
             }
+          }
+          // CRÍTICO FIX: Excluir nodos del flow activo cuando NO es un subflow
+          // Todos los nodos del flow activo deben venir de nodeRedNodes (transformados desde el canvas)
+          // Si un nodo tiene z === activeFlowId pero no está en transformedNodeIds,
+          // significa que fue eliminado del canvas y no debe preservarse
+          // Esto aplica tanto a flows principales como a cualquier flow que no sea subflow
+          if (!isEditingSubflow && n.z === activeFlowId) {
+            return false // Los nodos del flow activo vienen de nodeRedNodes, no de aquí
           }
           // Excluir nodos que están en los transformados (serán reemplazados)
           if (transformedNodeIds.has(n.id)) {
@@ -1224,14 +1232,13 @@ export function CanvasPage() {
           if (subflow.flow && Array.isArray(subflow.flow) && subflow.flow.length > 0) {
             // Agregar cada nodo interno al array principal con z = subflowId
             subflow.flow.forEach(internalNode => {
-              // CRÍTICO: Si este nodo interno ya está en internalNodesToAdd (desde nodeRedNodes cuando se edita),
-              // NO agregarlo de nuevo. La versión de nodeRedNodes tiene las propiedades actualizadas.
+              // CRÍTICO FIX: Cuando estamos editando este subflow, IGNORAR completamente subflow.flow
+              // Todos los nodos internos deben venir de internalNodesToAdd (que se llenó desde nodeRedNodes).
+              // Esto asegura que los nodos eliminados del canvas no vuelvan a aparecer.
+              // Solo procesamos subflow.flow para subflows que NO estamos editando.
               if (isEditingSubflow && subflow.id === activeFlowId) {
-                const existingInternalNode = internalNodesToAdd.find(n => n.id === internalNode.id)
-                if (existingInternalNode) {
-                  // Ya está en internalNodesToAdd con propiedades actualizadas, no agregarlo de nuevo
-                  return
-                }
+                // Ignorar este nodo - todos los nodos del subflow activo vienen de internalNodesToAdd
+                return
               }
               
               // CRÍTICO: Preservar TODAS las propiedades del nodo interno original
@@ -1610,6 +1617,13 @@ export function CanvasPage() {
         count: updatedNodeRedNodes.length,
         activeFlowId,
       })
+      
+      // #region agent log
+      // H1,H4: Verificar propiedades después de recargar desde Node-RED
+      const functionNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'function')
+      const injectNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'inject')
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave:afterReload',message:'Estado después de recargar desde Node-RED',data:{activeFlowId,totalNodes:updatedNodeRedNodes.length,functionNodes:functionNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasFunc:!!n.func,funcLength:n.func?.length||0,funcPreview:n.func?.substring?.(0,30),outputs:n.outputs,noerr:n.noerr,wires:n.wires})),injectNodes:injectNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasProps:!!n.props,propsCount:Array.isArray(n.props)?n.props.length:0,payloadType:n.payloadType,payload:typeof n.payload,topic:n.topic,repeat:n.repeat,crontab:n.crontab,once:n.once,wires:n.wires}))},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H4'})}).catch(()=>{});
+      // #endregion
       
       // Renderizar el flow activo con los datos actualizados desde Node-RED
       // Usar los nodos del store directamente para asegurar que tenemos la versión más reciente

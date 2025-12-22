@@ -6,6 +6,7 @@
  */
 
 import type { NodeRuntimeState } from '@/state/canvasStore'
+import type { NodeExecutionData } from '@/types/observability'
 
 /**
  * Frame de ejecución que agrupa eventos relacionados
@@ -21,6 +22,8 @@ export interface ExecutionFrame {
   triggerNodeId?: string
   /** Etiqueta descriptiva opcional */
   label?: string
+  /** Nodos que participaron en el frame (del plugin de observability) */
+  nodes?: Map<string, NodeExecutionData>
 }
 
 /**
