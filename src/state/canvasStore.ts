@@ -7,12 +7,12 @@
 import { create } from 'zustand'
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
 import type { NodeRedNode, NodeRedGroup } from '@/api/types'
-import type { ExecutionFrame, NodeExecutionSnapshot, FrameStats } from '@/types/executionFrames'
+import type { ExecutionFrame, NodeExecutionSnapshot } from '@/types/executionFrames'
 
 /**
  * Estado de runtime de un nodo
  */
-export type NodeRuntimeState = 'running' | 'error' | 'idle' | 'warning' | 'success'
+export type NodeRuntimeState = 'running' | 'error' | 'idle' | 'warning'
 
 /**
  * Entrada de log de ejecución
@@ -60,10 +60,8 @@ export interface CanvasState {
   
   /** Estados de runtime de los nodos (por ID de nodo) */
   nodeRuntimeStates: Map<string, NodeRuntimeState>
-  /** Estado de conexión WebSocket /comms */
+  /** Estado de conexión WebSocket */
   wsConnected: boolean
-  /** Estado de conexión WebSocket /observability */
-  observabilityConnected: boolean
   
   /** Edges activos (transmitiendo datos) - Set de edge IDs */
   activeEdges: Set<string>
@@ -98,7 +96,6 @@ export interface CanvasState {
   clearNodeRuntimeState: (nodeId: string) => void
   clearAllRuntimeStates: () => void
   setWsConnected: (connected: boolean) => void
-  setObservabilityConnected: (connected: boolean) => void
   
   // Acciones para ejecución
   setActiveEdge: (edgeId: string, active: boolean) => void
@@ -121,7 +118,6 @@ export interface CanvasState {
   startFrame: (triggerNodeId?: string, label?: string) => ExecutionFrame
   endFrame: (frameId: string) => void
   addNodeSnapshot: (snapshot: NodeExecutionSnapshot) => void
-  updateFrameStats: (frameId: string, stats: FrameStats) => void
   setExecutionFramesEnabled: (enabled: boolean) => void
   clearFrames: () => void
   
@@ -187,8 +183,7 @@ const initialState: Omit<CanvasState,
   'setActiveEdge' | 'clearActiveEdges' | 'addExecutionLog' | 'clearExecutionLogs' |
   'setSelectedNodeId' | 'setSelectedEdgeId' | 'setEditMode' | 'toggleEditMode' |
   'setLoading' | 'setError' | 'setNodeRedNodes' | 'setFlows' | 'setActiveFlowId' |
-  'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'updateFrameStats' | 'setExecutionFramesEnabled' | 'clearFrames' |
-  'setObservabilityConnected' |
+  'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'setExecutionFramesEnabled' | 'clearFrames' |
   'setExplainMode' | 'toggleExplainMode' | 'setPerfMode' | 'togglePerfMode' |
   'setWsEventQueueSize' | 'reset' | 'setSubflowDefinitions' | 'setCurrentSubflowId'
 > = {
@@ -206,7 +201,6 @@ const initialState: Omit<CanvasState,
   collapsedGroupIds: new Set<string>(),
   nodeRuntimeStates: new Map<string, NodeRuntimeState>(),
   wsConnected: false,
-  observabilityConnected: false,
   activeEdges: new Set<string>(),
   executionLogs: [],
   maxLogs: 1000,
@@ -256,7 +250,6 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   }),
   clearAllRuntimeStates: () => set({ nodeRuntimeStates: new Map() }),
   setWsConnected: (connected) => set({ wsConnected: connected }),
-  setObservabilityConnected: (connected) => set({ observabilityConnected: connected }),
   
           setActiveEdge: (edgeId, active) => {
             set((state) => {
@@ -350,25 +343,6 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     })
   },
   
-  updateFrameStats: (frameId, stats) => {
-    set((state) => {
-      // Actualizar el frame actual si coincide
-      if (state.currentFrame?.id === frameId) {
-        return {
-          currentFrame: {
-            ...state.currentFrame,
-            stats,
-          }
-        }
-      }
-      // Buscar en frames anteriores
-      const updatedFrames = state.frames.map(frame => 
-        frame.id === frameId ? { ...frame, stats } : frame
-      )
-      return { frames: updatedFrames }
-    })
-  },
-  
   setExecutionFramesEnabled: (enabled) => {
     set({ executionFramesEnabled: enabled })
     if (!enabled) {
@@ -425,7 +399,6 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     ...initialState,
     nodeRuntimeStates: new Map(),
     wsConnected: false,
-    observabilityConnected: false,
     nodeSnapshots: new Map<string, NodeExecutionSnapshot[]>(),
   }),
 }))

@@ -7,15 +7,14 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
 import { FlowList } from './FlowList'
 import { DeleteFlowModal } from './DeleteFlowModal'
 import { ImportFlowModal } from './ImportFlowModal'
 import { exportFlow } from '@/api/client'
-// NodeRedNode tipo no usado directamente pero mantenido para referencia futura
-// import type { NodeRedNode } from '@/api/types'
+import type { NodeRedNode } from '@/api/types'
 
 /**
  * Icono personalizado para "Mis flujos"
@@ -83,7 +82,7 @@ export function Sidebar({
   const { isDarkMode, toggleDarkMode } = useTheme()
   const { 
     isFlowManagerOpen,
-    // openFlowManager no se usa directamente, se maneja internamente 
+    openFlowManager, 
     closeFlowManager,
     flows = [],
     activeFlowId = null,

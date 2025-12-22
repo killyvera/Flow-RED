@@ -151,7 +151,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       if (frame && nodeId) {
         const payload = event.data?.msg?.payload || event.data?.payload || event.payload
         const payloadPreview = payload ? createPayloadPreview(payload) : undefined
-        
+
         addNodeSnapshot({
           nodeId,
           frameId: frame.id,

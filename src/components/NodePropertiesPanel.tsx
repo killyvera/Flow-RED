@@ -6,7 +6,7 @@
  * en el schema de Node-RED.
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Node } from 'reactflow'
 import { X, Loader2, Info, Settings, ChevronDown, ChevronUp, Database, Play, Code } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'

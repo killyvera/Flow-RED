@@ -30,11 +30,12 @@ export function useNodeInputData(nodeId: string | null, frameId: string | null) 
     // 1. Si es trigger/webhook → buscar datos reales del snapshot
     if (isTriggerNode(nodeType)) {
       const snapshots = nodeSnapshots.get(nodeId) || []
+
       // Si hay frameId, buscar en ese frame específico, sino usar el más reciente
       const frameSnapshot = frameId
         ? snapshots.find((s) => s.frameId === frameId)
         : snapshots[snapshots.length - 1]
-      
+
       if (frameSnapshot?.payloadPreview) {
         try {
           const data = JSON.parse(frameSnapshot.payloadPreview)
