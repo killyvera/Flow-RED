@@ -19,6 +19,7 @@ import { TextField, NumberField, SelectField, BooleanField, JSONField, TypedInpu
 import { DataViewer } from './DataViewer'
 import { useNodeInputData, useNodeOutputData, useNodeContext, useExecutionTimeline } from '@/hooks/useNodeInspectorData'
 import { isTriggerNode } from '@/utils/executionFrameManager'
+import { CustomEditorRenderer, hasCustomEditor } from './CustomEditorRenderer'
 // getNodeExplanation se usa en ExplainMode, pero está comentado por ahora
 
 export interface NodePropertiesPanelProps {
@@ -1112,7 +1113,28 @@ export function NodePropertiesPanel({
             )}
           </div>
         ) : activeTab === 'configuration' ? (
-          isLoadingSchema ? (
+          // Check if node has custom editor
+          hasCustomEditor(nodeType) ? (
+            <div className="flex-1 overflow-y-auto">
+              <CustomEditorRenderer
+                nodeType={nodeType}
+                nodeData={node.data?.nodeRedNode || {}}
+                onChange={(updatedData) => {
+                  if (onUpdateNode) {
+                    onUpdateNode(node.id, {
+                      data: {
+                        ...node.data,
+                        nodeRedNode: {
+                          ...node.data?.nodeRedNode,
+                          ...updatedData
+                        }
+                      }
+                    })
+                  }
+                }}
+              />
+            </div>
+          ) : isLoadingSchema ? (
           <div className="p-6 flex flex-col items-center justify-center text-text-secondary">
             <Loader2 className="w-6 h-6 animate-spin mb-2" />
             <p className="text-xs">Cargando propiedades...</p>
