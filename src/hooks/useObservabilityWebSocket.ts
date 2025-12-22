@@ -92,11 +92,26 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
     })
     
     // Extraer payload preview de forma segura
-    const payloadPreview = data.input?.payload?.preview
-      ? (typeof data.input.payload.preview === 'string' 
-          ? data.input.payload.preview 
-          : JSON.stringify(data.input.payload.preview))
-      : undefined
+    // Intentar múltiples ubicaciones posibles del payload
+    let payloadPreview: string | undefined
+    if (data.input?.payload?.preview) {
+      payloadPreview = typeof data.input.payload.preview === 'string' 
+        ? data.input.payload.preview 
+        : JSON.stringify(data.input.payload.preview)
+    } else if (data.input?.payload) {
+      // El payload puede estar directamente en input.payload
+      payloadPreview = typeof data.input.payload === 'string'
+        ? data.input.payload
+        : JSON.stringify(data.input.payload)
+    } else if ((data as any).msg?.payload) {
+      // Formato alternativo: msg.payload
+      const msg = (data as any).msg
+      payloadPreview = typeof msg.payload === 'string'
+        ? msg.payload
+        : JSON.stringify(msg.payload)
+    }
+    
+    wsLogger('[Observability] node:input snapshot:', { nodeId, frameId, hasPayload: !!payloadPreview, data })
     
     // Crear snapshot de input
     const snapshot: NodeExecutionSnapshot = {
@@ -112,6 +127,7 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
     }
     
     addNodeSnapshot(snapshot)
+    wsLogger('[Observability] Snapshot guardado para node:input:', nodeId)
   }, [edges, setNodeRuntimeState, setActiveEdge, addNodeSnapshot])
 
   /**
@@ -168,12 +184,26 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
     // Crear snapshot de output con todos los datos enriquecidos
     const primaryOutput = outputs[0]
     
-    // Extraer payload preview de forma segura
-    const payloadPreview = primaryOutput?.payload?.preview 
-      ? (typeof primaryOutput.payload.preview === 'string' 
-          ? primaryOutput.payload.preview 
-          : JSON.stringify(primaryOutput.payload.preview))
-      : undefined
+    // Extraer payload preview de forma segura - intentar múltiples ubicaciones
+    let payloadPreview: string | undefined
+    if (primaryOutput?.payload?.preview) {
+      payloadPreview = typeof primaryOutput.payload.preview === 'string' 
+        ? primaryOutput.payload.preview 
+        : JSON.stringify(primaryOutput.payload.preview)
+    } else if (primaryOutput?.payload) {
+      // El payload puede estar directamente
+      payloadPreview = typeof primaryOutput.payload === 'string'
+        ? primaryOutput.payload
+        : JSON.stringify(primaryOutput.payload)
+    } else if ((data as any).msg?.payload) {
+      // Formato alternativo: msg.payload
+      const msg = (data as any).msg
+      payloadPreview = typeof msg.payload === 'string'
+        ? msg.payload
+        : JSON.stringify(msg.payload)
+    }
+    
+    wsLogger('[Observability] node:output snapshot:', { nodeId, frameId, hasPayload: !!payloadPreview, outputsCount: outputs.length, data })
     
     // Construir summary de forma segura
     const role = data.semantics?.role || 'unknown'
@@ -194,6 +224,7 @@ export function useObservabilityWebSocket(enabled: boolean = true) {
     }
     
     addNodeSnapshot(snapshot)
+    wsLogger('[Observability] Snapshot guardado para node:output:', nodeId, 'payload:', payloadPreview?.substring(0, 50))
   }, [edges, setNodeRuntimeState, setActiveEdge, addNodeSnapshot])
 
   /**
