@@ -15,6 +15,7 @@ import { xml } from '@codemirror/lang-xml'
 import { linter } from '@codemirror/lint'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { Wand2, Copy, Check } from 'lucide-react'
+import { useTheme } from '@/context/ThemeContext'
 
 export interface CodeEditorProps {
   value: string
@@ -41,6 +42,7 @@ export function CodeEditor({
   const viewRef = useRef<EditorView | null>(null)
   const [copied, setCopied] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const { isDarkMode } = useTheme()
 
   // Configurar extensiones según el lenguaje
   const getLanguageExtensions = () => {
@@ -73,7 +75,8 @@ export function CodeEditor({
       keymap.of([...defaultKeymap, indentWithTab]),
       EditorView.lineWrapping,
       EditorState.readOnly.of(readOnly),
-      oneDark,
+      // Aplicar tema dark solo si está en modo oscuro
+      ...(isDarkMode ? [oneDark] : []),
       ...getLanguageExtensions(),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -115,7 +118,7 @@ export function CodeEditor({
       view.destroy()
       viewRef.current = null
     }
-  }, [language, readOnly, validateJson]) // Solo recrear si cambian estas props
+  }, [language, readOnly, validateJson, isDarkMode]) // Incluir isDarkMode para reaccionar a cambios de tema
 
   // Actualizar valor cuando cambia desde afuera
   useEffect(() => {
@@ -167,13 +170,25 @@ export function CodeEditor({
 
   return (
     <div className="code-editor-wrapper">
-      <div className="code-editor-toolbar flex items-center justify-between mb-2 px-2 py-1 bg-zinc-800 rounded-t">
+      <div 
+        className="code-editor-toolbar flex items-center justify-between mb-2 px-2 py-1 rounded-t"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderBottom: '1px solid var(--color-node-border)',
+        }}
+      >
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400 uppercase font-medium">
+          <span 
+            className="text-xs uppercase font-medium"
+            style={{ color: 'var(--color-text-tertiary)' }}
+          >
             {language}
           </span>
           {validationError && (
-            <span className="text-xs text-red-400">
+            <span 
+              className="text-xs"
+              style={{ color: 'var(--color-status-error)' }}
+            >
               {validationError}
             </span>
           )}
@@ -182,7 +197,18 @@ export function CodeEditor({
           {showPrettyButton && language === 'json' && !readOnly && (
             <button
               onClick={handlePrettyPrint}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-300 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors"
+              style={{
+                color: 'var(--color-text-secondary)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+              }}
               title="Format JSON"
             >
               <Wand2 className="w-3 h-3" />
@@ -191,7 +217,18 @@ export function CodeEditor({
           )}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-300 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors"
+            style={{
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              e.currentTarget.style.color = 'var(--color-text-primary)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = 'var(--color-text-secondary)'
+            }}
             title="Copy to clipboard"
           >
             {copied ? (
@@ -211,32 +248,45 @@ export function CodeEditor({
       
       <div 
         ref={editorRef} 
-        className="code-editor-container rounded-b overflow-hidden border border-zinc-700"
-        style={{ height }}
+        className="code-editor-container rounded-b overflow-hidden"
+        style={{ 
+          height,
+          border: '1px solid var(--color-node-border)',
+        }}
       />
 
       <style>{`
         .code-editor-container .cm-editor {
           height: 100%;
+          background-color: var(--color-bg-primary);
+          color: var(--color-text-primary);
         }
         
         .code-editor-container .cm-scroller {
-          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+          font-family: var(--font-family-mono);
           font-size: 13px;
         }
 
         .code-editor-container .cm-gutters {
-          background-color: #1e1e1e;
-          border-right: 1px solid #3f3f3f;
+          background-color: var(--color-bg-secondary);
+          border-right: 1px solid var(--color-node-border);
         }
 
         .code-editor-container .cm-lineNumbers .cm-gutterElement {
           min-width: 3em;
-          color: #858585;
+          color: var(--color-text-tertiary);
         }
 
         .code-editor-container .cm-lint-marker-error {
           background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="%23f87171"/></svg>');
+        }
+
+        .code-editor-container .cm-content {
+          color: var(--color-text-primary);
+        }
+
+        .code-editor-container .cm-focused {
+          outline: none;
         }
       `}</style>
     </div>

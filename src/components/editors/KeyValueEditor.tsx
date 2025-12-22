@@ -131,7 +131,10 @@ export function KeyValueEditor({
     <div className="keyvalue-editor space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-4 text-xs font-medium text-zinc-400">
+        <div 
+          className="flex items-center gap-4 text-xs font-medium"
+          style={{ color: 'var(--color-text-tertiary)' }}
+        >
           {allowToggle && <span className="w-8"></span>}
           <span className="flex-1">{keyLabel}</span>
           <span className="flex-1">{valueLabel}</span>
@@ -142,14 +145,32 @@ export function KeyValueEditor({
           <div className="flex items-center gap-2">
             <button
               onClick={handleImportJson}
-              className="p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              className="p-1 rounded transition-colors"
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
               title="Import from JSON"
             >
               <Upload className="w-4 h-4" />
             </button>
             <button
               onClick={handleExportJson}
-              className="p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              className="p-1 rounded transition-colors"
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
               title="Export to JSON"
               disabled={items.length === 0}
             >
@@ -162,7 +183,13 @@ export function KeyValueEditor({
       {/* Items */}
       <div className="space-y-2">
         {items.length === 0 && (
-          <div className="text-center py-8 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded">
+          <div 
+            className="text-center py-8 text-sm border border-dashed rounded"
+            style={{
+              color: 'var(--color-text-tertiary)',
+              borderColor: 'var(--color-node-border)',
+            }}
+          >
             No items yet. Click "{addButtonText}" to get started.
           </div>
         )}
@@ -170,11 +197,14 @@ export function KeyValueEditor({
         {items.map((item, index) => (
           <div
             key={index}
-            className={`flex items-center gap-2 p-2 rounded border transition-colors ${
-              !item.enabled && allowToggle
-                ? 'bg-zinc-900 border-zinc-800 opacity-50'
-                : 'bg-zinc-800 border-zinc-700'
-            }`}
+            className="flex items-center gap-2 p-2 rounded border transition-colors"
+            style={{
+              backgroundColor: !item.enabled && allowToggle 
+                ? 'var(--color-bg-tertiary)' 
+                : 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-node-border)',
+              opacity: !item.enabled && allowToggle ? 0.5 : 1,
+            }}
           >
             {/* Toggle checkbox */}
             {allowToggle && (
@@ -182,7 +212,11 @@ export function KeyValueEditor({
                 type="checkbox"
                 checked={item.enabled !== false}
                 onChange={() => handleToggle(index)}
-                className="w-4 h-4 rounded border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                className="w-4 h-4 rounded focus:ring-2 focus:ring-offset-0"
+                style={{
+                  borderColor: 'var(--color-node-border)',
+                  accentColor: 'var(--color-accent-primary)',
+                }}
                 disabled={readOnly}
               />
             )}
@@ -193,7 +227,12 @@ export function KeyValueEditor({
               value={item.key}
               onChange={(e) => handleKeyChange(index, e.target.value)}
               placeholder={placeholder.key}
-              className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                borderColor: 'var(--color-node-border)',
+                color: 'var(--color-text-primary)',
+              }}
               disabled={readOnly}
             />
 
@@ -203,7 +242,12 @@ export function KeyValueEditor({
               value={item.value}
               onChange={(e) => handleValueChange(index, e.target.value)}
               placeholder={placeholder.value}
-              className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                borderColor: 'var(--color-node-border)',
+                color: 'var(--color-text-primary)',
+              }}
               disabled={readOnly}
             />
 
@@ -211,7 +255,16 @@ export function KeyValueEditor({
             {!readOnly && (
               <button
                 onClick={() => handleRemove(index)}
-                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+                className="p-2 rounded transition-colors"
+                style={{ color: 'var(--color-status-error)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-status-error)'
+                  e.currentTarget.style.opacity = '0.1'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.opacity = '1'
+                }}
                 title="Remove item"
               >
                 <Trash2 className="w-4 h-4" />
@@ -225,7 +278,22 @@ export function KeyValueEditor({
       {!readOnly && (
         <button
           onClick={handleAdd}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded border border-blue-500/30 hover:border-blue-500/50 transition-colors w-full justify-center"
+          className="flex items-center gap-2 px-3 py-2 text-sm rounded border transition-colors w-full justify-center"
+          style={{
+            color: 'var(--color-accent-primary)',
+            borderColor: 'var(--color-accent-primary)',
+            borderOpacity: 0.3,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)'
+            e.currentTarget.style.opacity = '0.1'
+            e.currentTarget.style.borderOpacity = '0.5'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.opacity = '1'
+            e.currentTarget.style.borderOpacity = '0.3'
+          }}
         >
           <Plus className="w-4 h-4" />
           {addButtonText}

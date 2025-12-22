@@ -133,7 +133,10 @@ export function DebugTab({ nodeData }: DebugTabProps) {
 
   return (
     <div className="debug-tab space-y-4">
-      <div className="text-sm text-zinc-400 mb-4">
+      <div 
+        className="text-sm mb-4"
+        style={{ color: 'var(--color-text-secondary)' }}
+      >
         Preview of the HTTP request that will be sent. Secrets are redacted by default for security.
       </div>
 
@@ -143,7 +146,14 @@ export function DebugTab({ nodeData }: DebugTabProps) {
           {warnings.map((warning, index) => (
             <div
               key={index}
-              className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm"
+              className="flex items-start gap-2 p-3 rounded text-sm"
+              style={{
+                backgroundColor: 'var(--color-status-warning)',
+                opacity: 0.1,
+                border: '1px solid var(--color-status-warning)',
+                borderOpacity: 0.3,
+                color: 'var(--color-status-warning)',
+              }}
             >
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span>{warning}</span>
@@ -156,7 +166,19 @@ export function DebugTab({ nodeData }: DebugTabProps) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => setShowSecrets(!showSecrets)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 rounded transition-colors border border-zinc-700"
+          className="flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors border"
+          style={{
+            color: 'var(--color-text-secondary)',
+            borderColor: 'var(--color-node-border)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-primary)'
+            e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-secondary)'
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
         >
           {showSecrets ? (
             <>
@@ -173,7 +195,19 @@ export function DebugTab({ nodeData }: DebugTabProps) {
 
         <button
           onClick={handleCopy}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 rounded transition-colors border border-zinc-700"
+          className="flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors border"
+          style={{
+            color: 'var(--color-text-secondary)',
+            borderColor: 'var(--color-node-border)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-primary)'
+            e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-secondary)'
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
         >
           {copied ? (
             <>
@@ -200,7 +234,16 @@ export function DebugTab({ nodeData }: DebugTabProps) {
       />
 
       {/* Info Box */}
-      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 text-sm">
+      <div 
+        className="p-4 rounded text-sm"
+        style={{
+          backgroundColor: 'var(--color-accent-primary)',
+          opacity: 0.1,
+          border: '1px solid var(--color-accent-primary)',
+          borderOpacity: 0.3,
+          color: 'var(--color-accent-primary)',
+        }}
+      >
         <p className="font-medium mb-2">About This Preview</p>
         <ul className="list-disc list-inside space-y-1 text-xs pl-2">
           <li>This is a static preview of your configuration</li>

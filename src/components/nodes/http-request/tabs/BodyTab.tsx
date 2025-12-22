@@ -158,31 +158,65 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
 
   return (
     <div className="body-tab space-y-4">
-      <div className="text-sm text-zinc-400 mb-4">
+      <div 
+        className="text-sm mb-4"
+        style={{ color: 'var(--color-text-secondary)' }}
+      >
         Configure the request body. Available for POST, PUT, and PATCH methods.
       </div>
 
       {/* Mode and Content Type selectors */}
       <div className="flex items-center gap-4">
         {/* Mode toggle */}
-        <div className="flex items-center gap-2 bg-zinc-800 rounded p-1">
+        <div 
+          className="flex items-center gap-2 rounded p-1"
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+        >
           <button
             onClick={() => handleModeChange('form')}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              mode === 'form'
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-            }`}
+            className="px-3 py-1 text-sm rounded transition-colors"
+            style={mode === 'form' ? {
+              backgroundColor: 'var(--color-accent-primary)',
+              color: 'var(--color-text-primary)',
+            } : {
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              if (mode !== 'form') {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (mode !== 'form') {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }
+            }}
           >
             Form
           </button>
           <button
             onClick={() => handleModeChange('raw')}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              mode === 'raw'
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-            }`}
+            className="px-3 py-1 text-sm rounded transition-colors"
+            style={mode === 'raw' ? {
+              backgroundColor: 'var(--color-accent-primary)',
+              color: 'var(--color-text-primary)',
+            } : {
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              if (mode !== 'raw') {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (mode !== 'raw') {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }
+            }}
           >
             Raw
           </button>
@@ -204,7 +238,16 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
 
       {/* Content-Type mismatch warning */}
       {contentTypeMismatch && (
-        <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+        <div 
+          className="flex items-start gap-2 p-3 rounded text-sm"
+          style={{
+            backgroundColor: 'var(--color-status-warning)',
+            opacity: 0.1,
+            border: '1px solid var(--color-status-warning)',
+            borderOpacity: 0.3,
+            color: 'var(--color-status-warning)',
+          }}
+        >
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <div>
             <p className="font-medium">Content-Type Mismatch</p>
@@ -241,14 +284,32 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
 
       {/* JSON error */}
       {mode === 'raw' && contentType === 'json' && jsonError && (
-        <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+        <div 
+          className="flex items-start gap-2 p-3 rounded text-sm"
+          style={{
+            backgroundColor: 'var(--color-status-error)',
+            opacity: 0.1,
+            border: '1px solid var(--color-status-error)',
+            borderOpacity: 0.3,
+            color: 'var(--color-status-error)',
+          }}
+        >
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>{jsonError}</span>
         </div>
       )}
 
       {/* Info Box */}
-      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 text-sm">
+      <div 
+        className="p-4 rounded text-sm"
+        style={{
+          backgroundColor: 'var(--color-accent-primary)',
+          opacity: 0.1,
+          border: '1px solid var(--color-accent-primary)',
+          borderOpacity: 0.3,
+          color: 'var(--color-accent-primary)',
+        }}
+      >
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <div>

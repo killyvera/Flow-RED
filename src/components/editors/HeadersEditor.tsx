@@ -165,25 +165,56 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
     <div className="headers-editor space-y-4">
       {/* Mode toggle */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 bg-zinc-800 rounded p-1">
+        <div 
+          className="flex items-center gap-2 rounded p-1"
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+        >
           <button
             onClick={() => handleModeChange('form')}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              mode === 'form'
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-            }`}
+            className="px-3 py-1 text-sm rounded transition-colors"
+            style={mode === 'form' ? {
+              backgroundColor: 'var(--color-accent-primary)',
+              color: 'var(--color-text-primary)',
+            } : {
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              if (mode !== 'form') {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (mode !== 'form') {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }
+            }}
             disabled={readOnly}
           >
             Form
           </button>
           <button
             onClick={() => handleModeChange('json')}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              mode === 'json'
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-            }`}
+            className="px-3 py-1 text-sm rounded transition-colors"
+            style={mode === 'json' ? {
+              backgroundColor: 'var(--color-accent-primary)',
+              color: 'var(--color-text-primary)',
+            } : {
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              if (mode !== 'json') {
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (mode !== 'json') {
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }
+            }}
             disabled={readOnly}
           >
             JSON
@@ -192,15 +223,42 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
 
         {mode === 'form' && !readOnly && (
           <div className="relative group">
-            <button className="px-3 py-1 text-sm bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors">
+            <button 
+              className="px-3 py-1 text-sm rounded transition-colors"
+              style={{
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-text-primary)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
+              }}
+            >
               + Add Preset
             </button>
-            <div className="absolute right-0 top-full mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-10 hidden group-hover:block min-w-[200px]">
+            <div 
+              className="absolute right-0 top-full mt-1 rounded shadow-lg z-10 hidden group-hover:block min-w-[200px]"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-node-border)',
+              }}
+            >
               {COMMON_HEADERS.map((header) => (
                 <button
                   key={header.value}
                   onClick={() => handleAddPreset(header.value)}
-                  className="block w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors first:rounded-t last:rounded-b"
+                  className="block w-full text-left px-3 py-2 text-sm transition-colors first:rounded-t last:rounded-b"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--color-text-primary)'
+                    e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-text-secondary)'
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
                 >
                   {header.label}
                 </button>
@@ -212,7 +270,16 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
 
       {/* Conversion warning */}
       {conversionWarning && (
-        <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+        <div 
+          className="flex items-start gap-2 p-3 rounded text-sm"
+          style={{
+            backgroundColor: 'var(--color-status-warning)',
+            opacity: 0.1,
+            border: '1px solid var(--color-status-warning)',
+            borderOpacity: 0.3,
+            color: 'var(--color-status-warning)',
+          }}
+        >
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>{conversionWarning}</span>
         </div>
@@ -244,7 +311,16 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
 
       {/* JSON error */}
       {mode === 'json' && jsonError && (
-        <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+        <div 
+          className="flex items-start gap-2 p-3 rounded text-sm"
+          style={{
+            backgroundColor: 'var(--color-status-error)',
+            opacity: 0.1,
+            border: '1px solid var(--color-status-error)',
+            borderOpacity: 0.3,
+            color: 'var(--color-status-error)',
+          }}
+        >
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>{jsonError}</span>
         </div>

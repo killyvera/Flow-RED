@@ -52,13 +52,22 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
 
   return (
     <div className="advanced-tab space-y-6">
-      <div className="text-sm text-zinc-400 mb-4">
+      <div 
+        className="text-sm mb-4"
+        style={{ color: 'var(--color-text-secondary)' }}
+      >
         Advanced configuration options for HTTP requests.
       </div>
 
       {/* Retry Settings */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-white border-b border-zinc-700 pb-2">
+        <h3 
+          className="text-sm font-medium border-b pb-2"
+          style={{
+            color: 'var(--color-text-primary)',
+            borderColor: 'var(--color-node-border)',
+          }}
+        >
           Retry Configuration
         </h3>
         
@@ -81,7 +90,16 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
         )}
 
         {retryCount > 3 && (
-          <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+          <div 
+            className="flex items-start gap-2 p-3 rounded text-sm"
+            style={{
+              backgroundColor: 'var(--color-status-warning)',
+              opacity: 0.1,
+              border: '1px solid var(--color-status-warning)',
+              borderOpacity: 0.3,
+              color: 'var(--color-status-warning)',
+            }}
+          >
             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <span>High retry count may cause significant delays if the endpoint is unavailable.</span>
           </div>
@@ -90,7 +108,13 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
 
       {/* TLS Settings */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-white border-b border-zinc-700 pb-2">
+        <h3 
+          className="text-sm font-medium border-b pb-2"
+          style={{
+            color: 'var(--color-text-primary)',
+            borderColor: 'var(--color-node-border)',
+          }}
+        >
           TLS/HTTPS Configuration
         </h3>
 
@@ -113,7 +137,16 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
               description="Node-RED TLS configuration node ID"
             />
             
-            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 text-xs">
+            <div 
+              className="p-3 rounded text-xs"
+              style={{
+                backgroundColor: 'var(--color-accent-primary)',
+                opacity: 0.1,
+                border: '1px solid var(--color-accent-primary)',
+                borderOpacity: 0.3,
+                color: 'var(--color-accent-primary)',
+              }}
+            >
               <p className="font-medium mb-1">TLS Configuration Node</p>
               <p>
                 Create a TLS configuration node in Node-RED (Configuration nodes → tls-config) 
@@ -127,7 +160,13 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
 
       {/* Proxy Settings */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-white border-b border-zinc-700 pb-2">
+        <h3 
+          className="text-sm font-medium border-b pb-2"
+          style={{
+            color: 'var(--color-text-primary)',
+            borderColor: 'var(--color-node-border)',
+          }}
+        >
           Proxy Configuration
         </h3>
 
@@ -150,7 +189,16 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
               description="Full proxy URL including protocol and port"
             />
             
-            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 text-xs">
+            <div 
+              className="p-3 rounded text-xs"
+              style={{
+                backgroundColor: 'var(--color-accent-primary)',
+                opacity: 0.1,
+                border: '1px solid var(--color-accent-primary)',
+                borderOpacity: 0.3,
+                color: 'var(--color-accent-primary)',
+              }}
+            >
               <p className="font-medium mb-1">Proxy URL Format</p>
               <p>
                 Use format: <code>http://proxy.example.com:8080</code><br />
@@ -162,8 +210,20 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
       </div>
 
       {/* Info Box */}
-      <div className="p-4 bg-zinc-800 border border-zinc-700 rounded text-zinc-300 text-sm">
-        <p className="font-medium mb-2 text-white">Additional Options</p>
+      <div 
+        className="p-4 rounded text-sm"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: '1px solid var(--color-node-border)',
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        <p 
+          className="font-medium mb-2"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          Additional Options
+        </p>
         <p className="text-xs mb-3">
           More advanced options can be configured through Node-RED's settings.js or 
           via msg properties at runtime:

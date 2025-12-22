@@ -118,19 +118,31 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
           
           {/* URL Validation */}
           {url && !urlValidation.valid && (
-            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+            <div 
+              className="flex items-start gap-2 p-3 rounded text-sm"
+              style={{
+                backgroundColor: 'var(--color-status-error)',
+                opacity: 0.1,
+                border: '1px solid var(--color-status-error)',
+                borderOpacity: 0.3,
+                color: 'var(--color-status-error)',
+              }}
+            >
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span>{urlValidation.error}</span>
             </div>
           )}
           
           {/* URL Helpers */}
-          <div className="text-xs text-zinc-500 space-y-1">
+          <div 
+            className="text-xs space-y-1"
+            style={{ color: 'var(--color-text-tertiary)' }}
+          >
             <p>Examples:</p>
             <ul className="list-disc list-inside pl-2 space-y-0.5">
-              <li><code className="text-zinc-400">https://api.example.com/users</code></li>
-              <li><code className="text-zinc-400">{'https://api.example.com/users/{{msg.userId}}'}</code></li>
-              <li><code className="text-zinc-400">{'{{msg.url}}'}</code></li>
+              <li><code style={{ color: 'var(--color-text-secondary)' }}>https://api.example.com/users</code></li>
+              <li><code style={{ color: 'var(--color-text-secondary)' }}>{'https://api.example.com/users/{{msg.userId}}'}</code></li>
+              <li><code style={{ color: 'var(--color-text-secondary)' }}>{'{{msg.url}}'}</code></li>
             </ul>
           </div>
         </div>
@@ -147,7 +159,16 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
           
           {/* Timeout Warning */}
           {timeoutValidation.warning && (
-            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+            <div 
+              className="flex items-start gap-2 p-3 rounded text-sm"
+              style={{
+                backgroundColor: 'var(--color-status-warning)',
+                opacity: 0.1,
+                border: '1px solid var(--color-status-warning)',
+                borderOpacity: 0.3,
+                color: 'var(--color-status-warning)',
+              }}
+            >
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span>{timeoutValidation.warning}</span>
             </div>
@@ -165,7 +186,16 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
       </div>
 
       {/* Info Box */}
-      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 text-sm">
+      <div 
+        className="p-4 rounded text-sm"
+        style={{
+          backgroundColor: 'var(--color-accent-primary)',
+          opacity: 0.1,
+          border: '1px solid var(--color-accent-primary)',
+          borderOpacity: 0.3,
+          color: 'var(--color-accent-primary)',
+        }}
+      >
         <p className="font-medium mb-2">Dynamic Values</p>
         <p>You can use mustache template syntax to insert values from the message:</p>
         <ul className="list-disc list-inside mt-2 space-y-1 pl-2">

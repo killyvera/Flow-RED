@@ -69,7 +69,10 @@ export function TabbedNodeEditor({
 
   if (visibleTabs.length === 0) {
     return (
-      <div className="p-8 text-center text-zinc-500">
+      <div 
+        className="p-8 text-center"
+        style={{ color: 'var(--color-text-tertiary)' }}
+      >
         No tabs available
       </div>
     )
@@ -80,7 +83,13 @@ export function TabbedNodeEditor({
   return (
     <div className={`tabbed-node-editor ${className}`}>
       {/* Tab navigation */}
-      <div className="tabs-navigation border-b border-zinc-700 bg-zinc-900">
+      <div 
+        className="tabs-navigation border-b"
+        style={{
+          borderColor: 'var(--color-node-border)',
+          backgroundColor: 'var(--color-bg-secondary)',
+        }}
+      >
         <div className="flex items-center overflow-x-auto">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon
@@ -90,19 +99,32 @@ export function TabbedNodeEditor({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`
-                  flex items-center gap-2 px-4 py-3 text-sm font-medium
-                  border-b-2 transition-colors whitespace-nowrap
-                  ${isActive
-                    ? 'border-blue-500 text-white bg-zinc-800'
-                    : 'border-transparent text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
+                style={{
+                  borderBottomColor: isActive ? 'var(--color-accent-primary)' : 'transparent',
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  backgroundColor: isActive ? 'var(--color-node-hover)' : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.color = 'var(--color-text-primary)'
+                    e.currentTarget.style.backgroundColor = 'var(--color-node-hover)'
                   }
-                `}
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.color = 'var(--color-text-secondary)'
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }
+                }}
               >
                 {Icon && <Icon className="w-4 h-4" />}
                 <span>{tab.label}</span>
                 {tab.hasError && (
-                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <AlertCircle 
+                    className="w-4 h-4" 
+                    style={{ color: 'var(--color-status-error)' }}
+                  />
                 )}
               </button>
             )
@@ -111,7 +133,10 @@ export function TabbedNodeEditor({
       </div>
 
       {/* Tab content */}
-      <div className="tab-content p-6 bg-zinc-900">
+      <div 
+        className="tab-content p-6"
+        style={{ backgroundColor: 'var(--color-bg-primary)' }}
+      >
         {CurrentComponent && (
           <CurrentComponent
             nodeData={nodeData}
