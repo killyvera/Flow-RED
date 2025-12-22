@@ -30,10 +30,9 @@ import 'reactflow/dist/style.css'
 import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
 import { ExplainModeStepper } from '@/components/ExplainModeStepper'
-import { PerfModeToggle } from '@/components/PerfModeToggle'
 import { PerfReadout } from '@/components/PerfReadout'
 import { getPerformanceMonitor } from '@/utils/performance'
-import { HelpCircle, Play, Square, Circle } from 'lucide-react'
+import { Play, Square, Circle, Plus } from 'lucide-react'
 
 import { DottedGridBackground } from '@/components/DottedGridBackground'
 
@@ -187,8 +186,6 @@ export function CanvasPage() {
   // const setLoading = useCanvasStore((state) => state.setLoading) // No usado actualmente
   const collapsedGroupIds = useCanvasStore((state) => state.collapsedGroupIds)
   const setCollapsedGroupIds = useCanvasStore((state) => state.setCollapsedGroupIds)
-  const explainMode = useCanvasStore((state) => state.explainMode)
-  const toggleExplainMode = useCanvasStore((state) => state.toggleExplainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
 
   // ExecutionBar hooks
@@ -3179,41 +3176,6 @@ export function CanvasPage() {
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4">
         {/* Contenido izquierdo */}
         <div className="flex items-center gap-4">
-        {/* Botón de paleta */}
-        {isEditMode && (
-          <>
-            <div className="w-px h-6 bg-canvas-grid" />
-            <button
-              onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-              className="px-3 py-1.5 text-xs bg-bg-tertiary text-text-primary rounded-md hover:bg-node-hover transition-colors flex items-center gap-1.5"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              <span>Paleta</span>
-            </button>
-          </>
-        )}
-
-        {/* Botón Explain Mode */}
-        <div className="w-px h-6 bg-canvas-grid" />
-        <button
-          onClick={toggleExplainMode}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
-            explainMode
-              ? 'bg-accent-primary text-white hover:bg-accent-secondary'
-              : 'bg-bg-tertiary text-text-primary hover:bg-node-hover'
-          }`}
-          title={explainMode ? 'Exit Explain Mode' : 'Enter Explain Mode'}
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-          <span>Explain Mode</span>
-        </button>
-
-        {/* Botón Performance Mode */}
-        <div className="w-px h-6 bg-canvas-grid" />
-        <PerfModeToggle />
-
         {/* Botón de guardar (solo en modo edición) */}
         {isEditMode && activeFlowId && (
           <>
@@ -3526,8 +3488,30 @@ export function CanvasPage() {
 
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
+        {/* Botón flotante de Paleta - Esquina superior derecha */}
+        {isEditMode && (
+          <button
+            onClick={() => setIsPaletteOpen(!isPaletteOpen)}
+            className={`
+              absolute top-2 right-2 z-20
+              w-10 h-10 rounded-full
+              flex items-center justify-center
+              transition-all duration-200
+              shadow-lg
+              ${isPaletteOpen
+                ? 'bg-accent-primary text-white hover:bg-accent-secondary'
+                : 'bg-bg-secondary text-text-primary hover:bg-node-hover border border-node-border'
+              }
+              focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
+            `}
+            title={isPaletteOpen ? 'Cerrar paleta' : 'Abrir paleta de nodos'}
+          >
+            <Plus className="w-5 h-5" strokeWidth={2.5} />
+          </button>
+        )}
+
         {/* Indicador discreto de conexión WebSocket */}
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+        <div className="absolute top-2 right-14 z-10 flex items-center gap-2">
           {wsConnection.connected ? (
             <div 
               className="w-2 h-2 rounded-full bg-green-500 shadow-sm animate-pulse"
