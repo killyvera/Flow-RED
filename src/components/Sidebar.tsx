@@ -7,9 +7,10 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
+import { useCanvasStore } from '@/state/canvasStore'
 import { FlowList } from './FlowList'
 import { DeleteFlowModal } from './DeleteFlowModal'
 import { ImportFlowModal } from './ImportFlowModal'
@@ -65,7 +66,7 @@ interface SidebarItem {
   onClick: () => void
 }
 
-type SidebarView = 'menu' | 'settings' | 'flows'
+type SidebarView = 'menu' | 'settings' | 'flows' | 'devtools'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -80,6 +81,10 @@ export function Sidebar({
 }: SidebarProps) {
   const [currentView, setCurrentView] = useState<SidebarView>('menu')
   const { isDarkMode, toggleDarkMode } = useTheme()
+  const explainMode = useCanvasStore((state) => state.explainMode)
+  const toggleExplainMode = useCanvasStore((state) => state.toggleExplainMode)
+  const perfMode = useCanvasStore((state) => state.perfMode)
+  const togglePerfMode = useCanvasStore((state) => state.togglePerfMode)
   const { 
     isFlowManagerOpen,
     openFlowManager, 
@@ -139,7 +144,7 @@ export function Sidebar({
     }
   }, [isCollapsed, currentView, onCollapse, closeFlowManager])
 
-  const sidebarItems: SidebarItem[] = [
+  const topSidebarItems: SidebarItem[] = [
     {
       id: 'create-flow',
       icon: FlowsIcon,
@@ -155,6 +160,21 @@ export function Sidebar({
           }, 50)
         } else {
           setCurrentView('flows')
+        }
+      },
+    },
+  ]
+
+  const bottomSidebarItems: SidebarItem[] = [
+    {
+      id: 'devtools',
+      icon: Wrench,
+      label: 'Dev tools',
+      onClick: () => {
+        setCurrentView('devtools')
+        // Si está colapsado, expandir al abrir dev tools
+        if (isCollapsed) {
+          onToggleCollapse()
         }
       },
     },
@@ -235,9 +255,37 @@ export function Sidebar({
         {currentView === 'menu' ? (
           /* Vista del menú principal */
           <div className="flex flex-col h-full absolute inset-0">
+            {/* Items superiores */}
             <div className="flex-1 py-4">
               <div className="flex flex-col gap-2 px-2">
-                {sidebarItems.map((item) => {
+                {topSidebarItems.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={item.onClick}
+                      className={`flex items-center gap-3 p-3 rounded-md text-text-secondary hover:text-text-primary hover:bg-node-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 ${
+                        isCollapsed ? 'justify-center' : 'justify-start'
+                      }`}
+                      title={isCollapsed ? item.label : undefined}
+                      aria-label={item.label}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
+                      {!isCollapsed && (
+                        <span className="text-sm font-medium whitespace-nowrap">
+                          {item.label}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            
+            {/* Items inferiores (Dev Tools y Configuración) */}
+            <div className="border-t border-canvas-grid py-2">
+              <div className="flex flex-col gap-2 px-2">
+                {bottomSidebarItems.map((item) => {
                   const Icon = item.icon
                   return (
                     <button
@@ -325,6 +373,76 @@ export function Sidebar({
                       <div className="w-11 h-6 bg-node-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
                     </label>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Si está colapsado, solo mostrar el botón de regresar */}
+            {isCollapsed && (
+              <div className="flex-1 flex items-center justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                  aria-label="Volver al menú principal"
+                  title="Volver al menú principal"
+                >
+                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : currentView === 'devtools' ? (
+          /* Vista de Dev tools */
+          <div className="flex flex-col h-full absolute inset-0">
+            {/* Header de Dev tools */}
+            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid flex-shrink-0">
+              <button
+                onClick={handleBackToMenu}
+                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                aria-label="Volver al menú principal"
+                title="Volver al menú principal"
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+              </button>
+              {!isCollapsed && (
+                <div className="flex items-center gap-2 flex-1">
+                  <Wrench className="w-5 h-5 text-text-primary" strokeWidth={2} />
+                  <h2 className="text-lg font-semibold text-text-primary">Dev tools</h2>
+                </div>
+              )}
+            </div>
+
+            {/* Contenido de Dev tools */}
+            {!isCollapsed && (
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-3">
+                  {/* Botón Explain Mode */}
+                  <button
+                    onClick={toggleExplainMode}
+                    className={`w-full px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+                      explainMode
+                        ? 'bg-accent-primary text-white hover:bg-accent-secondary'
+                        : 'bg-bg-tertiary text-text-primary hover:bg-node-hover'
+                    } focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2`}
+                    title={explainMode ? 'Exit Explain Mode' : 'Enter Explain Mode'}
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    <span className="font-medium">Explain Mode</span>
+                  </button>
+
+                  {/* Botón Performance Mode */}
+                  <button
+                    onClick={togglePerfMode}
+                    className={`w-full px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+                      perfMode
+                        ? 'bg-status-success/20 text-status-success hover:bg-status-success/30'
+                        : 'bg-bg-tertiary text-text-primary hover:bg-node-hover'
+                    } focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2`}
+                    title={perfMode ? 'Desactivar Performance Mode' : 'Activar Performance Mode'}
+                  >
+                    <Gauge className="w-4 h-4" />
+                    <span className="font-medium">Perf Mode</span>
+                  </button>
                 </div>
               </div>
             )}
