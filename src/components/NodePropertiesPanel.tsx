@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Node } from 'reactflow'
-import { X, Loader2, Info, Settings, Activity, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Loader2, Info, Settings, ChevronDown, ChevronUp, Database, Play, Code } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'
 import { getNodeDefinition } from '@/api/nodeDefinition'
@@ -16,9 +16,9 @@ import { parseNodeSchema, type NodeSchema, type PropertyDefinition } from '@/uti
 import { getKnownNodeProperties } from '@/utils/nodeDefaults'
 import { shouldNodeHaveEditableProperties, getNoPropertiesMessage } from '@/utils/nodeTypesInfo'
 import { TextField, NumberField, SelectField, BooleanField, JSONField, TypedInputField } from './fields'
-import { generateNodeSummary } from '@/utils/summaryEngine'
-import { SummaryBadge } from './SummaryBadge'
-import { getNodeDescription } from '@/utils/nodeExplanations'
+import { DataViewer } from './DataViewer'
+import { useNodeInputData, useNodeOutputData, useNodeContext, useExecutionTimeline } from '@/hooks/useNodeInspectorData'
+import { isTriggerNode } from '@/utils/executionFrameManager'
 // getNodeExplanation se usa en ExplainMode, pero está comentado por ahora
 
 export interface NodePropertiesPanelProps {
@@ -648,72 +648,14 @@ export function NodePropertiesPanel({
     return nodeLogs.find(log => log.data) || null
   }, [nodeLogs])
   
-  // Obtener snapshots para generar resumen
-  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
+  // Obtener datos usando los nuevos hooks
   const currentFrame = useCanvasStore((state) => state.currentFrame)
+  const inputData = useNodeInputData(node?.id || null, currentFrame?.id || null)
+  const outputData = useNodeOutputData(node?.id || null)
+  const contextData = useNodeContext(node?.id || null, currentFrame?.id || null)
+  const executionTimeline = useExecutionTimeline(node?.id || null)
   
-  // Obtener último snapshot del nodo
-  const lastSnapshot = useMemo(() => {
-    if (!node?.id) return null
-    const snapshots = nodeSnapshots.get(node.id) || []
-    const frameSnapshots = currentFrame
-      ? snapshots.filter(s => s.frameId === currentFrame.id)
-      : snapshots
-    return frameSnapshots.length > 0 ? frameSnapshots[0] : null
-  }, [node?.id, nodeSnapshots, currentFrame])
-  
-  // Generar resumen del nodo
-  const nodeSummary = useMemo(() => {
-    // Intentar obtener payload del snapshot o log
-    let payload: any = undefined
-    let payloadPreview: string | undefined = undefined
-    let statusCode: number | undefined = undefined
-    let errorMessage: string | undefined = undefined
-    
-    if (lastSnapshot?.payloadPreview) {
-      payloadPreview = lastSnapshot.payloadPreview
-      try {
-        payload = JSON.parse(lastSnapshot.payloadPreview)
-      } catch {
-        payload = lastSnapshot.payloadPreview
-      }
-    } else if (lastLogWithData?.data) {
-      payload = lastLogWithData.data
-      try {
-        const jsonString = JSON.stringify(payload)
-        payloadPreview = jsonString.length > 100 ? jsonString.substring(0, 100) + '...' : jsonString
-      } catch {
-        payloadPreview = String(payload)
-      }
-    }
-    
-    // Extraer statusCode si existe
-    if (payload && typeof payload === 'object' && 'statusCode' in payload) {
-      statusCode = payload.statusCode
-    }
-    
-    // Extraer errorMessage
-    if (lastLogWithData?.level === 'error' && lastLogWithData?.message) {
-      errorMessage = lastLogWithData.message
-    }
-    
-    return generateNodeSummary({
-      nodeType: nodeType || 'unknown',
-      nodeName: nodeName,
-      runtimeState,
-      payloadPreview,
-      payload,
-      statusCode,
-      errorMessage,
-    })
-  }, [nodeType, nodeName, runtimeState, lastSnapshot, lastLogWithData])
-  
-  // Estado para colapsar payload viewer
-  const [isPayloadExpanded, setIsPayloadExpanded] = useState(true)
-  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false)
-  
-  // Obtener explainMode del store
-  const explainMode = useCanvasStore((state) => state.explainMode)
+  // Variables para tab Advanced (logs y raw msg)
   
   // Edges conectados al nodo (input/output)
   const edges = useCanvasStore((state) => state.edges)
@@ -726,42 +668,21 @@ export function NodePropertiesPanel({
     if (!node?.id) return []
     return edges.filter(e => e.source === node.id)
   }, [edges, node?.id])
-  
-  // Nodos conectados
-  const nodes = useCanvasStore((state) => state.nodes)
-  const inputNodes = useMemo(() => {
-    return inputEdges.map(edge => {
-      const sourceNode = nodes.find(n => n.id === edge.source)
-      return {
-        edge,
-        node: sourceNode,
-        nodeName: sourceNode?.data?.label || sourceNode?.data?.nodeRedType || edge.source
-      }
-    })
-  }, [inputEdges, nodes])
-  
-  const outputNodes = useMemo(() => {
-    return outputEdges.map(edge => {
-      const targetNode = nodes.find(n => n.id === edge.target)
-      return {
-        edge,
-        node: targetNode,
-        nodeName: targetNode?.data?.label || targetNode?.data?.nodeRedType || edge.target
-      }
-    })
-  }, [outputEdges, nodes])
 
-  // Pestañas del panel - si no está en modo edición, solo mostrar estado
-  const [activeTab, setActiveTab] = useState<'config' | 'status'>(
-    isEditMode ? 'config' : 'status'
+  // Pestañas del panel - nueva estructura: data, execution, configuration, advanced
+  type TabType = 'data' | 'execution' | 'configuration' | 'advanced'
+  const [activeTab, setActiveTab] = useState<TabType>(
+    isEditMode ? 'configuration' : 'data'
   )
+  const [dataSubTab, setDataSubTab] = useState<'input' | 'output' | 'context'>('input')
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false)
   
-  // Si no está en modo edición, forzar pestaña de estado
+  // Si no está en modo edición, forzar pestaña de data
   useEffect(() => {
-    if (!isEditMode) {
-      setActiveTab('status')
+    if (!isEditMode && activeTab === 'configuration') {
+      setActiveTab('data')
     }
-  }, [isEditMode])
+  }, [isEditMode, activeTab])
 
   // Return temprano DESPUÉS de todos los hooks
   if (!isOpen || !node) return null
@@ -788,46 +709,126 @@ export function NodePropertiesPanel({
           </button>
         </div>
         
-        {/* Pestañas - solo mostrar si hay más de una pestaña disponible */}
-        {(isEditMode || activeTab === 'status') && (
-          <div className="flex border-t border-node-border">
-            {isEditMode && (
-              <button
-                onClick={() => setActiveTab('config')}
-                className={`
-                  flex-1 px-3 py-2 text-xs font-medium transition-colors
-                  flex items-center justify-center gap-1.5
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
-                  ${activeTab === 'config'
-                    ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
-                  }
-                `}
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Configuración
-              </button>
+        {/* Pestañas - nueva estructura */}
+        <div className="flex border-t border-node-border overflow-x-auto">
+          {/* Tab Data - siempre visible */}
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`
+              flex-1 min-w-[80px] px-3 py-2 text-xs font-medium transition-colors
+              flex items-center justify-center gap-1.5 relative
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
+              ${activeTab === 'data'
+                ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+              }
+            `}
+          >
+            <Database className="w-3.5 h-3.5" />
+            Data
+          </button>
+          
+          {/* Tab Execution - siempre visible */}
+          <button
+            onClick={() => setActiveTab('execution')}
+            className={`
+              flex-1 min-w-[80px] px-3 py-2 text-xs font-medium transition-colors
+              flex items-center justify-center gap-1.5 relative
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
+              ${activeTab === 'execution'
+                ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+              }
+            `}
+          >
+            <Play className="w-3.5 h-3.5" />
+            Execution
+            {runtimeStateColor && (
+              <span
+                className="absolute top-1.5 right-2 w-2 h-2 rounded-full"
+                style={{ backgroundColor: runtimeStateColor }}
+              />
             )}
+          </button>
+          
+          {/* Tab Configuration - solo en edit mode */}
+          {isEditMode && (
             <button
-              onClick={() => setActiveTab('status')}
-                className={`
-                ${isEditMode ? 'flex-1' : 'w-full'} px-3 py-2 text-xs font-medium transition-colors
-                flex items-center justify-center gap-1.5 relative
+              onClick={() => setActiveTab('configuration')}
+              className={`
+                flex-1 min-w-[80px] px-3 py-2 text-xs font-medium transition-colors
+                flex items-center justify-center gap-1.5
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
-                ${activeTab === 'status'
+                ${activeTab === 'configuration'
                   ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
                   : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
                 }
               `}
             >
-              <Activity className="w-3.5 h-3.5" />
-              Estado
-              {runtimeStateColor && (
-                <span
-                  className="absolute top-1.5 right-2 w-2 h-2 rounded-full"
-                  style={{ backgroundColor: runtimeStateColor }}
-                />
-              )}
+              <Settings className="w-3.5 h-3.5" />
+              Config
+            </button>
+          )}
+          
+          {/* Tab Advanced - siempre visible pero colapsado por defecto */}
+          <button
+            onClick={() => {
+              setActiveTab('advanced')
+              setIsAdvancedExpanded(true)
+            }}
+            className={`
+              flex-1 min-w-[80px] px-3 py-2 text-xs font-medium transition-colors
+              flex items-center justify-center gap-1.5
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2
+              ${activeTab === 'advanced'
+                ? 'bg-bg-secondary text-text-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+              }
+            `}
+          >
+            <Code className="w-3.5 h-3.5" />
+            Advanced
+          </button>
+        </div>
+        
+        {/* Sub-tabs para Data tab */}
+        {activeTab === 'data' && (
+          <div className="flex border-t border-node-border bg-bg-secondary/50">
+            <button
+              onClick={() => setDataSubTab('input')}
+              className={`
+                flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors
+                ${dataSubTab === 'input'
+                  ? 'text-text-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+                }
+              `}
+            >
+              Input
+            </button>
+            <button
+              onClick={() => setDataSubTab('output')}
+              className={`
+                flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors
+                ${dataSubTab === 'output'
+                  ? 'text-text-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+                }
+              `}
+            >
+              Output
+            </button>
+            <button
+              onClick={() => setDataSubTab('context')}
+              className={`
+                flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors
+                ${dataSubTab === 'context'
+                  ? 'text-text-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+                }
+              `}
+            >
+              Context
             </button>
           </div>
         )}
@@ -835,7 +836,282 @@ export function NodePropertiesPanel({
 
       {/* Contenido scrollable */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {activeTab === 'config' ? (
+        {activeTab === 'data' ? (
+          /* Tab Data con sub-tabs */
+          <div className="p-3 space-y-4">
+            {dataSubTab === 'input' && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Input Data
+                </h3>
+                {inputData ? (
+                  <DataViewer
+                    data={inputData.data}
+                    mode="json"
+                    isInferred={inputData.isInferred}
+                    sourceNodeName={inputData.source || undefined}
+                    emptyMessage="No input data available"
+                  />
+                ) : (
+                  <div className="p-6 text-center text-text-secondary">
+                    <p className="text-xs">No input data available</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">
+                      {isTriggerNode(nodeType || '') 
+                        ? 'This is a trigger node - input comes from external events'
+                        : 'No upstream nodes connected or no data captured yet'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {dataSubTab === 'output' && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Output Data
+                </h3>
+                {outputData ? (
+                  <>
+                    <DataViewer
+                      data={outputData.data}
+                      mode="json"
+                      isTruncated={outputData.isTruncated}
+                      emptyMessage="No output data captured yet"
+                    />
+                    {outputData.timestamp && (
+                      <p className="text-[10px] text-text-tertiary">
+                        Last output: {new Date(outputData.timestamp).toLocaleString()}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-6 text-center text-text-secondary">
+                    <p className="text-xs">No output data captured yet</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">
+                      Output will appear here when the node executes
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {dataSubTab === 'context' && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Context
+                </h3>
+                {contextData ? (
+                  <div className="space-y-3">
+                    {/* Frame Info */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-text-secondary">
+                        Frame ID
+                      </label>
+                      <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs font-mono text-text-primary border border-node-border/50">
+                        {contextData.frameId || 'No active frame'}
+                      </div>
+                    </div>
+                    
+                    {/* Execution Status */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-text-secondary">
+                        Execution Status
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {runtimeStateColor && (
+                          <div
+                            className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                            style={{ backgroundColor: runtimeStateColor }}
+                          />
+                        )}
+                        <span className="text-xs text-text-primary capitalize">
+                          {contextData.executionStatus}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Duration */}
+                    {contextData.duration !== null && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-medium text-text-secondary">
+                          Duration
+                        </label>
+                        <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50">
+                          {contextData.duration}ms
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Node Type */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-text-secondary">
+                        Node Type
+                      </label>
+                      <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50">
+                        {contextData.nodeType}
+                      </div>
+                    </div>
+                    
+                    {/* Metadata conocida */}
+                    {(contextData.topic || contextData.headers || contextData.statusCode) && (
+                      <div className="space-y-2 pt-2 border-t border-node-border">
+                        <label className="block text-xs font-medium text-text-secondary">
+                          Metadata
+                        </label>
+                        <div className="space-y-1.5">
+                          {contextData.topic && (
+                            <div className="flex items-center justify-between px-2 py-1 bg-bg-secondary rounded text-xs border border-node-border/50">
+                              <span className="text-text-secondary">Topic:</span>
+                              <span className="text-text-primary font-mono">{contextData.topic}</span>
+                            </div>
+                          )}
+                          {contextData.statusCode && (
+                            <div className="flex items-center justify-between px-2 py-1 bg-bg-secondary rounded text-xs border border-node-border/50">
+                              <span className="text-text-secondary">Status Code:</span>
+                              <span className="text-text-primary font-mono">{contextData.statusCode}</span>
+                            </div>
+                          )}
+                          {contextData.headers && (
+                            <div className="px-2 py-1 bg-bg-secondary rounded text-xs border border-node-border/50">
+                              <span className="text-text-secondary">Headers:</span>
+                              <pre className="text-[10px] text-text-primary mt-1 font-mono overflow-x-auto">
+                                {JSON.stringify(contextData.headers, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Timestamp */}
+                    {contextData.timestamp && (
+                      <div className="space-y-2 pt-2 border-t border-node-border">
+                        <label className="block text-xs font-medium text-text-secondary">
+                          Last Update
+                        </label>
+                        <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50">
+                          {new Date(contextData.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-text-secondary">
+                    <p className="text-xs">No context data available</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'execution' ? (
+          /* Tab Execution */
+          <div className="p-3 space-y-4">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+              Execution Timeline
+            </h3>
+            
+            {executionTimeline ? (
+              <div className="space-y-4">
+                {/* Status Badge */}
+                <div className="flex items-center gap-2">
+                  {runtimeStateColor && (
+                    <div
+                      className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                      style={{ backgroundColor: runtimeStateColor }}
+                    />
+                  )}
+                  <span className="text-xs font-medium text-text-primary capitalize">
+                    Status: {contextData?.executionStatus || 'idle'}
+                  </span>
+                </div>
+                
+                {/* Frame Reference */}
+                {contextData?.frameId && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-text-secondary">
+                      Frame ID
+                    </label>
+                    <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs font-mono text-text-primary border border-node-border/50">
+                      {contextData.frameId}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Duration */}
+                {contextData?.duration !== null && contextData?.duration !== undefined && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-text-secondary">
+                      Duration
+                    </label>
+                    <div className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50">
+                      {contextData.duration}ms
+                    </div>
+                  </div>
+                )}
+                
+                {/* Timeline Visual */}
+                <div className="space-y-3 pt-2 border-t border-node-border">
+                  <label className="block text-xs font-medium text-text-secondary">
+                    Execution Flow
+                  </label>
+                  
+                  {/* Previous Nodes */}
+                  {executionTimeline.previous.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-text-tertiary uppercase">Previous</div>
+                      <div className="space-y-1">
+                        {executionTimeline.previous.map((prev) => (
+                          <div
+                            key={prev.id}
+                            className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50"
+                          >
+                            {prev.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Current Node - Highlighted */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] text-text-tertiary uppercase">Current</div>
+                    <div className="px-2 py-1.5 bg-accent-primary/20 rounded text-xs font-medium text-text-primary border-2 border-accent-primary">
+                      {executionTimeline.current.name}
+                    </div>
+                  </div>
+                  
+                  {/* Next Nodes */}
+                  {executionTimeline.next.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-text-tertiary uppercase">Next</div>
+                      <div className="space-y-1">
+                        {executionTimeline.next.map((next) => (
+                          <div
+                            key={next.id}
+                            className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-primary border border-node-border/50"
+                          >
+                            {next.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Empty states */}
+                  {executionTimeline.previous.length === 0 && executionTimeline.next.length === 0 && (
+                    <div className="text-xs text-text-tertiary text-center py-4">
+                      No connected nodes
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-text-secondary">
+                <p className="text-xs">No execution data available</p>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'configuration' ? (
           isLoadingSchema ? (
           <div className="p-6 flex flex-col items-center justify-center text-text-secondary">
             <Loader2 className="w-6 h-6 animate-spin mb-2" />
@@ -935,370 +1211,154 @@ export function NodePropertiesPanel({
             })()}
           </div>
         )
-        ) : (
-          /* Pestaña de Estado */
+        ) : activeTab === 'advanced' ? (
+          /* Tab Advanced */
           <div className="p-3 space-y-4">
-            {explainMode ? (
-              /* Vista amigable en Explain Mode */
-              <>
-                {/* What it does */}
-                <div className="space-y-2 pb-3 border-b border-node-border">
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    What it does
-                  </h3>
-                  <p className="text-sm text-text-primary">
-                    {getNodeDescription(nodeType)}
-                  </p>
-                </div>
-
-                {/* Inputs */}
-                <div className="space-y-2 pb-3 border-b border-node-border">
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    Inputs
-                  </h3>
-                  {inputNodes.length > 0 ? (
-                    <div className="space-y-1">
-                      {inputNodes.map(({ nodeName }) => (
-                        <div key={nodeName} className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-secondary">
-                          Receives data from: <span className="font-medium text-text-primary">{nodeName}</span>
-                        </div>
-                      ))}
+            <div className="space-y-3">
+              <button
+                onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
+                className="w-full text-left text-xs font-semibold text-text-secondary uppercase tracking-wide flex items-center justify-between hover:text-text-primary transition-colors"
+              >
+                <span>Advanced Details</span>
+                <span className="text-text-tertiary">{isAdvancedExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}</span>
+              </button>
+              
+              {isAdvancedExpanded && (
+                <div className="space-y-4 pt-2">
+                  {/* Raw msg */}
+                  {lastLogWithData?.data && (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-text-secondary">
+                        Raw Message (msg)
+                      </label>
+                      <div className="bg-bg-secondary rounded-md p-2 border border-node-border/50">
+                        <pre className="text-[10px] text-text-secondary font-mono overflow-x-auto max-h-64 overflow-y-auto">
+                          {JSON.stringify(lastLogWithData.data, null, 2)}
+                        </pre>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-text-tertiary">No inputs (this is a trigger node)</p>
                   )}
-                </div>
-
-                {/* Outputs */}
-                <div className="space-y-2 pb-3 border-b border-node-border">
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    Outputs
-                  </h3>
-                  {outputNodes.length > 0 ? (
-                    <div className="space-y-1">
-                      {outputNodes.map(({ nodeName }) => (
-                        <div key={nodeName} className="px-2 py-1.5 bg-bg-secondary rounded text-xs text-text-secondary">
-                          Sends data to: <span className="font-medium text-text-primary">{nodeName}</span>
-                        </div>
-                      ))}
+                  
+                  {/* Debug Logs */}
+                  {nodeLogs.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-text-secondary">
+                        Debug Logs ({nodeLogs.length})
+                      </label>
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                        {nodeLogs.map((log) => {
+                          const getLogColor = (level: string) => {
+                            switch (level) {
+                              case 'error': return 'border-red-500'
+                              case 'warn': return 'border-yellow-500'
+                              case 'success': return 'border-green-500'
+                              default: return 'border-blue-500'
+                            }
+                          }
+                          
+                          return (
+                            <div
+                              key={log.id}
+                              className={`p-2 bg-bg-secondary rounded-md text-xs border-l-2 ${getLogColor(log.level)}`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-text-primary">
+                                  {log.level.toUpperCase()}
+                                </span>
+                                <span className="text-text-tertiary text-[10px]">
+                                  {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-text-secondary text-[11px]">{log.message}</p>
+                              {log.duration !== undefined && (
+                                <p className="text-text-tertiary text-[10px] mt-1">
+                                  Duration: {log.duration}ms
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-text-tertiary">No outputs</p>
                   )}
-                </div>
-
-                {/* Last result */}
-                <div className="space-y-2 pb-3 border-b border-node-border">
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    Last result
-                  </h3>
-                  <div className="flex items-start gap-2">
-                    <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-text-primary">
-                        {nodeSummary.title}
-                      </h4>
-                      {nodeSummary.subtitle && (
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          {nodeSummary.subtitle}
-                        </p>
+                  
+                  {/* Internal IDs */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-text-secondary">
+                      Internal IDs
+                    </label>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between px-2 py-1.5 bg-bg-secondary rounded text-xs border border-node-border/50">
+                        <span className="text-text-secondary">React Flow ID:</span>
+                        <span className="text-text-primary font-mono">{node.id}</span>
+                      </div>
+                      {node.data?.nodeRedNode?.id && (
+                        <div className="flex items-center justify-between px-2 py-1.5 bg-bg-secondary rounded text-xs border border-node-border/50">
+                          <span className="text-text-secondary">Node-RED ID:</span>
+                          <span className="text-text-primary font-mono">{node.data.nodeRedNode.id}</span>
+                        </div>
+                      )}
+                      {node.data?.flowId && (
+                        <div className="flex items-center justify-between px-2 py-1.5 bg-bg-secondary rounded text-xs border border-node-border/50">
+                          <span className="text-text-secondary">Flow ID (z):</span>
+                          <span className="text-text-primary font-mono">{node.data.flowId}</span>
+                        </div>
                       )}
                     </div>
                   </div>
-                  {lastLogWithData && lastLogWithData.data && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => setIsPayloadExpanded(!isPayloadExpanded)}
-                        className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-                      >
-                        {isPayloadExpanded ? 'Hide' : 'Show'} output data
-                      </button>
-                      {isPayloadExpanded && (
-                        <div className="mt-2 bg-bg-secondary rounded-md p-2 border border-node-border/50">
-                          <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-32 overflow-y-auto">
-                            {JSON.stringify(lastLogWithData.data, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Advanced (colapsable) */}
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
-                    className="w-full text-left text-xs font-semibold text-text-secondary uppercase tracking-wide flex items-center justify-between"
-                  >
-                    <span>Advanced</span>
-                    <span className="text-text-tertiary">{isAdvancedExpanded ? '−' : '+'}</span>
-                  </button>
-                  {isAdvancedExpanded && (
-                    <div className="space-y-3 pt-2">
-                      {/* Estado de runtime */}
-                      <div className="space-y-2">
-                        <label className="block text-xs font-medium text-text-secondary">
-                          Runtime State
-                        </label>
-                        {runtimeStateColor ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: runtimeStateColor }} />
-                            <span className="text-xs text-text-primary capitalize">{runtimeState || 'idle'}</span>
+                  
+                  {/* Wiring Info */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-text-secondary">
+                      Wiring Info
+                    </label>
+                    <div className="space-y-2">
+                      {/* Input Edges */}
+                      <div>
+                        <div className="text-[10px] text-text-tertiary uppercase mb-1">Input Edges</div>
+                        {inputEdges.length > 0 ? (
+                          <div className="space-y-1">
+                            {inputEdges.map((edge) => (
+                              <div key={edge.id} className="px-2 py-1 bg-bg-secondary rounded text-[10px] font-mono text-text-primary border border-node-border/50">
+                                {edge.source} → {edge.target}
+                                {edge.sourceHandle && ` [${edge.sourceHandle}]`}
+                                {edge.targetHandle && ` [${edge.targetHandle}]`}
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <span className="text-xs text-text-tertiary">No active state</span>
+                          <div className="px-2 py-1 bg-bg-secondary rounded text-[10px] text-text-tertiary border border-node-border/50">
+                            No input edges
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Output Edges */}
+                      <div>
+                        <div className="text-[10px] text-text-tertiary uppercase mb-1">Output Edges</div>
+                        {outputEdges.length > 0 ? (
+                          <div className="space-y-1">
+                            {outputEdges.map((edge) => (
+                              <div key={edge.id} className="px-2 py-1 bg-bg-secondary rounded text-[10px] font-mono text-text-primary border border-node-border/50">
+                                {edge.source} → {edge.target}
+                                {edge.sourceHandle && ` [${edge.sourceHandle}]`}
+                                {edge.targetHandle && ` [${edge.targetHandle}]`}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-2 py-1 bg-bg-secondary rounded text-[10px] text-text-tertiary border border-node-border/50">
+                            No output edges
+                          </div>
                         )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* Vista normal */
-              <>
-                {/* Bloque de Resumen Semántico */}
-                <div className="space-y-2 pb-3 border-b border-node-border">
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                    Resumen
-                  </h3>
-                  <div className="flex items-start gap-2">
-                    <SummaryBadge severity={nodeSummary.severity} size="md" icon={nodeSummary.icon} />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-text-primary">
-                        {nodeSummary.title}
-                      </h4>
-                      {nodeSummary.subtitle && (
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          {nodeSummary.subtitle}
-                        </p>
-                      )}
-                    </div>
                   </div>
-                </div>
-            
-            {/* Estado actual del nodo */}
-            <div className="space-y-2 pb-3 border-b border-node-border">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
-                Estado de Runtime
-              </h3>
-              
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-text-secondary mb-1">
-                    Estado Actual
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {runtimeStateColor ? (
-                      <>
-                        <div
-                          className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
-                          style={{ backgroundColor: runtimeStateColor }}
-                        />
-                        <span className="text-xs font-medium text-text-primary capitalize">
-                          {runtimeState === 'running' ? 'Ejecutando' :
-                           runtimeState === 'error' ? 'Error' :
-                           runtimeState === 'warning' ? 'Advertencia' :
-                           'Inactivo'}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-text-tertiary">Sin estado activo</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Input/Output Connections (estilo n8n) */}
-            <div className="space-y-3 pb-3 border-b border-node-border">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Conexiones
-              </h3>
-              
-              {/* Input */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-text-secondary">
-                  Input ({inputEdges.length})
-                </label>
-                {inputEdges.length > 0 ? (
-                  <div className="space-y-1">
-                    {inputNodes.map(({ edge, nodeName }) => (
-                      <div
-                        key={edge.id}
-                        className="px-2 py-1.5 bg-bg-secondary rounded text-[11px] text-text-secondary border border-node-border/50"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-blue-500" />
-                          <span className="font-medium text-text-primary truncate">{nodeName}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-text-tertiary px-2">Sin conexiones de entrada</p>
-                )}
-              </div>
-              
-              {/* Output */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-text-secondary">
-                  Output ({outputEdges.length})
-                </label>
-                {outputEdges.length > 0 ? (
-                  <div className="space-y-1">
-                    {outputNodes.map(({ edge, nodeName }) => (
-                      <div
-                        key={edge.id}
-                        className="px-2 py-1.5 bg-bg-secondary rounded text-[11px] text-text-secondary border border-node-border/50"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
-                          <span className="font-medium text-text-primary truncate">{nodeName}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-text-tertiary px-2">Sin conexiones de salida</p>
-                )}
-              </div>
-            </div>
-
-            {/* Output Data (estilo n8n, colapsable) */}
-            {lastLogWithData && lastLogWithData.data && (
-              <div className="space-y-2 pb-3 border-b border-node-border">
-                <button
-                  onClick={() => setIsPayloadExpanded(!isPayloadExpanded)}
-                  className="flex items-center justify-between w-full text-left hover:bg-bg-secondary/50 rounded px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
-                  title="Output data (payload in Node-RED)"
-                >
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                    Output Data
-                  </h3>
-                  {isPayloadExpanded ? (
-                    <ChevronUp className="w-3 h-3 text-text-tertiary" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3 text-text-tertiary" />
-                  )}
-                </button>
-                {isPayloadExpanded && (
-                  <>
-                    <div className="bg-bg-secondary rounded-md p-2 border border-node-border/50">
-                      <pre className="text-[10px] text-text-secondary overflow-x-auto max-h-48 overflow-y-auto">
-                        {JSON.stringify(lastLogWithData.data, null, 2)}
-                      </pre>
-                    </div>
-                    <p className="text-[10px] text-text-tertiary">
-                      {new Date(lastLogWithData.timestamp).toLocaleString()}
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Logs de ejecución */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  Logs de Ejecución
-                </h3>
-                <span className="text-xs text-text-tertiary">
-                  {nodeLogs.length} {nodeLogs.length === 1 ? 'evento' : 'eventos'}
-                </span>
-              </div>
-              
-              {nodeLogs.length > 0 ? (
-                <div className="space-y-1.5 max-h-96 overflow-y-auto">
-                  {nodeLogs.map((log, index) => {
-                    if (index === 0) {
-                      console.log('📋 [NodePropertiesPanel] Mostrando primer log:', {
-                        logId: log.id,
-                        nodeId: log.nodeId,
-                        message: log.message?.substring(0, 50),
-                        hasData: !!log.data
-                      })
-                    }
-                    const getLogColor = (level: string) => {
-                      switch (level) {
-                        case 'error': return { text: 'text-red-500', border: 'border-red-500' }
-                        case 'warn': return { text: 'text-yellow-500', border: 'border-yellow-500' }
-                        case 'success': return { text: 'text-green-500', border: 'border-green-500' }
-                        default: return { text: 'text-blue-500', border: 'border-blue-500' }
-                      }
-                    }
-                    
-                    const colors = getLogColor(log.level)
-                    
-                    return (
-                      <div
-                        key={log.id}
-                        className={`p-2 bg-bg-secondary rounded-md text-xs border-l-2 ${colors.border}`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`font-medium ${colors.text}`}>
-                            {log.level.toUpperCase()}
-                          </span>
-                          <span className="text-text-tertiary text-[10px]">
-                            {new Date(log.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <p className="text-text-secondary text-[11px] mb-1">{log.message}</p>
-                        {log.data && (
-                          <details className="mt-1">
-                            <summary className="text-[10px] text-text-tertiary cursor-pointer hover:text-text-secondary" title="View output data (payload in Node-RED)">
-                              Ver output data
-                            </summary>
-                            <pre className="mt-1 p-1.5 bg-bg-tertiary rounded text-[10px] text-text-secondary overflow-x-auto max-h-32 overflow-y-auto">
-                              {JSON.stringify(log.data, null, 2)}
-                            </pre>
-                          </details>
-                        )}
-                        {log.duration !== undefined && (
-                          <p className="text-text-tertiary text-[10px] mt-1">
-                            Duración: {log.duration}ms
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="p-4 text-center text-text-tertiary text-xs">
-                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No hay logs de ejecución aún</p>
-                  <p className="text-[10px] mt-1 opacity-75">
-                    Los logs aparecerán cuando el nodo se ejecute
-                  </p>
-                  {/* Debug info */}
-                  {executionLogs.length > 0 && (
-                    <div className="mt-3 p-2 bg-bg-secondary rounded text-[9px] text-left border border-node-border/50">
-                      <p className="font-medium mb-1 text-text-secondary">Debug Info:</p>
-                      <p className="text-text-tertiary">Total logs en store: {executionLogs.length}</p>
-                      <p className="text-text-tertiary">Node ID buscado: {node?.id}</p>
-                      <p className="text-text-tertiary">Logs de otros nodos: {executionLogs.filter(l => l.nodeId !== node?.id).length}</p>
-                      {executionLogs.length > 0 && (
-                        <details className="mt-1">
-                          <summary className="cursor-pointer text-text-tertiary hover:text-text-secondary">
-                            Ver primeros logs (últimos 3)
-                          </summary>
-                          <pre className="mt-1 text-[8px] overflow-x-auto text-text-tertiary">
-                            {JSON.stringify(executionLogs.slice(0, 3).map(l => ({
-                              nodeId: l.nodeId,
-                              nodeName: l.nodeName,
-                              message: l.message?.substring(0, 40)
-                            })), null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
-              </>
-            )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
