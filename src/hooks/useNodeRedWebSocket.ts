@@ -100,12 +100,8 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       return edgeChain
     }
 
-    // Helper para gestionar Execution Frames
+    // Helper para gestionar Execution Frames y guardar snapshots
     const handleFrameLogic = (event: NodeRedWebSocketEvent, nodeId: string | null, nodeType?: string) => {
-      if (!executionFramesEnabled) {
-        return
-      }
-
       // Actualizar tiempo del último evento
       lastEventTimeRef.current = Date.now()
 
@@ -120,7 +116,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
 
       // Verificar si debemos crear un nuevo frame
       const shouldStart = shouldStartNewFrame(event, currentFrameState)
-      if (shouldStart) {
+      if (shouldStart && executionFramesEnabled) {
         // Verificar si es un trigger node
         const isTrigger = nodeType ? isTriggerNode(nodeType) : false
         const triggerNodeId = isTrigger && nodeId ? nodeId : undefined
@@ -129,8 +125,29 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
         startFrame(triggerNodeId, label)
       }
 
-      // Obtener frame actualizado después de posible creación
-      const frame = useCanvasStore.getState().currentFrame
+      // Obtener frame actualizado después de posible creación (o usar el existente)
+      let frame = useCanvasStore.getState().currentFrame
+      
+      // Si no hay frame pero tenemos datos, crear uno automáticamente para capturar los datos
+      if (!frame && nodeId) {
+        if (executionFramesEnabled) {
+          const isTrigger = nodeType ? isTriggerNode(nodeType) : false
+          const triggerNodeId = isTrigger ? nodeId : undefined
+          const label = isTrigger ? `Triggered by ${nodeType}` : 'Auto frame'
+          startFrame(triggerNodeId, label)
+          frame = useCanvasStore.getState().currentFrame
+        } else {
+          // Si execution frames está deshabilitado, crear un frame temporal solo para snapshots
+          // Usar un ID temporal que no se guarde en frames[]
+          frame = {
+            id: `temp-${Date.now()}`,
+            startedAt: Date.now(),
+            label: 'Temporary frame',
+          }
+        }
+      }
+
+      // Guardar snapshot si tenemos frame y nodeId
       if (frame && nodeId) {
         const payload = event.data?.msg?.payload || event.data?.payload || event.payload
         const payloadPreview = payload ? createPayloadPreview(payload) : undefined
@@ -145,9 +162,9 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
         })
       }
 
-      // Programar cierre del frame si no hay más eventos
+      // Programar cierre del frame si no hay más eventos (solo si execution frames está habilitado)
       const frameForTimeout = useCanvasStore.getState().currentFrame
-      if (frameForTimeout) {
+      if (frameForTimeout && executionFramesEnabled) {
         frameTimeoutRef.current = setTimeout(() => {
           const currentFrameState = useCanvasStore.getState().currentFrame
           if (currentFrameState && shouldEndFrame(currentFrameState, lastEventTimeRef.current, 5000)) {
@@ -204,22 +221,37 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           if (runtimeState) {
             setNodeRuntimeState(nodeId, runtimeState)
             
-            // Actualizar snapshot si hay frame activo
-            if (executionFramesEnabled) {
-              const frame = useCanvasStore.getState().currentFrame
-              if (frame) {
-                const payload = statusData?.payload || statusData
-                const payloadPreview = payload ? createPayloadPreview(payload) : undefined
-                
-                addNodeSnapshot({
-                  nodeId,
-                  frameId: frame.id,
-                  status: runtimeState,
-                  ts: Date.now(),
-                  summary: statusData?.text || `Status: ${runtimeState}`,
-                  payloadPreview,
-                })
+            // Guardar snapshot siempre (crear frame si no existe)
+            let frame = useCanvasStore.getState().currentFrame
+            if (!frame) {
+              if (executionFramesEnabled) {
+                const nodeInfo = getNodeInfo(nodeId)
+                const isTrigger = nodeInfo.type ? isTriggerNode(nodeInfo.type) : false
+                const triggerNodeId = isTrigger ? nodeId : undefined
+                const label = isTrigger ? `Triggered by ${nodeInfo.type}` : 'Auto frame'
+                startFrame(triggerNodeId, label)
+                frame = useCanvasStore.getState().currentFrame
+              } else {
+                frame = {
+                  id: `temp-${Date.now()}`,
+                  startedAt: Date.now(),
+                  label: 'Temporary frame',
+                }
               }
+            }
+            
+            if (frame) {
+              const payload = statusData?.payload || statusData?.msg?.payload || statusData
+              const payloadPreview = payload ? createPayloadPreview(payload) : undefined
+              
+              addNodeSnapshot({
+                nodeId,
+                frameId: frame.id,
+                status: runtimeState,
+                ts: Date.now(),
+                summary: statusData?.text || `Status: ${runtimeState}`,
+                payloadPreview,
+              })
             }
             
             // Si el nodo está en estado "running", activar sus edges de salida
@@ -305,10 +337,79 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           const targetNodeId = debugData.id // ID del nodo que recibe el mensaje
           const sourceNodeId = debugData.node || debugData.nodeid // ID del nodo que generó el mensaje
           
-          // Gestionar Execution Frames para el nodo fuente
+          // Extraer payload del mensaje
+          const msgPayload = debugData.msg?.payload || debugData.msg
+          const payloadPreview = msgPayload ? createPayloadPreview(msgPayload) : undefined
+          
+          // Gestionar Execution Frames y guardar snapshot para el nodo FUENTE (OUTPUT)
           if (sourceNodeId) {
             const sourceNodeInfo = getNodeInfo(sourceNodeId)
             handleFrameLogic(event, sourceNodeId, sourceNodeInfo.type)
+            
+            // Guardar snapshot del OUTPUT del nodo fuente
+            const frame = useCanvasStore.getState().currentFrame
+            if (frame || !executionFramesEnabled) {
+              // Crear frame temporal si no existe
+              let effectiveFrame = frame
+              if (!effectiveFrame) {
+                const tempFrameId = `temp-${Date.now()}`
+                effectiveFrame = {
+                  id: tempFrameId,
+                  startedAt: Date.now(),
+                  label: 'Auto frame',
+                }
+              }
+              
+              addNodeSnapshot({
+                nodeId: sourceNodeId,
+                frameId: effectiveFrame.id,
+                status: 'idle',
+                ts: Date.now(),
+                summary: 'Output data',
+                payloadPreview,
+              })
+            }
+          }
+          
+          // Guardar snapshot para el nodo DESTINO (INPUT) - el que recibe el mensaje
+          // Usar el mismo frame que el nodo fuente para mantener consistencia
+          if (targetNodeId) {
+            const targetNodeInfo = getNodeInfo(targetNodeId)
+            
+            // Obtener el frame actual (debería ser el mismo que se usó para el nodo fuente)
+            let frame = useCanvasStore.getState().currentFrame
+            
+            // Si no hay frame, crear uno (esto no debería pasar normalmente)
+            if (!frame) {
+              if (executionFramesEnabled) {
+                const isTrigger = targetNodeInfo.type ? isTriggerNode(targetNodeInfo.type) : false
+                const triggerNodeId = isTrigger ? targetNodeId : undefined
+                const label = isTrigger ? `Triggered by ${targetNodeInfo.type}` : 'Auto frame'
+                startFrame(triggerNodeId, label)
+                frame = useCanvasStore.getState().currentFrame
+              } else {
+                // Usar el mismo frame temporal que el nodo fuente si existe
+                const sourceSnapshots = useCanvasStore.getState().nodeSnapshots.get(sourceNodeId || '') || []
+                const sourceFrameId = sourceSnapshots.length > 0 ? sourceSnapshots[0].frameId : null
+                frame = {
+                  id: sourceFrameId || `temp-${Date.now()}`,
+                  startedAt: Date.now(),
+                  label: 'Temporary frame',
+                }
+              }
+            }
+            
+            // Guardar snapshot del INPUT del nodo destino
+            if (frame) {
+              addNodeSnapshot({
+                nodeId: targetNodeId,
+                frameId: frame.id,
+                status: 'running',
+                ts: Date.now(),
+                summary: 'Input data',
+                payloadPreview,
+              })
+            }
           }
           
           console.log('🔍 [WebSocket] Procesando evento debug - activando cadena completa:', {
