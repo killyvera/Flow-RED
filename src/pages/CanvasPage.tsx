@@ -41,6 +41,7 @@ import { DottedGridBackground } from '@/components/DottedGridBackground'
 import { useCanvasStore } from '@/state/canvasStore'
 import { useNodeRedFlow } from '@/canvas/useNodeRedFlow'
 import { useNodeRedWebSocket } from '@/hooks/useNodeRedWebSocket'
+import { useObservabilityWebSocket } from '@/hooks/useObservabilityWebSocket'
 import { BaseNode } from '@/canvas/nodes/BaseNode'
 import { modernEdgeTypes } from '@/canvas/edges.tsx'
 import { applyModernEdgeStyles } from '@/canvas/edges.tsx'
@@ -167,13 +168,21 @@ export function CanvasPage() {
     return Array.from(flowsMap.values())
   }, [rawFlows])
 
-  // Conectar a WebSocket para recibir eventos de runtime
-  // Inicializar conexión WebSocket para estados de runtime
-  // console.log('🎬 [CanvasPage] Inicializando WebSocket...')
+  // Conectar a WebSocket /comms para recibir eventos de status (legacy)
+  // console.log('🎬 [CanvasPage] Inicializando WebSocket /comms...')
   const wsConnection = useNodeRedWebSocket(true)
-  // console.log('🔌 [CanvasPage] Estado de conexión WebSocket:', {
-  //   connected: wsConnection.connected,
-  //   connectionState: wsConnection.connectionState
+  
+  // Conectar a WebSocket /observability para recibir eventos enriquecidos del plugin
+  // El plugin proporciona Input/Output real, semantics, timing y frames precisos
+  // Si el plugin no está disponible, el hook manejará la reconexión automáticamente
+  // @ts-expect-error - Hook se usa por sus efectos secundarios, no por su valor de retorno
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _observabilityConnection = useObservabilityWebSocket(true)
+  
+  // Log de estado de conexiones (solo en desarrollo)
+  // console.log('🔌 [CanvasPage] Estado de conexiones:', {
+  //   comms: wsConnection.connected,
+  //   observability: observabilityConnection.connected
   // })
   
 
