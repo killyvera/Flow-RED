@@ -18,11 +18,14 @@ const path = require('path');
 
 module.exports = {
     // ============================================
-    // HEADLESS MODE - No Old UI
+    // HEADLESS MODE - API Only (No Old UI)
     // ============================================
-    // Disable the old Node-RED editor UI
-    // API endpoints remain available at http://localhost:1880/
-    httpAdminRoot: false,
+    // Keep API endpoints active but disable the old editor UI
+    // API endpoints available at http://localhost:1880/
+    httpAdminRoot: '/',
+    
+    // Disable the old Node-RED editor UI (but keep API active)
+    disableEditor: true,
     
     // ============================================
     // CORS CONFIGURATION
