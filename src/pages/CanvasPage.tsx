@@ -67,6 +67,7 @@ import { SubflowNode } from '@/canvas/nodes/SubflowNode'
 import { SearchModal } from '@/components/SearchModal'
 import { SubflowBreadcrumb } from '@/components/SubflowBreadcrumb'
 import { isSubflowInstance, extractSubflowIdFromType } from '@/utils/subflowUtils'
+import { FlowTabs, type FlowTab } from '@/components/FlowTabs'
 
 // Definir tipos de nodos fuera del componente para referencia
 const baseNodeTypes = {
@@ -223,8 +224,28 @@ export function CanvasPage() {
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = React.useState(false)
 
-  // Estado para rastrear cambios no guardados
-  const [savedState, setSavedState] = React.useState<SavedFlowState | null>(null)
+  // Estado para rastrear cambios no guardados por flow
+  const [savedStatesByFlow, setSavedStatesByFlow] = React.useState<Map<string, SavedFlowState>>(new Map())
+  
+  // Estado guardado del flow actual (para compatibilidad con código existente)
+  const savedState = React.useMemo(() => {
+    if (!activeFlowId) return null
+    return savedStatesByFlow.get(activeFlowId) || null
+  }, [activeFlowId, savedStatesByFlow])
+  
+  // Función helper para actualizar el estado guardado de un flow
+  const setSavedState = React.useCallback((state: SavedFlowState | null) => {
+    if (!activeFlowId) return
+    setSavedStatesByFlow(prev => {
+      const next = new Map(prev)
+      if (state) {
+        next.set(activeFlowId, state)
+      } else {
+        next.delete(activeFlowId)
+      }
+      return next
+    })
+  }, [activeFlowId])
   
   // Estado para modales
   const [conflictModal, setConflictModal] = React.useState<{
@@ -2667,6 +2688,15 @@ export function CanvasPage() {
     return hasUnsavedChanges(nodes, edges, savedState)
   }, [isEditMode, nodes, edges, savedState])
 
+  // Preparar tabs de flows con información de cambios no guardados
+  const flowTabs = useMemo<FlowTab[]>(() => {
+    return flows.map(flow => ({
+      id: flow.id,
+      label: flow.label || flow.name || `Flow ${flow.id.slice(0, 8)}`,
+      hasUnsavedChanges: flow.id === activeFlowId ? isDirty : false, // Solo mostrar para flow actual por ahora
+    }))
+  }, [flows, activeFlowId, isDirty])
+
   // Función wrapper para switchFlow que verifica cambios no guardados
   const handleSwitchFlow = useCallback(async (newFlowId: string) => {
     if (isDirty) {
@@ -3176,32 +3206,12 @@ export function CanvasPage() {
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4">
         {/* Contenido izquierdo */}
         <div className="flex items-center gap-4">
-        {/* Separador */}
-        {(flows.length > 1 || isLoading || error) && (
-          <div className="w-px h-6 bg-canvas-grid" />
-        )}
-
-        {/* Selector de flow y estado */}
-        {(flows.length > 0 || isLoading || error) && (
-          <>
-          {/* Selector de flow si hay flows */}
-          {flows.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label htmlFor="flow-selector" className="text-xs font-medium text-text-secondary">
-                Flow:
-              </label>
-              <select
-                id="flow-selector"
-                value={activeFlowId || ''}
-                onChange={(e) => handleSwitchFlow(e.target.value)}
-                className="px-2.5 py-1 text-xs border border-canvas-grid rounded-md bg-bg-primary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
-              >
-                {flows.map((flow) => (
-                  <option key={flow.id} value={flow.id}>
-                    {flow.label || flow.name || `Flow ${flow.id.slice(0, 8)}`}
-                  </option>
-                ))}
-              </select>
+          {/* Nombre del flujo actual */}
+          {!isLoading && !error && activeFlowId && (
+            <div className="text-xs font-medium text-text-primary">
+              {flows.find((f) => f.id === activeFlowId)?.label ||
+                flows.find((f) => f.id === activeFlowId)?.name ||
+                'Flow activo'}
             </div>
           )}
 
@@ -3226,17 +3236,19 @@ export function CanvasPage() {
               </button>
             </div>
           )}
+        </div>
 
-          {/* Indicador de flow activo */}
-          {!isLoading && !error && activeFlowId && (
-            <div className="text-xs text-text-tertiary">
-              {flows.find((f) => f.id === activeFlowId)?.label ||
-                flows.find((f) => f.id === activeFlowId)?.name ||
-                'Flow activo'}
+        {/* Contenido central - Pestañas de flows */}
+        <div className="flex-1 flex justify-center min-w-0">
+          {flows.length > 0 && (
+            <div className="w-full max-w-[60%]">
+              <FlowTabs
+                flows={flowTabs}
+                activeFlowId={activeFlowId}
+                onFlowSelect={handleSwitchFlow}
+              />
             </div>
           )}
-          </>
-        )}
         </div>
 
         {/* Contenido derecho - Botón de guardar, indicadores y ExecutionBar */}
