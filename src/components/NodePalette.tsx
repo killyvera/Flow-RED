@@ -135,6 +135,19 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
           if (availableNodes.length > 0) {
             console.log('✅ Nodos cargados desde la API:', availableNodes.length)
             
+            // DEBUG: Ver si agent-core está en los nodos cargados
+            const agentCore = availableNodes.find(n => n.type === 'agent-core')
+            console.log('🔍 Agent-core encontrado en API?', agentCore)
+            if (agentCore) {
+              console.log('📦 Agent-core data:', {
+                id: agentCore.id,
+                type: agentCore.type,
+                name: agentCore.name,
+                category: agentCore.category,
+                module: agentCore.module
+              })
+            }
+            
             // Verificar si "group" está en los nodos de la API
             const hasGroup = availableNodes.some(n => n.type === 'group')
             console.log('🔍 ¿Grupo está en nodos de API?', hasGroup)
@@ -667,6 +680,9 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
 
         {!isLoading && !error && Object.entries(nodesByCategoryAndSubcategory)
           .sort(([a], [b]) => {
+            // DEBUG: Ver las categorías que están llegando aquí
+            console.log('📊 Ordenando categoría:', a, 'vs', b)
+            
             // Ordenar categorías: orden preferido primero, luego alfabéticamente
             const categoryOrder = ['AI Agents', 'input', 'output', 'function', 'link', 'http', 'mqtt', 'tcp', 'udp', 'websocket', 'network', 'sequence', 'parser', 'storage', 'layout', 'dashboard', 'subflows', 'Otros']
             const indexA = categoryOrder.indexOf(a)

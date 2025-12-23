@@ -254,6 +254,19 @@ export async function getAvailableNodes(): Promise<Array<{
           // Si ya existe, no agregarlo de nuevo
           if (!seenNodeTypes.has(normalizedType)) {
             seenNodeTypes.add(normalizedType)
+            
+            // DEBUG: Log especial para agent-core
+            if (nodeType === 'agent-core') {
+              apiLogger('🤖 DEBUG agent-core moduleInfo:', {
+                moduleId,
+                nodeType,
+                name: moduleInfo.name,
+                category: moduleInfo.category,
+                sets: moduleInfo.sets,
+                fullModuleInfo: moduleInfo
+              })
+            }
+            
             availableNodes.push({
               id: `${moduleId}.${nodeType}`, // ID único con módulo para referencia
               type: nodeType, // Tipo único del nodo (usado como clave principal)
