@@ -7,10 +7,12 @@
  */
 
 import { HttpRequestConfig } from './nodes/http-request/HttpRequestConfig'
+import { AgentCoreConfig } from './nodes/agent-core/AgentCoreConfig'
 
 // Registro de componentes custom por tipo de nodo
 const CUSTOM_EDITORS: Record<string, React.ComponentType<any>> = {
   'http request': HttpRequestConfig,
+  'agent-core': AgentCoreConfig,
   // Future custom editors:
   // 'mqtt in': MqttInConfig,
   // 'mqtt out': MqttOutConfig,
