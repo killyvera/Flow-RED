@@ -140,14 +140,66 @@ ${JSON.stringify(envelope.tools.history, null, 2)}`;
         const prompt = this.generatePrompt(envelope);
         log(`Generated prompt (${prompt.length} chars)`);
 
-        // Send to model (output 0)
+        // Determinar el prompt del sistema según si hay tools disponibles
+        const hasTools = this.allowedTools && this.allowedTools.length > 0;
+        
+        // Si no hay tools, el modelo actúa como asistente conversacional
+        // Si hay tools, actúa como execution agent
+        const systemPrompt = hasTools
+          ? `You are an execution agent. You must decide ONE action per iteration.
+
+Available tools:
+${this.allowedTools.map(tool => `- ${tool}`).join('\n')}
+
+Current state:
+- Iteration: ${envelope.state.iteration}
+- Last action: ${envelope.state.lastAction || 'none'}
+- Tool history: ${envelope.tools.history.length} executions
+
+Rules:
+- Use only the provided tools
+- If you have enough information, return a FINAL action
+- Always respond in valid JSON
+- Do NOT explain your reasoning
+
+Output format:
+{
+  "action": "tool" | "final",
+  "tool": "tool_name_if_any",
+  "input": {},
+  "confidence": number,
+  "message": "optional"
+}`
+          : `You are a helpful AI assistant. Respond naturally and conversationally to the user's message.
+
+Rules:
+- Respond directly to the user in a friendly and helpful manner
+- If the user greets you, greet them back and offer your assistance
+- Always respond in valid JSON format
+- Do NOT explain your reasoning
+
+Output format:
+{
+  "action": "final",
+  "tool": null,
+  "input": {},
+  "confidence": 1.0,
+  "message": "Your response to the user"
+}`;
+
+        // Send to model (output 0) - formato esperado por Azure OpenAI Model
         const modelMsg = {
           payload: {
-            prompt,
-            envelope: {
-              traceId: envelope.observability.traceId,
-              iteration: envelope.state.iteration
-            }
+            systemPrompt: systemPrompt,
+            userPrompt: hasTools
+              ? `User input:
+${JSON.stringify(envelope.input, null, 2)}
+
+Tool history:
+${JSON.stringify(envelope.tools.history, null, 2)}`
+              : `User message: ${typeof envelope.input === 'string' ? envelope.input : JSON.stringify(envelope.input, null, 2)}`,
+            tools: this.allowedTools.map(tool => ({ name: tool })),
+            traceId: envelope.observability.traceId
           },
           _agentCore: {
             type: 'model_request',
@@ -158,14 +210,13 @@ ${JSON.stringify(envelope.tools.history, null, 2)}`;
 
         sendToModel(modelMsg);
 
-        // In a real implementation, we would wait for model response
-        // For now, we simulate completion
-        log(`Waiting for model response...`);
-
-        // TODO: Implement proper async handling with model response
-        // This requires Node-RED flow to wire model output back to agent-core
-        // For now, we'll complete after first iteration
-        break;
+        // Wait for model response - the model will wire back to agent-core input
+        // and continueLoop will be called to continue the iteration
+        log(`Waiting for model response... (iteration ${envelope.state.iteration})`);
+        
+        // Don't break - wait for model response to come back via continueLoop
+        // The loop will continue when the model response is received
+        return;
       }
 
       // Check if max iterations reached
@@ -182,6 +233,163 @@ ${JSON.stringify(envelope.tools.history, null, 2)}`;
 
     } catch (error) {
       log(`Error in REACT strategy: ${error.message}`);
+      envelope.observability.events.push({
+        iteration: envelope.state.iteration,
+        action: 'error',
+        error: error.message
+      });
+      onError(error);
+    }
+  }
+
+  /**
+   * Continue REACT loop after receiving model response
+   * 
+   * @param {AgentEnvelope} envelope - Current envelope
+   * @param {object} callbacks - Callback functions
+   * @param {ModelResponse} modelResponse - Validated model response
+   */
+  async continueLoop(envelope, callbacks, modelResponse) {
+    const { sendToModel, sendToTool, onComplete, onError, log } = callbacks;
+
+    try {
+      // Update envelope with model response
+      envelope.model.lastResponse = modelResponse;
+      envelope.state.lastAction = modelResponse.action;
+
+      // Add observability event
+      envelope.observability.events.push({
+        iteration: envelope.state.iteration,
+        action: 'model_response',
+        confidence: modelResponse.confidence,
+        tool: modelResponse.tool
+      });
+
+      // Check if final answer
+      if (modelResponse.action === 'final') {
+        log(`Final answer received at iteration ${envelope.state.iteration}`);
+        envelope.state.completed = true;
+        onComplete(envelope);
+        return;
+      }
+
+      // Check if tool action
+      if (modelResponse.action === 'tool' && modelResponse.tool) {
+        // Validate tool is allowed
+        if (!this.allowedTools.includes(modelResponse.tool)) {
+          throw new Error(`Tool "${modelResponse.tool}" is not in allowedTools list`);
+        }
+
+        // Execute tool
+        const toolMsg = this.executeTool(envelope, modelResponse.tool, modelResponse.input);
+        sendToTool(toolMsg);
+        
+        // For now, complete after tool execution (tool response handling will be implemented later)
+        log(`Tool "${modelResponse.tool}" requested at iteration ${envelope.state.iteration}`);
+        envelope.state.completed = true;
+        onComplete(envelope);
+        return;
+      }
+
+      // Check stop conditions
+      if (this.checkStopConditions(envelope)) {
+        log(`Stop condition met at iteration ${envelope.state.iteration}`);
+        envelope.state.completed = true;
+        onComplete(envelope);
+        return;
+      }
+
+      // Check max iterations
+      if (envelope.state.iteration >= this.maxIterations) {
+        log(`Max iterations (${this.maxIterations}) reached`);
+        envelope.observability.events.push({
+          iteration: envelope.state.iteration,
+          action: 'max_iterations_reached'
+        });
+        envelope.state.completed = true;
+        onComplete(envelope);
+        return;
+      }
+
+      // Continue to next iteration
+      envelope.state.iteration++;
+      log(`Continuing to iteration ${envelope.state.iteration}`);
+
+      // Generate prompt for next iteration
+      const prompt = this.generatePrompt(envelope);
+      
+      // Determinar el prompt del sistema según si hay tools disponibles
+      const hasTools = this.allowedTools && this.allowedTools.length > 0;
+      
+      // Si no hay tools, el modelo actúa como asistente conversacional
+      // Si hay tools, actúa como execution agent
+      const systemPrompt = hasTools
+        ? `You are an execution agent. Continue from iteration ${envelope.state.iteration}.
+
+Available tools:
+${this.allowedTools.map(tool => `- ${tool}`).join('\n')}
+
+Current state:
+- Iteration: ${envelope.state.iteration}
+- Last action: ${envelope.state.lastAction || 'none'}
+- Tool history: ${envelope.tools.history.length} executions
+
+Rules:
+- Use only the provided tools
+- If you have enough information, return a FINAL action
+- Always respond in valid JSON
+- Do NOT explain your reasoning
+
+Output format:
+{
+  "action": "tool" | "final",
+  "tool": "tool_name_if_any",
+  "input": {},
+  "confidence": number,
+  "message": "optional"
+}`
+        : `You are a helpful AI assistant. Respond naturally and conversationally to the user's message.
+
+Rules:
+- Respond directly to the user in a friendly and helpful manner
+- If the user greets you, greet them back and offer your assistance
+- Always respond in valid JSON format
+- Do NOT explain your reasoning
+
+Output format:
+{
+  "action": "final",
+  "tool": null,
+  "input": {},
+  "confidence": 1.0,
+  "message": "Your response to the user"
+}`;
+
+      // Send to model for next iteration - formato esperado por Azure OpenAI Model
+      const modelMsg = {
+        payload: {
+          systemPrompt: systemPrompt,
+          userPrompt: hasTools
+            ? `User input:
+${JSON.stringify(envelope.input, null, 2)}
+
+Tool history:
+${JSON.stringify(envelope.tools.history, null, 2)}`
+            : `User message: ${typeof envelope.input === 'string' ? envelope.input : JSON.stringify(envelope.input, null, 2)}`,
+          tools: this.allowedTools.map(tool => ({ name: tool })),
+          traceId: envelope.observability.traceId
+        },
+        _agentCore: {
+          type: 'model_request',
+          traceId: envelope.observability.traceId,
+          iteration: envelope.state.iteration
+        }
+      };
+
+      sendToModel(modelMsg);
+
+    } catch (error) {
+      log(`Error in continueLoop: ${error.message}`);
       envelope.observability.events.push({
         iteration: envelope.state.iteration,
         action: 'error',

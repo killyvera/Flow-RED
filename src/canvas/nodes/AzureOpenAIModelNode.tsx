@@ -2,100 +2,79 @@
  * AzureOpenAIModelNode - Nodo personalizado para Azure OpenAI Model
  * 
  * Este nodo representa un modelo de lenguaje:
- * - Input (izquierda): Recibe ModelInput del Agent Core
- * - Output (derecha): Retorna ModelResponse al Agent Core
+ * - Handler solo arriba (input): Recibe ModelInput del Agent Core
+ * - Forma cuadrada con información mínima (estilo n8n)
+ * - Tamaño igual al resto de nodos (80px)
  */
 
 import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
-import { Brain } from 'lucide-react'
+import { AzureIcon } from '@/utils/azureIcon'
 
 /**
  * AzureOpenAIModelNode Component
+ * 
+ * Nodo cuadrado estilo n8n con handler solo arriba
+ * Tamaño: 80px (igual que BaseNode)
  */
 export const AzureOpenAIModelNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const nodeData = (data.data || data) as any
-  const label = nodeData.label || 'Azure OpenAI Model'
-  const deployment = nodeData.deployment || 'Not configured'
+  // Usar label del nodo o nombre amigable por defecto
+  const label = nodeData.label || nodeData.nodeRedNode?.name || 'Azure OpenAI'
   const isExecuting = nodeData.isExecuting || false
 
   return (
     <div
       className={`
-        relative bg-node-default border border-node-border rounded-lg shadow-node
-        transition-all duration-200
-        ${selected ? 'ring-2 ring-accent-primary' : ''}
+        relative bg-node-default border-2 rounded-lg shadow-node
+        w-[80px] min-w-[80px] max-w-[80px]
+        transition-all duration-200 ease-in-out
+        ${selected ? 'ring-2 ring-accent-primary ring-opacity-50 border-node-border-selected shadow-node-selected' : 'border-node-border hover:border-node-border-hover hover:shadow-node-hover'}
         ${isExecuting ? 'animate-pulse' : ''}
       `}
-      style={{
-        minWidth: '160px',
-        minHeight: '80px',
-      }}
     >
-      {/* Input Handle (Izquierda) */}
+      {/* Handler único bidireccional (arriba) - Funciona como input y output */}
+      {/* Con ConnectionMode.Loose, un handle sin type puede actuar como source y target */}
       <Handle
         type="target"
-        position={Position.Left}
+        position={Position.Top}
         id="input"
-        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+        className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
         style={{
-          left: -5,
-          top: '50%',
-          transform: 'translateY(-50%)',
+          top: -6,
+          left: '50%',
+          transform: 'translateX(-50%)',
         }}
       />
-
-      {/* Output Handle (Derecha) */}
       <Handle
         type="source"
-        position={Position.Right}
-        id="output"
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          const event = new CustomEvent('handleDoubleClick', {
-            detail: {
-              nodeId: id,
-              handleId: 'output',
-              handleType: 'source',
-              position: { x: e.clientX, y: e.clientY },
-            },
-          })
-          window.dispatchEvent(event)
-        }}
-        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+        position={Position.Top}
+        id="output-0"
+        className="!w-3 !h-3 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
         style={{
-          right: -5,
-          top: '50%',
-          transform: 'translateY(-50%)',
+          top: -6,
+          left: '50%',
+          transform: 'translateX(-50%)',
         }}
       />
 
-      {/* Header */}
-      <div
-        className="px-3 py-2 rounded-t-lg flex items-center gap-2"
+      {/* Contenido centrado - Solo icono */}
+      <div 
+        className="flex items-center justify-center min-h-[80px] px-4 py-4 rounded-lg"
         style={{
-          backgroundColor: '#00A4EF20',
-          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: '#0078D420', // Color Azure con transparencia
         }}
       >
-        <Brain size={18} style={{ color: '#00A4EF' }} />
-        <span className="text-sm font-semibold text-text-primary">
-          {label}
-        </span>
+        {/* Icono de Azure */}
+        <AzureIcon size={32} className="text-[#0078D4]" />
       </div>
 
-      {/* Content */}
-      <div className="px-3 py-2">
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          <div className="mb-1">
-            <span className="font-semibold">Deployment:</span> {deployment}
-          </div>
-          <div className="flex items-center gap-1 text-[10px]" style={{ color: '#00A4EF' }}>
-            <Brain size={10} />
-            <span>Azure OpenAI</span>
-          </div>
-        </div>
+      {/* Label debajo del nodo (fuera del contenedor) */}
+      <div className="absolute top-full left-0 right-0 mt-1 text-center">
+        <span className="text-[10px] text-text-secondary font-medium">
+          {label}
+        </span>
       </div>
     </div>
   )

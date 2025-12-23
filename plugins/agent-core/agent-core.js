@@ -9,6 +9,7 @@
 
 const AgentCoreNode = require('./lib/AgentCoreNode');
 const AzureOpenAIModelNode = require('./models/azure-openai-model/azure-openai-model');
+const { registerTestEndpoint } = require('./lib/test-connection');
 
 module.exports = function(RED) {
   /**
@@ -30,6 +31,11 @@ module.exports = function(RED) {
    * Azure OpenAI integration for the agent system.
    */
   AzureOpenAIModelNode(RED);
+
+  /**
+   * Register HTTP endpoint for testing Azure OpenAI connection
+   */
+  registerTestEndpoint(RED);
 
   /**
    * Optional: Register custom HTTP endpoints for agent-core

@@ -7,26 +7,26 @@ import { Plus, Trash2 } from 'lucide-react'
 
 export interface StopConditionsTabProps {
   nodeData: any
-  onChange: (data: any) => void
+  onNodeDataChange: (data: any) => void
 }
 
-export function StopConditionsTab({ nodeData, onChange }: StopConditionsTabProps) {
+export function StopConditionsTab({ nodeData, onNodeDataChange }: StopConditionsTabProps) {
   const stopConditions = nodeData.stopConditions || []
 
   const handleAddCondition = () => {
     const newConditions = [...stopConditions, { type: 'maxIterations', value: '' }]
-    onChange({ ...nodeData, stopConditions: newConditions })
+    onNodeDataChange({ ...nodeData, stopConditions: newConditions })
   }
 
   const handleRemoveCondition = (index: number) => {
     const newConditions = stopConditions.filter((_: any, i: number) => i !== index)
-    onChange({ ...nodeData, stopConditions: newConditions })
+    onNodeDataChange({ ...nodeData, stopConditions: newConditions })
   }
 
   const handleConditionChange = (index: number, field: 'type' | 'value', value: string) => {
     const newConditions = [...stopConditions]
     newConditions[index] = { ...newConditions[index], [field]: value }
-    onChange({ ...nodeData, stopConditions: newConditions })
+    onNodeDataChange({ ...nodeData, stopConditions: newConditions })
   }
 
   return (

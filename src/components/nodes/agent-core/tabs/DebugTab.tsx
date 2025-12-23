@@ -7,12 +7,12 @@ import { BooleanField } from '@/components/fields'
 
 export interface DebugTabProps {
   nodeData: any
-  onChange: (data: any) => void
+  onNodeDataChange: (data: any) => void
 }
 
-export function DebugTab({ nodeData, onChange }: DebugTabProps) {
+export function DebugTab({ nodeData, onNodeDataChange }: DebugTabProps) {
   const handleChange = (value: boolean) => {
-    onChange({ ...nodeData, debug: value })
+    onNodeDataChange({ ...nodeData, debug: value })
   }
 
   return (

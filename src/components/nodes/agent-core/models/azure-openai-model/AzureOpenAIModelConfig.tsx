@@ -8,6 +8,7 @@ import { RuntimeTab } from './tabs/RuntimeTab'
 export interface AzureOpenAIModelConfigProps {
   nodeData: any
   onNodeDataChange: (data: any) => void
+  nodeId?: string // ID del nodo para guardar credenciales
 }
 
 /**
@@ -16,12 +17,13 @@ export interface AzureOpenAIModelConfigProps {
  * Este nodo representa SOLO un modelo de lenguaje que recibe prompts
  * del Agent Core y retorna respuestas JSON estrictas.
  */
-export function AzureOpenAIModelConfig({ nodeData, onNodeDataChange }: AzureOpenAIModelConfigProps) {
+export function AzureOpenAIModelConfig({ nodeData, onNodeDataChange, nodeId }: AzureOpenAIModelConfigProps) {
   const tabs: Tab[] = [
     {
       id: 'connection',
       label: 'Connection',
       component: ConnectionTab,
+      props: { nodeId }, // Pasar nodeId como prop al tab
     },
     {
       id: 'parameters',

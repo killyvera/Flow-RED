@@ -1220,16 +1220,24 @@ export function NodePropertiesPanel({
               <CustomEditorRenderer
                 nodeType={nodeType}
                 nodeData={node.data?.nodeRedNode || {}}
+                nodeId={node.id} // Pasar nodeId para guardar credenciales
                 onChange={(updatedData) => {
                   if (onUpdateNode) {
-                    onUpdateNode(node.id, {
-                      data: {
-                        ...node.data,
-                        nodeRedNode: {
-                          ...node.data?.nodeRedNode,
-                          ...updatedData
-                        }
+                    const updatedNodeData: any = {
+                      ...node.data,
+                      nodeRedNode: {
+                        ...node.data?.nodeRedNode,
+                        ...updatedData
                       }
+                    }
+                    
+                    // Si se cambió el nombre, actualizar también el label del nodo
+                    if (updatedData.name !== undefined) {
+                      updatedNodeData.label = updatedData.name || node.data?.nodeRedType || 'node'
+                    }
+                    
+                    onUpdateNode(node.id, {
+                      data: updatedNodeData
                     })
                   }
                 }}
