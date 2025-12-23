@@ -1,151 +1,192 @@
 /**
- * EnvelopeManager.js - Agent Envelope Management
+ * EnvelopeManager.js - Manages AgentEnvelope lifecycle
  * 
- * Manages the AgentEnvelope structure that flows through the REACT loop.
- * The envelope contains all state, history, and observability data.
+ * Responsible for:
+ * - Creating new envelopes
+ * - Updating envelope state
+ * - Tracking tool history
+ * - Managing observability events
  * 
  * @module lib/EnvelopeManager
  */
 
-const { v4: uuidv4 } = require('crypto').webcrypto || require('crypto');
-
 /**
- * Agent Envelope Manager
- * 
- * @class
+ * Generate a simple trace ID
  */
+function generateTraceId() {
+  return `trace-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 class EnvelopeManager {
-  constructor() {
-    // No state needed
-  }
-
   /**
-   * Initialize a new agent envelope from an incoming message
+   * Create a new AgentEnvelope
    * 
-   * @param {object} msg - Node-RED message
-   * @returns {object} Agent envelope
+   * @param {any} input - Original input data
+   * @param {string[]} allowedTools - List of allowed tool names
+   * @returns {AgentEnvelope} New envelope
    */
-  initialize(msg) {
-    const traceId = this._generateTraceId();
-    const startedAt = new Date().toISOString();
-
-    /**
-     * @typedef {object} AgentEnvelope
-     * @property {*} input - Original input data
-     * @property {object} state - Agent state
-     * @property {number} state.iteration - Current iteration number
-     * @property {string} [state.lastAction] - Last action taken ("tool" | "final")
-     * @property {string} [state.lastTool] - Last tool executed
-     * @property {boolean} state.completed - Whether agent has completed
-     * @property {string} [state.completionReason] - Reason for completion
-     * @property {object} [model] - Model interaction data
-     * @property {string} [model.lastPrompt] - Last prompt sent to model
-     * @property {object} [model.lastResponse] - Last response from model
-     * @property {object} tools - Tool-related data
-     * @property {string[]} tools.available - Available tool names
-     * @property {object[]} tools.history - Tool execution history
-     * @property {object} [memory] - Memory store (optional)
-     * @property {object} observability - Observability data
-     * @property {string} observability.traceId - Unique trace ID
-     * @property {string} observability.startedAt - ISO timestamp of start
-     * @property {object[]} observability.events - Event timeline
-     */
-    const envelope = {
-      input: msg.payload || {},
+  createEnvelope(input, allowedTools = []) {
+    return {
+      input,
       state: {
         iteration: 0,
         lastAction: undefined,
         lastTool: undefined,
-        completed: false,
-        completionReason: undefined
+        completed: false
       },
       model: {
         lastPrompt: undefined,
         lastResponse: undefined
       },
       tools: {
-        available: [],
+        available: allowedTools,
         history: []
       },
       memory: {},
       observability: {
-        traceId: traceId,
-        startedAt: startedAt,
+        traceId: generateTraceId(),
+        startedAt: new Date().toISOString(),
         events: []
       }
     };
-
-    return envelope;
   }
 
   /**
-   * Record an event in the envelope's observability timeline
+   * Update envelope after model response
    * 
-   * @param {object} envelope - Agent envelope
-   * @param {object} event - Event data
-   * @param {string} event.action - Action type
-   * @param {string} [event.tool] - Tool name (if applicable)
-   * @param {number} [event.durationMs] - Duration in milliseconds
-   * @param {number} [event.confidence] - Confidence score
-   */
-  recordEvent(envelope, event) {
-    envelope.observability.events.push({
-      iteration: envelope.state.iteration,
-      timestamp: new Date().toISOString(),
-      ...event
-    });
-  }
-
-  /**
-   * Update envelope with model response
-   * 
-   * @param {object} envelope - Agent envelope
+   * @param {AgentEnvelope} envelope
    * @param {string} prompt - Prompt sent to model
-   * @param {object} response - Response from model
+   * @param {ModelResponse} response - Model response
    */
   updateWithModelResponse(envelope, prompt, response) {
     envelope.model.lastPrompt = prompt;
     envelope.model.lastResponse = response;
     envelope.state.lastAction = response.action;
-  }
 
-  /**
-   * Update envelope with tool result
-   * 
-   * @param {object} envelope - Agent envelope
-   * @param {string} toolName - Tool name
-   * @param {object} input - Tool input
-   * @param {object} output - Tool output
-   * @param {number} durationMs - Execution duration
-   */
-  updateWithToolResult(envelope, toolName, input, output, durationMs) {
-    envelope.state.lastTool = toolName;
-    envelope.tools.history.push({
-      tool: toolName,
-      input: input,
-      output: output,
+    // Add observability event
+    envelope.observability.events.push({
       iteration: envelope.state.iteration,
-      durationMs: durationMs,
-      timestamp: new Date().toISOString()
+      action: 'model_response',
+      confidence: response.confidence,
+      tool: response.tool
     });
   }
 
   /**
-   * Generate a unique trace ID
+   * Update envelope after tool execution
    * 
-   * @private
-   * @returns {string} UUID trace ID
+   * @param {AgentEnvelope} envelope
+   * @param {string} toolName - Tool name
+   * @param {any} input - Tool input
+   * @param {any} output - Tool output
+   * @param {number} durationMs - Execution duration
+   * @param {boolean} success - Whether execution succeeded
+   * @param {string} [error] - Error message if failed
    */
-  _generateTraceId() {
-    // Simple UUID generation fallback
-    if (typeof uuidv4 === 'function') {
-      return uuidv4();
-    }
+  updateWithToolResult(envelope, toolName, input, output, durationMs, success, error) {
+    envelope.state.lastTool = toolName;
+
+    // Add to tool history
+    envelope.tools.history.push({
+      iteration: envelope.state.iteration,
+      tool: toolName,
+      input,
+      output,
+      durationMs,
+      success,
+      error
+    });
+
+    // Add observability event
+    envelope.observability.events.push({
+      iteration: envelope.state.iteration,
+      action: 'tool_execution',
+      tool: toolName,
+      durationMs,
+      error
+    });
+  }
+
+  /**
+   * Mark envelope as completed
+   * 
+   * @param {AgentEnvelope} envelope
+   * @param {any} finalResult - Final result
+   */
+  markCompleted(envelope, finalResult) {
+    envelope.state.completed = true;
+    envelope.state.lastAction = 'final';
     
-    // Fallback: timestamp + random
-    return `trace-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Add final event
+    envelope.observability.events.push({
+      iteration: envelope.state.iteration,
+      action: 'completed',
+      durationMs: Date.now() - new Date(envelope.observability.startedAt).getTime()
+    });
+  }
+
+  /**
+   * Add error event to envelope
+   * 
+   * @param {AgentEnvelope} envelope
+   * @param {string} error - Error message
+   */
+  addError(envelope, error) {
+    envelope.observability.events.push({
+      iteration: envelope.state.iteration,
+      action: 'error',
+      error
+    });
+  }
+
+  /**
+   * Increment iteration counter
+   * 
+   * @param {AgentEnvelope} envelope
+   */
+  incrementIteration(envelope) {
+    envelope.state.iteration++;
+  }
+
+  /**
+   * Get current iteration
+   * 
+   * @param {AgentEnvelope} envelope
+   * @returns {number} Current iteration
+   */
+  getCurrentIteration(envelope) {
+    return envelope.state.iteration;
+  }
+
+  /**
+   * Check if envelope is completed
+   * 
+   * @param {AgentEnvelope} envelope
+   * @returns {boolean} True if completed
+   */
+  isCompleted(envelope) {
+    return envelope.state.completed;
+  }
+
+  /**
+   * Get tool history
+   * 
+   * @param {AgentEnvelope} envelope
+   * @returns {ToolExecution[]} Tool history
+   */
+  getToolHistory(envelope) {
+    return envelope.tools.history;
+  }
+
+  /**
+   * Get observability events
+   * 
+   * @param {AgentEnvelope} envelope
+   * @returns {ObservabilityEvent[]} Events
+   */
+  getEvents(envelope) {
+    return envelope.observability.events;
   }
 }
 
 module.exports = EnvelopeManager;
-

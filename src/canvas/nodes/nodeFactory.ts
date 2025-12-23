@@ -10,6 +10,7 @@ import { InjectNode } from './InjectNode'
 import { DebugNode } from './DebugNode'
 import { GroupNode } from './GroupNode'
 import { SubflowNode } from './SubflowNode'
+import { AgentCoreNode } from './AgentCoreNode'
 import { isSubflowInstance } from '@/utils/subflowUtils'
 
 /**
@@ -22,6 +23,7 @@ const nodeTypeMap: Record<string, React.ComponentType<any>> = {
   'inject': InjectNode,
   'debug': DebugNode,
   'group': GroupNode,
+  'agent-core': AgentCoreNode,
   // Más tipos se pueden añadir aquí:
   // 'function': FunctionNode,
   // 'http in': HttpInNode,

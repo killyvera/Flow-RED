@@ -12,6 +12,13 @@ const EnvelopeManager = require('./EnvelopeManager');
 const ModelValidator = require('./ModelValidator');
 
 /**
+ * Generate a simple UUID for tracing
+ */
+function generateTraceId() {
+  return `trace-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
  * Agent Core Node Constructor
  * 
  * @param {object} RED - Node-RED runtime object
@@ -28,6 +35,7 @@ function AgentCoreNode(RED, config) {
   node.allowedTools = (config && config.allowedTools) || [];
   node.stopConditions = (config && config.stopConditions) || [];
   node.debug = (config && config.debug) || false;
+  node.modelPromptTemplate = (config && config.modelPromptTemplate) || '';
 
   // Initialize strategy
   node.reactStrategy = new ReactStrategy({
@@ -40,6 +48,9 @@ function AgentCoreNode(RED, config) {
   // Initialize managers
   node.envelopeManager = new EnvelopeManager();
   node.modelValidator = new ModelValidator(node.allowedTools);
+
+  // Track active executions
+  node.activeExecutions = new Map();
 
   /**
    * Handle incoming messages
@@ -54,37 +65,79 @@ function AgentCoreNode(RED, config) {
         node.log('[agent-core] Received input message');
       }
 
-      // Initialize agent envelope
-      const envelope = node.envelopeManager.initialize(msg);
+      // Initialize envelope for new execution
+      const envelope = node.envelopeManager.createEnvelope(msg.payload, node.allowedTools);
+      
+      // Store execution context
+      const executionId = envelope.observability.traceId;
+      node.activeExecutions.set(executionId, {
+        envelope,
+        send,
+        done,
+        startedAt: Date.now()
+      });
 
-      // Execute REACT strategy
+      // Start REACT loop
       node.reactStrategy.execute(envelope, {
-        node: node,
-        send: send,
-        modelValidator: node.modelValidator
-      }, (err, result) => {
-        if (err) {
-          node.error(`[agent-core] Execution error: ${err.message}`, msg);
-          done(err);
-          return;
+        sendToModel: (modelMsg) => {
+          // Output 0: model
+          send([modelMsg, null, null]);
+        },
+        sendToTool: (toolMsg) => {
+          // Output 1: tool
+          send([null, toolMsg, null]);
+        },
+        onComplete: (finalEnvelope) => {
+          // Output 2: result
+          const resultMsg = {
+            ...msg,
+            payload: finalEnvelope,
+            agentResult: {
+              completed: finalEnvelope.state.completed,
+              iterations: finalEnvelope.state.iteration,
+              traceId: finalEnvelope.observability.traceId
+            }
+          };
+          send([null, null, resultMsg]);
+          
+          // Cleanup
+          node.activeExecutions.delete(executionId);
+          
+          if (done) {
+            done();
+          }
+        },
+        onError: (error) => {
+          node.error(`[agent-core] Execution error: ${error.message}`, msg);
+          node.activeExecutions.delete(executionId);
+          
+          if (done) {
+            done(error);
+          }
+        },
+        log: (message) => {
+          if (node.debug) {
+            node.log(`[agent-core] ${message}`);
+          }
         }
-
-        // Send final output
-        send([result, null]); // [data output, debug output]
-        done();
       });
 
     } catch (err) {
-      node.error(`[agent-core] Unexpected error: ${err.message}`, msg);
-      done(err);
+      if (done) {
+        done(err);
+      } else {
+        node.error(err, msg);
+      }
     }
   });
 
   /**
-   * Handle node close
+   * Cleanup on node close
    */
   node.on('close', function() {
-    // Cleanup resources
+    // Cleanup active executions
+    node.activeExecutions.clear();
+    
     if (node.debug) {
       node.log('[agent-core] Node closing');
     }
@@ -92,4 +145,3 @@ function AgentCoreNode(RED, config) {
 }
 
 module.exports = AgentCoreNode;
-

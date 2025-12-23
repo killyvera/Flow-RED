@@ -1,73 +1,132 @@
 /**
  * ToolExecutor.js - Tool Execution Manager
  * 
- * Handles execution of tools (other Node-RED nodes) in the agent workflow.
- * Does NOT execute tools directly - routes messages to tool nodes and waits for responses.
+ * Handles routing tool requests to appropriate tool nodes
+ * and collecting their responses.
+ * 
+ * NOTE: In Node-RED, actual tool execution happens in separate nodes.
+ * This class is responsible for:
+ * - Formatting tool requests
+ * - Tracking tool execution state
+ * - Validating tool responses
  * 
  * @module lib/ToolExecutor
  */
 
-/**
- * Tool Executor
- * 
- * @class
- */
 class ToolExecutor {
   constructor() {
-    // No state needed
+    // Track pending tool executions
+    this.pendingExecutions = new Map();
   }
 
   /**
-   * Execute a tool by routing a message to the appropriate output
+   * Format tool request message
    * 
-   * NOTE: This is a placeholder. Actual implementation will use
-   * Node-RED's message routing to send to the correct tool node
-   * and wait for a response.
-   * 
-   * @param {string} toolName - Tool to execute
-   * @param {object} input - Tool input data
-   * @param {object} context - Execution context (node, send)
-   * @param {function} callback - Callback(err, output, durationMs)
+   * @param {string} toolName - Tool name
+   * @param {any} input - Tool input
+   * @param {string} traceId - Trace ID
+   * @param {number} iteration - Current iteration
+   * @returns {object} Formatted tool message
    */
-  execute(toolName, input, context, callback) {
-    const startTime = Date.now();
+  formatToolRequest(toolName, input, traceId, iteration) {
+    const executionId = `${traceId}-${iteration}-${toolName}`;
 
-    // TODO: Implement actual tool routing
-    // This will involve:
-    // 1. Sending a message to the 'tool' output port with tool name metadata
-    // 2. Waiting for a response from the tool (via a return path)
-    // 3. Timing the execution
-    // 4. Returning the result
-
-    // PLACEHOLDER: Return mock result
-    const mockResult = {
-      success: true,
-      data: `Tool ${toolName} executed with input`,
-      input: input
+    const toolMsg = {
+      payload: input,
+      _agentCore: {
+        type: 'tool_request',
+        traceId,
+        iteration,
+        tool: toolName,
+        executionId,
+        timestamp: new Date().toISOString()
+      }
     };
 
-    const durationMs = Date.now() - startTime;
+    // Track execution
+    this.pendingExecutions.set(executionId, {
+      toolName,
+      input,
+      startedAt: Date.now()
+    });
 
-    setTimeout(() => {
-      callback(null, mockResult, durationMs);
-    }, 100); // Simulate async operation
+    return toolMsg;
   }
 
   /**
-   * Validate that a tool execution result is valid
+   * Validate tool response
    * 
-   * @param {object} result - Tool execution result
-   * @returns {boolean} True if valid
+   * @param {object} toolResponse - Raw tool response
+   * @returns {object} Validated response
    */
-  validateResult(result) {
-    if (!result || typeof result !== 'object') {
-      return false;
+  validateToolResponse(toolResponse) {
+    if (!toolResponse || typeof toolResponse !== 'object') {
+      throw new Error('Tool response must be a valid object');
     }
 
-    // Tool results should have at least some data
-    return true;
+    // Check for agent core metadata
+    if (!toolResponse._agentCore || !toolResponse._agentCore.executionId) {
+      throw new Error('Tool response missing agent core metadata');
+    }
+
+    const executionId = toolResponse._agentCore.executionId;
+    const pending = this.pendingExecutions.get(executionId);
+
+    if (!pending) {
+      throw new Error(`No pending execution found for ${executionId}`);
+    }
+
+    // Calculate duration
+    const durationMs = Date.now() - pending.startedAt;
+
+    // Clean up
+    this.pendingExecutions.delete(executionId);
+
+    return {
+      tool: pending.toolName,
+      input: pending.input,
+      output: toolResponse.payload,
+      durationMs,
+      success: !toolResponse.error,
+      error: toolResponse.error
+    };
+  }
+
+  /**
+   * Check if tool execution is pending
+   * 
+   * @param {string} executionId - Execution ID
+   * @returns {boolean} True if pending
+   */
+  isPending(executionId) {
+    return this.pendingExecutions.has(executionId);
+  }
+
+  /**
+   * Get pending execution count
+   * 
+   * @returns {number} Number of pending executions
+   */
+  getPendingCount() {
+    return this.pendingExecutions.size;
+  }
+
+  /**
+   * Clear all pending executions
+   */
+  clearPending() {
+    this.pendingExecutions.clear();
+  }
+
+  /**
+   * Get execution info
+   * 
+   * @param {string} executionId - Execution ID
+   * @returns {object|null} Execution info or null
+   */
+  getExecutionInfo(executionId) {
+    return this.pendingExecutions.get(executionId) || null;
   }
 }
 
 module.exports = ToolExecutor;
-

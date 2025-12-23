@@ -1,4 +1,4 @@
-
+vamente
 <script type="text/javascript">
   RED.nodes.registerType('agent-core', {
     category: 'AI Agents',
@@ -14,7 +14,9 @@
     },
     inputs: 1,
     outputs: 3,
-    outputLabels: ["model", "tool", "result"],
+    outputLabels: function() {
+      return ["model", "tool", "result"];
+    },
     icon: "font-awesome/fa-robot",
     label: function() {
       return this.name || "agent-core";
