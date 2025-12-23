@@ -50,7 +50,7 @@ import { useKeyboardShortcuts } from '@/utils/keyboardShortcuts'
 import { pasteFromClipboard, copyToClipboard } from '@/utils/clipboard'
 import { validateConnectionComplete } from '@/utils/connectionValidator'
 import { getNodeType } from '@/canvas/nodes/nodeFactory'
-import { saveFlow, type SaveFlowError, nodeRedRequest } from '@/api/client'
+import { saveFlow, type SaveFlowError, nodeRedRequest, triggerInjectNode } from '@/api/client'
 import { transformReactFlowToNodeRed, transformNodeRedFlow } from '@/canvas/mappers'
 import type { NodeRedGroup, NodeRedSubflowDefinition, NodeRedNode } from '@/api/types'
 import { hasUnsavedChanges, createFlowSnapshot, type SavedFlowState } from '@/utils/dirtyState'
@@ -2758,6 +2758,49 @@ export function CanvasPage() {
     setEditingFlowName('')
   }, [])
 
+  // Estado para ejecución del flow
+  const [isExecutingFlow, setIsExecutingFlow] = React.useState(false)
+
+  // Handler para ejecutar el flow (activar nodos inject)
+  const handleExecuteFlow = useCallback(async () => {
+    if (!activeFlowId || isExecutingFlow) return
+
+    try {
+      setIsExecutingFlow(true)
+      
+      // Obtener todos los nodos del flow activo
+      const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const injectNodes = currentNodeRedNodes.filter(
+        n => n.type === 'inject' && 
+        (n.z === activeFlowId || n.id === activeFlowId) &&
+        !n.disabled
+      )
+
+      if (injectNodes.length === 0) {
+        alert('No hay nodos inject en este flow para ejecutar')
+        setIsExecutingFlow(false)
+        return
+      }
+
+      // Ejecutar todos los nodos inject del flow
+      const executionPromises = injectNodes.map(node => 
+        triggerInjectNode(node.id).catch(err => {
+          console.error(`Error al ejecutar nodo inject ${node.id}:`, err)
+          return null // Continuar con los demás aunque uno falle
+        })
+      )
+
+      await Promise.all(executionPromises)
+      
+      console.log(`✅ Flow ejecutado: ${injectNodes.length} nodo(s) inject activado(s)`)
+    } catch (err) {
+      console.error('Error al ejecutar flow:', err)
+      alert(`Error al ejecutar flow: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+    } finally {
+      setIsExecutingFlow(false)
+    }
+  }, [activeFlowId, isExecutingFlow])
+
   // Función wrapper para switchFlow que verifica cambios no guardados
   const handleSwitchFlow = useCallback(async (newFlowId: string) => {
     if (isDirty) {
@@ -3398,12 +3441,12 @@ export function CanvasPage() {
                 </span>
               )}
               {/* Separador antes de ExecutionBar */}
-              {(executionFramesEnabled || activeFlowId) && <div className="w-px h-6 bg-canvas-grid" />}
+              {executionFramesEnabled && <div className="w-px h-6 bg-canvas-grid" />}
             </>
           )}
-          
-          {/* Botón de ejecutar - Siempre visible cuando hay flow activo */}
-          {activeFlowId && (
+
+          {/* Botón de captura (ExecutionBar) - Solo si está habilitado */}
+          {executionFramesEnabled && activeFlowId && (
             <div className="flex items-center gap-2">
               {currentFrame ? (
                 <button
@@ -3583,6 +3626,31 @@ export function CanvasPage() {
 
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
+        {/* Botón flotante de ejecutar flow - Centrado en la parte inferior */}
+        {activeFlowId && (
+          <button
+            onClick={handleExecuteFlow}
+            disabled={isExecutingFlow}
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 px-4 py-2.5 text-sm bg-status-success/10 hover:bg-status-success/20 text-status-success rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg border border-status-success/20"
+            title="Ejecutar flow (activar todos los nodos inject)"
+          >
+            {isExecutingFlow ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Ejecutando...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                <span>Ejecutar Flow</span>
+              </>
+            )}
+          </button>
+        )}
+
         {/* Botón flotante de Paleta - Esquina superior derecha */}
         {isEditMode && (
           <button
