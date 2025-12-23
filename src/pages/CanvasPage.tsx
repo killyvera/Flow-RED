@@ -3201,14 +3201,14 @@ export function CanvasPage() {
   const executionBarStats = currentFrame ? currentFrameStats : lastFrameStats
 
   return (
-    <div className={`w-full h-full bg-canvas-bg flex flex-col ${perfMode ? 'perf-mode' : ''}`}>
+    <div className={`w-full h-full bg-canvas-bg flex flex-col ${perfMode ? 'perf-mode' : ''}`} style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       {/* Barra superior con selector de flow y estado */}
-      <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4">
-        {/* Contenido izquierdo */}
-        <div className="flex items-center gap-4">
+      <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4 w-full min-w-0" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+        {/* Contenido izquierdo - Nombre del flow */}
+        <div className="flex items-center gap-4 flex-shrink-0">
           {/* Nombre del flujo actual */}
           {!isLoading && !error && activeFlowId && (
-            <div className="text-xs font-medium text-text-primary">
+            <div className="text-xs font-medium text-text-primary whitespace-nowrap">
               {flows.find((f) => f.id === activeFlowId)?.label ||
                 flows.find((f) => f.id === activeFlowId)?.name ||
                 'Flow activo'}
@@ -3217,12 +3217,12 @@ export function CanvasPage() {
 
           {/* Estado de carga */}
           {isLoading && (
-            <div className="text-xs text-text-secondary">Cargando flows...</div>
+            <div className="text-xs text-text-secondary whitespace-nowrap">Cargando flows...</div>
           )}
 
           {/* Error con botón de reintento */}
           {error && (
-            <div className="text-xs text-status-error flex items-center gap-2">
+            <div className="text-xs text-status-error flex items-center gap-2 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -3239,9 +3239,9 @@ export function CanvasPage() {
         </div>
 
         {/* Contenido central - Pestañas de flows */}
-        <div className="flex-1 flex justify-center min-w-0">
+        <div className="flex-1 flex justify-center min-w-0 mx-4 overflow-hidden">
           {flows.length > 0 && (
-            <div className="w-full max-w-[60%]">
+            <div className="w-full max-w-[60%] min-w-0 overflow-hidden">
               <FlowTabs
                 flows={flowTabs}
                 activeFlowId={activeFlowId}
@@ -3252,7 +3252,7 @@ export function CanvasPage() {
         </div>
 
         {/* Contenido derecho - Botón de guardar, indicadores y ExecutionBar */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-shrink-0 min-w-0">
           {/* Botón de guardar (solo en modo edición) */}
           {isEditMode && activeFlowId && (
             <>
@@ -3313,28 +3313,12 @@ export function CanvasPage() {
                 </span>
               )}
               {/* Separador antes de ExecutionBar */}
-              {executionFramesEnabled && <div className="w-px h-6 bg-canvas-grid" />}
+              {(executionFramesEnabled || activeFlowId) && <div className="w-px h-6 bg-canvas-grid" />}
             </>
           )}
-          {/* ExecutionBar - Contenido lateral derecho */}
-          {executionFramesEnabled && (
-            <>
-              {/* Estado actual */}
-              <div className="flex items-center gap-2">
-              {currentFrame ? (
-                <>
-                  <Circle className="w-2 h-2 text-status-success animate-pulse" fill="currentColor" />
-                  <span className="text-xs font-medium text-text-primary">Recording</span>
-                </>
-              ) : (
-                <>
-                  <Circle className="w-2 h-2 text-text-tertiary" fill="currentColor" />
-                  <span className="text-xs text-text-secondary">Idle</span>
-                </>
-              )}
-            </div>
-
-            {/* Botones de control */}
+          
+          {/* Botón de ejecutar - Siempre visible cuando hay flow activo */}
+          {activeFlowId && (
             <div className="flex items-center gap-2">
               {currentFrame ? (
                 <button
@@ -3352,6 +3336,28 @@ export function CanvasPage() {
                 >
                   <Play className="w-3 h-3" />
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* ExecutionBar - Contenido lateral derecho */}
+          {executionFramesEnabled && (
+            <>
+              {/* Separador antes de ExecutionBar */}
+              <div className="w-px h-6 bg-canvas-grid" />
+              
+              {/* Estado actual */}
+              <div className="flex items-center gap-2">
+              {currentFrame ? (
+                <>
+                  <Circle className="w-2 h-2 text-status-success animate-pulse" fill="currentColor" />
+                  <span className="text-xs font-medium text-text-primary">Recording</span>
+                </>
+              ) : (
+                <>
+                  <Circle className="w-2 h-2 text-text-tertiary" fill="currentColor" />
+                  <span className="text-xs text-text-secondary">Idle</span>
+                </>
               )}
             </div>
 
