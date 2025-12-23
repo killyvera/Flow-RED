@@ -1,0 +1,39 @@
+{
+  "name": "node-red-agent-core",
+  "version": "0.1.0",
+  "description": "Agent Core orchestrator node for Redflow - implements REACT strategy for AI agent workflows",
+  "main": "index.js",
+  "engines": {
+    "node": ">=14"
+  },
+  "node-red": {
+    "version": ">=3.0.0",
+    "nodes": {
+      "agent-core": "index.js"
+    }
+  },
+  "keywords": [
+    "node-red",
+    "agent",
+    "ai",
+    "react",
+    "orchestration",
+    "llm",
+    "workflow",
+    "redflow"
+  ],
+  "dependencies": {
+    "ajv": "^8.12.0"
+  },
+  "devDependencies": {},
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/killyvera/Flow-RED.git"
+  },
+  "bugs": {
+    "url": "https://github.com/killyvera/Flow-RED/issues"
+  }
+}
+

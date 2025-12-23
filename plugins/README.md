@@ -20,6 +20,26 @@ Plugin de observabilidad en tiempo de ejecución para Node-RED. Captura Input/Ou
 **Uso:**
 Este plugin se carga automáticamente cuando Node-RED está en ejecución y proporciona datos de observabilidad al frontend.
 
+### agent-core
+
+Plugin de orquestación de agentes AI para Redflow. Implementa la estrategia REACT (Reason → Act) para workflows de agentes.
+
+**Características:**
+- Orquestación REACT (una acción por iteración)
+- Validación estricta de respuestas del modelo
+- Ejecución determinística y auditable
+- Observabilidad completa con AgentEnvelope
+- Validación de conexiones entre nodos
+- Soporte para condiciones de parada configurables
+
+**Estado:**
+⚠️ Experimental - En desarrollo activo
+
+**Documentación:**
+- README: [`plugins/agent-core/README.md`](agent-core/README.md)
+- Plan de implementación: [`plugins/agent-core/IMPLEMENTATION_PLAN.md`](agent-core/IMPLEMENTATION_PLAN.md)
+- Integración frontend: [`plugins/agent-core/FRONTEND_INTEGRATION.md`](agent-core/FRONTEND_INTEGRATION.md)
+
 ## Agregar nuevos plugins
 
 Para agregar un nuevo plugin:
