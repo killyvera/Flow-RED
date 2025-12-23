@@ -11,7 +11,10 @@
     "start:preview": "vite preview",
     "create-sample-flow": "node scripts/create-sample-flow.js",
     "seed-flows": "node scripts/seed-flows.js",
-    "bench:generate": "npx tsx scripts/bench/generateFlow.ts"
+    "bench:generate": "npx tsx scripts/bench/generateFlow.ts",
+    "setup:node-red": "node scripts/setup-node-red.js",
+    "start:node-red": "node-red --settings ./settings.redflow.js",
+    "start:node-red:verbose": "node-red --settings ./settings.redflow.js --verbose"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.1",
