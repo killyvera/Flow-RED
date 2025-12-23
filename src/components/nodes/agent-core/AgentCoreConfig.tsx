@@ -23,57 +23,40 @@ export interface AgentCoreConfigProps {
 }
 
 export function AgentCoreConfig({ nodeData, onChange }: AgentCoreConfigProps) {
-  const [activeTab, setActiveTab] = useState('strategy')
-
   const tabs: Tab[] = [
     {
       id: 'strategy',
       label: 'Strategy',
-      icon: 'Settings'
+      component: StrategyTab
     },
     {
       id: 'tools',
-      label: 'Tools'
+      label: 'Tools',
+      component: ToolsTab
     },
     {
       id: 'conditions',
-      label: 'Stop Conditions'
+      label: 'Stop Conditions',
+      component: StopConditionsTab
     },
     {
       id: 'model',
-      label: 'Model'
+      label: 'Model',
+      component: ModelTab
     },
     {
       id: 'debug',
-      label: 'Debug'
+      label: 'Debug',
+      component: DebugTab
     }
   ]
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'strategy':
-        return <StrategyTab nodeData={nodeData} onChange={onChange} />
-      case 'tools':
-        return <ToolsTab nodeData={nodeData} onChange={onChange} />
-      case 'conditions':
-        return <StopConditionsTab nodeData={nodeData} onChange={onChange} />
-      case 'model':
-        return <ModelTab nodeData={nodeData} onChange={onChange} />
-      case 'debug':
-        return <DebugTab nodeData={nodeData} onChange={onChange} />
-      default:
-        return null
-    }
-  }
 
   return (
     <TabbedNodeEditor
       tabs={tabs}
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
-    >
-      {renderTabContent()}
-    </TabbedNodeEditor>
+      nodeData={nodeData}
+      onNodeDataChange={onChange}
+    />
   )
 }
 
