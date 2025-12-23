@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Azure OpenAI Model Node Configuration",
+  "description": "Configuration schema for Azure OpenAI Model Node in Redflow",
+  "type": "object",
+  "required": [
+    "endpoint",
+    "deployment",
+    "apiVersion"
+  ],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "description": "Azure OpenAI endpoint (e.g., https://xxx.openai.azure.com)",
+      "pattern": "^https://.*\\.openai\\.azure\\.com$"
+    },
+    "deployment": {
+      "type": "string",
+      "description": "Azure OpenAI deployment name",
+      "minLength": 1
+    },
+    "apiVersion": {
+      "type": "string",
+      "description": "Azure OpenAI API version",
+      "default": "2024-02-15-preview"
+    },
+    "apiKey": {
+      "type": "string",
+      "description": "Azure OpenAI API key. If not provided, will use AZURE_OPENAI_API_KEY environment variable",
+      "minLength": 0
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Controls randomness in responses (0 = deterministic, 1 = creative)",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0
+    },
+    "maxTokens": {
+      "type": "integer",
+      "description": "Maximum tokens to generate in the response",
+      "minimum": 1,
+      "maximum": 4000,
+      "default": 800
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "description": "Request timeout in milliseconds",
+      "minimum": 1000,
+      "maximum": 60000,
+      "default": 15000
+    }
+  },
+  "additionalProperties": false
+}
+

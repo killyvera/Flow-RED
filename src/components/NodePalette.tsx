@@ -82,6 +82,7 @@ function getDefaultNodes(): Array<{
     
     // AI Agents nodes
     { id: 'agent-core', type: 'agent-core', name: 'Agent Core', category: 'AI Agents', module: 'node-red-agent-core', enabled: true },
+    { id: 'model.azure.openai', type: 'model.azure.openai', name: 'Azure OpenAI Model', category: 'Model', module: 'node-red-agent-core', enabled: true },
   ]
 }
 
@@ -98,6 +99,7 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     id: string
     type: string
     name: string
+    description?: string
     category?: string
     module: string
     enabled: boolean
@@ -799,7 +801,19 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
                                   <div className="text-xs font-medium text-text-primary truncate">
                                     {node.name || node.type}
                                   </div>
-                                  {node.name !== node.type && (
+                                  {node.description ? (
+                                    <div className="text-[10px] text-text-secondary line-clamp-2" style={{ 
+                                      color: 'var(--text-secondary)',
+                                      maxHeight: '2.5em',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical'
+                                    }}>
+                                      {node.description}
+                                    </div>
+                                  ) : node.name !== node.type && (
                                     <div className="text-[10px] text-text-tertiary truncate">
                                       {node.type}
                                     </div>

@@ -8,11 +8,13 @@
 
 import { HttpRequestConfig } from './nodes/http-request/HttpRequestConfig'
 import { AgentCoreConfig } from './nodes/agent-core/AgentCoreConfig'
+import { AzureOpenAIModelConfig } from './nodes/agent-core/models/azure-openai-model/AzureOpenAIModelConfig'
 
 // Registro de componentes custom por tipo de nodo
 const CUSTOM_EDITORS: Record<string, React.ComponentType<any>> = {
   'http request': HttpRequestConfig,
   'agent-core': AgentCoreConfig,
+  'model.azure.openai': AzureOpenAIModelConfig,
   // Future custom editors:
   // 'mqtt in': MqttInConfig,
   // 'mqtt out': MqttOutConfig,

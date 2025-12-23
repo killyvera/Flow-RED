@@ -11,6 +11,7 @@ import { DebugNode } from './DebugNode'
 import { GroupNode } from './GroupNode'
 import { SubflowNode } from './SubflowNode'
 import { AgentCoreNode } from './AgentCoreNode'
+import { AzureOpenAIModelNode } from './AzureOpenAIModelNode'
 import { isSubflowInstance } from '@/utils/subflowUtils'
 
 /**
@@ -24,6 +25,7 @@ const nodeTypeMap: Record<string, React.ComponentType<any>> = {
   'debug': DebugNode,
   'group': GroupNode,
   'agent-core': AgentCoreNode,
+  'model.azure.openai': AzureOpenAIModelNode,
   // Más tipos se pueden añadir aquí:
   // 'function': FunctionNode,
   // 'http in': HttpInNode,

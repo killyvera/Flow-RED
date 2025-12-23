@@ -1,0 +1,208 @@
+<script type="text/javascript">
+  RED.nodes.registerType('model.azure.openai', {
+    category: 'Model',
+    color: '#00A4EF',
+    defaults: {
+      name: { value: '' },
+      endpoint: { value: '', required: true },
+      deployment: { value: '', required: true },
+      apiVersion: { value: '2024-02-15-preview', required: true },
+      apiKey: { value: '' },
+      temperature: { value: 0, validate: RED.validators.number() },
+      maxTokens: { value: 800, validate: RED.validators.number() },
+      timeoutMs: { value: 15000, validate: RED.validators.number() }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-brain',
+    paletteLabel: 'Azure OpenAI Model',
+    label: function() {
+      return this.name || 'Azure OpenAI Model';
+    },
+    labelStyle: function() {
+      return this.name ? 'node_label_italic' : '';
+    },
+    oneditprepare: function() {
+      // Configurar tabs
+      const tabs = RED.tabs.create({
+        id: 'azure-openai-model-tabs',
+        onchange: function(tab) {
+          $('#azure-openai-model-tabs-content').children().hide();
+          $('#' + tab.id).show();
+        }
+      });
+
+      tabs.addTab({
+        id: 'azure-openai-model-tab-connection',
+        label: 'Connection'
+      });
+
+      tabs.addTab({
+        id: 'azure-openai-model-tab-parameters',
+        label: 'Parameters'
+      });
+
+      tabs.activateTab('azure-openai-model-tab-connection');
+
+      // Validación de endpoint
+      $('#node-input-endpoint').on('change', function() {
+        const endpoint = $(this).val();
+        const isValid = /^https:\/\/.*\.openai\.azure\.com$/.test(endpoint);
+        if (!isValid && endpoint) {
+          $(this).addClass('input-error');
+        } else {
+          $(this).removeClass('input-error');
+        }
+      });
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="model.azure.openai">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Azure OpenAI Model">
+  </div>
+
+  <div class="form-row">
+    <ul style="min-width: 600px; margin-bottom: 20px;" id="azure-openai-model-tabs"></ul>
+  </div>
+
+  <div id="azure-openai-model-tabs-content" style="min-height: 300px;">
+    <!-- Tab: Connection -->
+    <div id="azure-openai-model-tab-connection" style="display:none">
+      <div class="form-row">
+        <label for="node-input-endpoint"><i class="fa fa-globe"></i> Endpoint</label>
+        <input type="text" id="node-input-endpoint" placeholder="https://xxx.openai.azure.com">
+        <div class="form-tips">
+          <strong>Azure OpenAI Endpoint</strong><br>
+          Formato: <code>https://[resource-name].openai.azure.com</code>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="node-input-deployment"><i class="fa fa-rocket"></i> Deployment</label>
+        <input type="text" id="node-input-deployment" placeholder="gpt-4">
+        <div class="form-tips">
+          <strong>Deployment Name</strong><br>
+          Nombre del deployment configurado en Azure OpenAI
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="node-input-apiVersion"><i class="fa fa-code-fork"></i> API Version</label>
+        <input type="text" id="node-input-apiVersion" placeholder="2024-02-15-preview">
+        <div class="form-tips">
+          <strong>API Version</strong><br>
+          Versión de la API de Azure OpenAI
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
+        <input type="password" id="node-input-apiKey" placeholder="Ingresa tu API key de Azure OpenAI">
+        <div class="form-tips">
+          <strong>API Key</strong><br>
+          API key de Azure OpenAI. Si se deja vacío, se usará la variable de entorno <code>AZURE_OPENAI_API_KEY</code>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div style="padding: 10px; background-color: #f0f8ff; border-left: 4px solid #00A4EF; margin-top: 10px;">
+          <strong>💡 API Key Configuration</strong><br>
+          Puedes configurar el API key aquí o usar la variable de entorno:<br>
+          <code>AZURE_OPENAI_API_KEY</code><br>
+          <em>Si se configura aquí, tiene prioridad sobre la variable de entorno.</em>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Parameters -->
+    <div id="azure-openai-model-tab-parameters" style="display:none">
+      <div class="form-row">
+        <label for="node-input-temperature"><i class="fa fa-thermometer-half"></i> Temperature</label>
+        <input type="number" id="node-input-temperature" min="0" max="1" step="0.1" style="width: 100px;">
+        <div class="form-tips">
+          <strong>Temperature (0-1)</strong><br>
+          0 = Determinístico, 1 = Creativo. Recomendado: 0 para agentes.
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="node-input-maxTokens"><i class="fa fa-text-width"></i> Max Tokens</label>
+        <input type="number" id="node-input-maxTokens" min="1" max="4000" style="width: 100px;">
+        <div class="form-tips">
+          <strong>Máximo de tokens</strong><br>
+          Número máximo de tokens a generar en la respuesta.
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="node-input-timeoutMs"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+        <input type="number" id="node-input-timeoutMs" min="1000" max="60000" step="1000" style="width: 100px;">
+        <div class="form-tips">
+          <strong>Timeout del request</strong><br>
+          Tiempo máximo de espera en milisegundos.
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="model.azure.openai">
+  <p>Nodo Model para Azure OpenAI en el sistema de agentes Redflow.</p>
+
+  <h3>Descripción</h3>
+  <p>
+    Este nodo representa un <strong>modelo de lenguaje</strong> que recibe prompts del Agent Core
+    y retorna respuestas en formato JSON estricto.
+  </p>
+
+  <h3>Entrada (desde Agent Core)</h3>
+  <pre>{
+  "systemPrompt": "string",
+  "userPrompt": "string",
+  "tools": [...],
+  "traceId": "string"
+}</pre>
+
+  <h3>Salida (hacia Agent Core)</h3>
+  <pre>{
+  "action": "tool" | "final",
+  "tool": "string | null",
+  "input": {},
+  "confidence": 0.0-1.0,
+  "message": "string"
+}</pre>
+
+  <h3>Configuración</h3>
+  <ul>
+    <li><strong>Endpoint:</strong> URL del recurso Azure OpenAI</li>
+    <li><strong>Deployment:</strong> Nombre del deployment</li>
+    <li><strong>API Version:</strong> Versión de la API</li>
+    <li><strong>Temperature:</strong> Control de aleatoriedad (0-1)</li>
+    <li><strong>Max Tokens:</strong> Límite de tokens de respuesta</li>
+    <li><strong>Timeout:</strong> Tiempo máximo de espera</li>
+  </ul>
+
+  <h3>Requisitos</h3>
+  <ul>
+    <li>Variable de entorno <code>AZURE_OPENAI_API_KEY</code> configurada</li>
+    <li>Conexión desde Agent Core (salida "model")</li>
+  </ul>
+
+  <h3>Observabilidad</h3>
+  <p>
+    El nodo emite metadata de cada request (tokens, duración, traceId) pero
+    <strong>NO</strong> incluye el contenido de los prompts en los logs por seguridad.
+  </p>
+
+  <h3>Restricciones</h3>
+  <ul>
+    <li>Este nodo <strong>NO ejecuta tools</strong></li>
+    <li>Este nodo <strong>NO orquesta</strong></li>
+    <li>Este nodo <strong>NO almacena estado</strong></li>
+    <li>Solo recibe conexiones desde Agent Core</li>
+  </ul>
+</script>
+

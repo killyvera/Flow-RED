@@ -8,6 +8,7 @@
  */
 
 const AgentCoreNode = require('./lib/AgentCoreNode');
+const AzureOpenAIModelNode = require('./models/azure-openai-model/azure-openai-model');
 
 module.exports = function(RED) {
   /**
@@ -21,6 +22,14 @@ module.exports = function(RED) {
   }
   
   RED.nodes.registerType('agent-core', AgentCoreNodeWrapper);
+
+  /**
+   * Register Azure OpenAI Model Node as a subtool of agent-core
+   * 
+   * This model node is part of the agent-core plugin and provides
+   * Azure OpenAI integration for the agent system.
+   */
+  AzureOpenAIModelNode(RED);
 
   /**
    * Optional: Register custom HTTP endpoints for agent-core

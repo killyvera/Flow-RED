@@ -40,6 +40,16 @@ Plugin de orquestación de agentes AI para Redflow. Implementa la estrategia REA
 - Plan de implementación: [`plugins/agent-core/IMPLEMENTATION_PLAN.md`](agent-core/IMPLEMENTATION_PLAN.md)
 - Integración frontend: [`plugins/agent-core/FRONTEND_INTEGRATION.md`](agent-core/FRONTEND_INTEGRATION.md)
 
+**Subtools incluidos:**
+- **Azure OpenAI Model Node** (`model.azure.openai`): Nodo Model para Azure OpenAI integrado como subtool
+  - Integración con Azure OpenAI Chat Completions API
+  - Respuestas JSON estrictas (response_format: json_object)
+  - Tool-aware (pero NO ejecuta tools)
+  - Determinístico (temperature: 0 por defecto)
+  - Observable (metadata de tokens, duración, traceId)
+  - API key configurable en el nodo o desde variable de entorno
+  - Documentación: [`plugins/agent-core/models/azure-openai-model/README.md`](agent-core/models/azure-openai-model/README.md)
+
 ## Agregar nuevos plugins
 
 Para agregar un nuevo plugin:

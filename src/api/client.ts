@@ -268,17 +268,38 @@ export async function getAvailableNodes(): Promise<Array<{
               })
             }
             
+            // Mapeo de nombres descriptivos para nodos específicos
+            const nodeNameMap: Record<string, string> = {
+              'agent-core': 'Agent Core',
+              'model.azure.openai': 'Azure OpenAI Model',
+            }
+            
+            // Mapeo de descripciones para nodos específicos
+            const nodeDescriptionMap: Record<string, string> = {
+              'agent-core': 'Orquestador de agentes AI con estrategia REACT',
+              'model.azure.openai': 'Modelo de lenguaje Azure OpenAI para agentes. Recibe prompts y retorna decisiones JSON estrictas.',
+            }
+            
             // Para ciertos nodos conocidos, usar categoría correcta si Node-RED no la proporciona
             let nodeCategory = moduleInfo.category || moduleId
             if (nodeType === 'agent-core' && (!moduleInfo.category || moduleInfo.category === moduleId)) {
               nodeCategory = 'AI Agents'
               apiLogger('🔧 Corrigiendo categoría de agent-core a "AI Agents"')
             }
+            if (nodeType === 'model.azure.openai' && (!moduleInfo.category || moduleInfo.category === moduleId)) {
+              nodeCategory = 'Model'
+              apiLogger('🔧 Corrigiendo categoría de model.azure.openai a "Model"')
+            }
+            
+            // Usar nombre del mapeo si existe, sino usar el del módulo o el tipo
+            const nodeName = nodeNameMap[nodeType] || moduleInfo.name || nodeType
+            const nodeDescription = nodeDescriptionMap[nodeType] || ''
             
             availableNodes.push({
               id: `${moduleId}.${nodeType}`, // ID único con módulo para referencia
               type: nodeType, // Tipo único del nodo (usado como clave principal)
-              name: moduleInfo.name || nodeType,
+              name: nodeName,
+              description: nodeDescription,
               category: nodeCategory,
               module: moduleId,
               enabled: moduleInfo.enabled !== false,

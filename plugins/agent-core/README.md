@@ -44,6 +44,30 @@ The Agent Core node:
    - Checks stop conditions
 5. Emits final output with complete execution history
 
+## Included Subtools
+
+This plugin includes the following model nodes as subtools:
+
+### Azure OpenAI Model Node (`model.azure.openai`)
+
+A model node that integrates with Azure OpenAI Chat Completions API. This node:
+- Receives prompts from Agent Core
+- Sends requests to Azure OpenAI with strict JSON format
+- Returns validated JSON responses
+- Is tool-aware but does NOT execute tools
+- Is deterministic and observable
+
+**Configuration:**
+- Endpoint: Azure OpenAI resource URL
+- Deployment: Deployment name (e.g., `gpt-4`)
+- API Version: API version (default: `2024-02-15-preview`)
+- API Key: Can be configured in the node or via `AZURE_OPENAI_API_KEY` environment variable
+- Temperature: 0-1 (default: 0 for deterministic responses)
+- Max Tokens: Maximum tokens in response (default: 800)
+- Timeout: Request timeout in milliseconds (default: 15000)
+
+See [`models/azure-openai-model/README.md`](./models/azure-openai-model/README.md) for detailed documentation.
+
 ## Installation
 
 ### Development (npm link)
