@@ -602,19 +602,18 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
 
   return (
     <>
-      {/* Overlay/Backdrop para cerrar al hacer click fuera */}
+      {/* Overlay/Backdrop visual - no bloquea eventos */}
       <div 
-        className={`fixed inset-0 bg-black/20 z-40 ${
+        className={`fixed inset-0 bg-black/20 z-40 pointer-events-none ${
           isClosing ? 'animate-[fadeOut_0.3s_ease-in]' : 'animate-[fadeIn_0.3s_ease-out]'
         }`}
-        onClick={handleClose}
         aria-hidden="true"
       />
       
       {/* Paleta de nodos - ahora en la derecha con animación de slide-in/out */}
       <div 
         ref={paletteRef}
-        className={`absolute right-0 top-0 bottom-0 w-64 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col ${
+        className={`fixed right-0 top-0 bottom-0 w-64 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col pointer-events-auto ${
           isClosing ? 'animate-[slideOutRight_0.3s_ease-in]' : 'animate-[slideInRight_0.3s_ease-out]'
         }`}
       >
