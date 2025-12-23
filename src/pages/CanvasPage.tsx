@@ -23,6 +23,7 @@ import ReactFlow, {
   OnEdgesChange,
   applyNodeChanges,
   applyEdgeChanges,
+  ConnectionMode,
 } from 'reactflow'
 import type { Edge } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -1874,6 +1875,13 @@ export function CanvasPage() {
       }
     }
 
+    // Mapeo de nombres amigables por defecto para tipos específicos
+    const friendlyNameMap: Record<string, string> = {
+      'agent-core': 'Agent Core',
+      'model.azure.openai': 'Azure OpenAI',
+    }
+    const friendlyName = friendlyNameMap[nodeType] || nodeType
+
     // Para otros tipos de nodos, crear normalmente
     const newNodeId = `${nodeType}-${Date.now()}`
     const newNodeType = getNodeType(nodeType)
@@ -1882,14 +1890,14 @@ export function CanvasPage() {
       type: newNodeType,
       position,
       data: {
-        label: nodeType,
+        label: friendlyName,
         nodeRedType: nodeType,
         flowId: activeFlowId,
         outputPortsCount: 1,
         nodeRedNode: {
           id: newNodeId,
           type: nodeType,
-          name: nodeType,
+          name: '', // Dejar vacío para que use el label function del HTML
           z: activeFlowId,
         },
       },
@@ -2080,6 +2088,13 @@ export function CanvasPage() {
       position = { x: 200, y: 100 }
     }
 
+    // Mapeo de nombres amigables por defecto para tipos específicos
+    const friendlyNameMap: Record<string, string> = {
+      'agent-core': 'Agent Core',
+      'model.azure.openai': 'Azure OpenAI',
+    }
+    const friendlyName = friendlyNameMap[nodeType] || nodeType
+
     // Crear el nuevo nodo
     const newNodeId = `${nodeType}-${Date.now()}`
     const newNodeType = getNodeType(nodeType)
@@ -2088,14 +2103,14 @@ export function CanvasPage() {
       type: newNodeType,
       position,
       data: {
-        label: nodeType,
+        label: friendlyName,
         nodeRedType: nodeType,
         flowId: activeFlowId,
         outputPortsCount: 1,
         nodeRedNode: {
           id: newNodeId,
           type: nodeType,
-          name: nodeType,
+          name: '', // Dejar vacío para que use el label function del HTML
           z: activeFlowId,
         },
       },
@@ -3730,6 +3745,7 @@ export function CanvasPage() {
           }}
         >
           <ReactFlow
+            connectionMode={ConnectionMode.Loose}
             onInit={(instance) => {
               reactFlowInstanceRef.current = instance
             }}

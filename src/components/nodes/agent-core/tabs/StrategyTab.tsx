@@ -7,12 +7,12 @@ import { TextField, NumberField, SelectField } from '@/components/fields'
 
 export interface StrategyTabProps {
   nodeData: any
-  onChange: (data: any) => void
+  onNodeDataChange: (data: any) => void
 }
 
-export function StrategyTab({ nodeData, onChange }: StrategyTabProps) {
+export function StrategyTab({ nodeData, onNodeDataChange }: StrategyTabProps) {
   const handleChange = (field: string, value: any) => {
-    onChange({ ...nodeData, [field]: value })
+    onNodeDataChange({ ...nodeData, [field]: value })
   }
 
   return (

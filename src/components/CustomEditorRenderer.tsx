@@ -26,6 +26,7 @@ export interface CustomEditorRendererProps {
   nodeType: string
   nodeData: any
   onChange: (data: any) => void
+  nodeId?: string // ID del nodo para guardar credenciales
 }
 
 /**
@@ -36,6 +37,7 @@ export function CustomEditorRenderer({
   nodeType,
   nodeData,
   onChange,
+  nodeId,
 }: CustomEditorRendererProps) {
   const EditorComponent = CUSTOM_EDITORS[nodeType]
 
@@ -47,6 +49,7 @@ export function CustomEditorRenderer({
     <EditorComponent
       nodeData={nodeData}
       onNodeDataChange={onChange}
+      nodeId={nodeId}
     />
   )
 }

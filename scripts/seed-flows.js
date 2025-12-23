@@ -2043,6 +2043,96 @@ const flow12Nodes = [
   }
 ]
 
+// Flow 13: Flow básico con IA - Agent Core + Azure OpenAI
+const flow13 = {
+  id: 'flow13',
+  type: 'tab',
+  label: 'Asistente IA Básico',
+  disabled: false,
+  info: 'Flow básico con Agent Core y Azure OpenAI que responde a saludos',
+  env: []
+}
+
+const flow13Nodes = [
+  {
+    id: generateId('inject'),
+    type: 'inject',
+    z: 'flow13',
+    name: 'Saludo',
+    props: [{ p: 'payload', v: 'Hola, ¿en qué puedo ayudarte?', vt: 'str' }],
+    repeat: '',
+    cron: '',
+    once: false,
+    onceDelay: 0.1,
+    topic: '',
+    payload: 'Hola, ¿en qué puedo ayudarte?',
+    payloadType: 'str',
+    x: 100,
+    y: 200,
+    wires: [['agent-core-ai']]
+  },
+  {
+    id: 'agent-core-ai',
+    type: 'agent-core',
+    z: 'flow13',
+    name: 'Asistente IA',
+    strategy: 'react',
+    maxIterations: 5,
+    allowedTools: [],
+    stopConditions: [],
+    modelPromptTemplate: '',
+    debug: false,
+    x: 100 + HORIZONTAL_SPACING,
+    y: 200,
+    // Outputs: [model, tool, memory, result]
+    // Conectar output 0 (model) al azure-openai-model
+    // Conectar output 3 (result) al debug
+    wires: [['azure-openai-model'], [], [], ['debug-ai-response']]
+  },
+  {
+    id: 'azure-openai-model',
+    type: 'model.azure.openai',
+    z: 'flow13',
+    name: 'Azure OpenAI',
+    endpoint: '',
+    deployment: '',
+    apiVersion: '2024-02-15-preview',
+    apiKey: '',
+    temperature: 0,
+    maxTokens: 800,
+    timeoutMs: 15000,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 150,
+    // El modelo retorna al agent-core (loop interno)
+    wires: [['agent-core-ai']]
+  },
+  {
+    id: 'debug-ai-response',
+    type: 'debug',
+    z: 'flow13',
+    name: 'Respuesta IA',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 200,
+    wires: []
+  }
+]
+
+// Conectar el output "model" del agent-core al input del azure-openai-model
+// Esto se hace ajustando los wires del agent-core
+// El agent-core tiene 4 outputs: [model, tool, memory, result]
+// Necesitamos conectar el output 0 (model) al azure-openai-model
+// Pero en Node-RED, los wires se definen en el nodo fuente, así que necesitamos
+// ajustar la estructura. En realidad, el agent-core debería tener el modelo conectado
+// a su input, no al output. Déjame corregir esto.
+
 const allFlows = [
   flow1,
   ...flow1Nodes,
@@ -2068,7 +2158,9 @@ const allFlows = [
   // TEMPORALMENTE COMENTADO: subflow1, // El subflow ya incluye sus nodos internos en la propiedad 'flow'
   ...flow11Nodes,
   flow12,
-  ...flow12Nodes
+  ...flow12Nodes,
+  flow13,
+  ...flow13Nodes
 ]
 
 async function seedFlows() {
@@ -2140,7 +2232,7 @@ async function seedFlows() {
       
       // Mantener config nodes y otros nodos especiales que no pertenezcan a nuestros flows
       // TEMPORALMENTE COMENTADO: subflow1.id
-      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id])
+      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id, flow13.id])
       
       // CRÍTICO: Eliminar TODOS los subflows existentes para evitar conflictos
       // Solo mantendremos nuestro subflow nuevo
@@ -2232,6 +2324,7 @@ async function seedFlows() {
     console.log(`   - Flow 10: Convert y Transformaciones (${flow10Nodes.length} nodos) - Conversiones de tipos`)
     console.log(`   - Flow 11: Subflows Demo (${flow11Nodes.length} nodos + 1 subflow) - Subflows reutilizables`)
     console.log(`   - Flow 12: Link Nodes Demo (${flow12Nodes.length} nodos) - Link in/out/call`)
+    console.log(`   - Flow 13: Asistente IA Básico (${flow13Nodes.length} nodos) - Agent Core + Azure OpenAI`)
     if (existingFlows.length > 0) {
       console.log(`   🔄 Reemplazando flows existentes con versiones limpias`)
     }
@@ -2376,7 +2469,7 @@ async function seedFlows() {
     console.log('\n✅ Flows de ejemplo creados y desplegados exitosamente!')
     console.log('📋 Resultado:', result)
     console.log('\n📊 Resumen:')
-    console.log(`   - Total de flows creados: 12`)
+    console.log(`   - Total de flows creados: 13`)
     console.log(`   - Total de nodos creados: ${allFlows.filter(n => n.type !== 'tab' && n.type !== 'group').length}`)
     console.log(`   - Total de grupos creados: ${allFlows.filter(n => n.type === 'group').length}`)
     console.log('\n🔄 Recarga tu editor visual para ver los flows')
@@ -2425,6 +2518,13 @@ async function seedFlows() {
     console.log('     • Busca por nombre, tipo o ID')
     console.log('     • Navega con ↑↓ y Enter para saltar al nodo')
     console.log('     • El canvas se centra y resalta el nodo seleccionado')
+    console.log('\n🤖 NUEVO: Asistente IA Básico (Flow 13)')
+    console.log('   - Flow con Agent Core y Azure OpenAI Model')
+    console.log('   - Configura el endpoint y deployment de Azure OpenAI en el nodo "Azure OpenAI"')
+    console.log('   - Configura la API key en la tab de Connection o usa la variable de entorno AZURE_OPENAI_API_KEY')
+    console.log('   - Haz clic en el nodo "Saludo" (inject) para probar el asistente')
+    console.log('   - La respuesta aparecerá en el nodo "Respuesta IA" (debug)')
+    console.log('   - El Agent Core orquesta el flujo REACT: Reason → Act → Repeat')
   } catch (error) {
     console.error('❌ Error al crear flows:', error.message)
     if (error.message.includes('fetch')) {

@@ -7,26 +7,26 @@ import { Plus, Trash2 } from 'lucide-react'
 
 export interface ToolsTabProps {
   nodeData: any
-  onChange: (data: any) => void
+  onNodeDataChange: (data: any) => void
 }
 
-export function ToolsTab({ nodeData, onChange }: ToolsTabProps) {
+export function ToolsTab({ nodeData, onNodeDataChange }: ToolsTabProps) {
   const allowedTools = nodeData.allowedTools || []
 
   const handleAddTool = () => {
     const newTools = [...allowedTools, '']
-    onChange({ ...nodeData, allowedTools: newTools })
+    onNodeDataChange({ ...nodeData, allowedTools: newTools })
   }
 
   const handleRemoveTool = (index: number) => {
     const newTools = allowedTools.filter((_: any, i: number) => i !== index)
-    onChange({ ...nodeData, allowedTools: newTools })
+    onNodeDataChange({ ...nodeData, allowedTools: newTools })
   }
 
   const handleToolChange = (index: number, value: string) => {
     const newTools = [...allowedTools]
     newTools[index] = value
-    onChange({ ...nodeData, allowedTools: newTools })
+    onNodeDataChange({ ...nodeData, allowedTools: newTools })
   }
 
   return (

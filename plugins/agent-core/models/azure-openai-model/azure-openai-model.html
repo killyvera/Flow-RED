@@ -7,17 +7,19 @@
       endpoint: { value: '', required: true },
       deployment: { value: '', required: true },
       apiVersion: { value: '2024-02-15-preview', required: true },
-      apiKey: { value: '' },
       temperature: { value: 0, validate: RED.validators.number() },
       maxTokens: { value: 800, validate: RED.validators.number() },
       timeoutMs: { value: 15000, validate: RED.validators.number() }
+    },
+    credentials: {
+      apiKey: { type: 'text' }
     },
     inputs: 1,
     outputs: 1,
     icon: 'font-awesome/fa-brain',
     paletteLabel: 'Azure OpenAI Model',
     label: function() {
-      return this.name || 'Azure OpenAI Model';
+      return this.name || 'Azure OpenAI';
     },
     labelStyle: function() {
       return this.name ? 'node_label_italic' : '';
@@ -47,7 +49,26 @@
       // Validación de endpoint
       $('#node-input-endpoint').on('change', function() {
         const endpoint = $(this).val();
-        const isValid = /^https:\/\/.*\.openai\.azure\.com$/.test(endpoint);
+        // Acepta tanto .openai.azure.com como .cognitiveservices.azure.com
+        const isValid = !endpoint || 
+          /^https:\/\/.*\.openai\.azure\.com(\/.*)?$/.test(endpoint) ||
+          /^https:\/\/.*\.cognitiveservices\.azure\.com(\/.*)?$/.test(endpoint);
+        
+        // Extraer endpoint base si es una URL completa
+        if (isValid && endpoint) {
+          try {
+            const url = new URL(endpoint);
+            if (url.hostname.includes('.openai.azure.com') || url.hostname.includes('.cognitiveservices.azure.com')) {
+              const baseEndpoint = url.protocol + '//' + url.hostname;
+              if (baseEndpoint !== endpoint) {
+                $(this).val(baseEndpoint);
+              }
+            }
+          } catch (e) {
+            // Si no es una URL válida, mantener el valor original
+          }
+        }
+        
         if (!isValid && endpoint) {
           $(this).addClass('input-error');
         } else {
@@ -73,10 +94,11 @@
     <div id="azure-openai-model-tab-connection" style="display:none">
       <div class="form-row">
         <label for="node-input-endpoint"><i class="fa fa-globe"></i> Endpoint</label>
-        <input type="text" id="node-input-endpoint" placeholder="https://xxx.openai.azure.com">
+        <input type="text" id="node-input-endpoint" placeholder="https://xxx.openai.azure.com o https://xxx.cognitiveservices.azure.com">
         <div class="form-tips">
           <strong>Azure OpenAI Endpoint</strong><br>
-          Formato: <code>https://[resource-name].openai.azure.com</code>
+          Formato: <code>https://[resource-name].openai.azure.com</code> o <code>https://[resource-name].cognitiveservices.azure.com</code><br>
+          <small>Si ingresas una URL completa, se extraerá automáticamente el endpoint base.</small>
         </div>
       </div>
 
@@ -103,16 +125,17 @@
         <input type="password" id="node-input-apiKey" placeholder="Ingresa tu API key de Azure OpenAI">
         <div class="form-tips">
           <strong>API Key</strong><br>
-          API key de Azure OpenAI. Si se deja vacío, se usará la variable de entorno <code>AZURE_OPENAI_API_KEY</code>
+          API key de Azure OpenAI. Se almacena de forma segura en el sistema de credenciales de Node-RED.<br>
+          Si se deja vacío, se usará la variable de entorno <code>AZURE_OPENAI_API_KEY</code>
         </div>
       </div>
 
       <div class="form-row">
         <div style="padding: 10px; background-color: #f0f8ff; border-left: 4px solid #00A4EF; margin-top: 10px;">
           <strong>💡 API Key Configuration</strong><br>
-          Puedes configurar el API key aquí o usar la variable de entorno:<br>
-          <code>AZURE_OPENAI_API_KEY</code><br>
-          <em>Si se configura aquí, tiene prioridad sobre la variable de entorno.</em>
+          El API key se almacena de forma segura en el sistema de credenciales de Node-RED (archivo <code>credentials.json</code>).<br>
+          También puedes usar la variable de entorno: <code>AZURE_OPENAI_API_KEY</code><br>
+          <em>Prioridad: Credenciales del nodo > Variable de entorno</em>
         </div>
       </div>
     </div>

@@ -277,7 +277,7 @@ export async function getAvailableNodes(): Promise<Array<{
             // Mapeo de descripciones para nodos específicos
             const nodeDescriptionMap: Record<string, string> = {
               'agent-core': 'Orquestador de agentes AI con estrategia REACT',
-              'model.azure.openai': 'Modelo de lenguaje Azure OpenAI para agentes. Recibe prompts y retorna decisiones JSON estrictas.',
+              'model.azure.openai': 'Modelo de lenguaje Azure OpenAI',
             }
             
             // Para ciertos nodos conocidos, usar categoría correcta si Node-RED no la proporciona
@@ -767,6 +767,90 @@ export async function saveFlow(
 }
 
 /**
+ * Guarda las credenciales de un nodo en Node-RED
+ * 
+ * Las credenciales se almacenan de forma segura en credentials.json
+ * y no se incluyen en el flow JSON.
+ * 
+ * @param nodeId ID del nodo
+ * @param credentials Objeto con las credenciales a guardar
+ * @returns Promise que se resuelve cuando las credenciales se guardan
+ */
+export async function saveNodeCredentials(
+  nodeId: string,
+  credentials: Record<string, string>
+): Promise<void> {
+  apiLogger('🔐 Guardando credenciales para nodo:', { nodeId, hasApiKey: !!credentials.apiKey })
+  
+  try {
+    await nodeRedRequest(`/credentials/${nodeId}`, {
+      method: 'POST',
+      headers: {
+        'Node-RED-API-Version': 'v2',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    })
+    
+    apiLogger('✅ Credenciales guardadas exitosamente para nodo:', nodeId)
+  } catch (err: any) {
+    // Si el nodo no existe aún (404), es normal - las credenciales se guardarán cuando se guarde el flow
+    if (err.message && err.message.includes('404')) {
+      apiLogger('⚠️ Nodo aún no existe en Node-RED, credenciales se guardarán al guardar el flow:', nodeId)
+      return
+    }
+    
+    apiLogger('❌ Error al guardar credenciales:', err.message)
+    // No lanzar error - las credenciales pueden no ser críticas si hay variable de entorno
+    console.warn(`No se pudieron guardar credenciales para nodo ${nodeId}:`, err.message)
+  }
+}
+
+/**
+ * Obtiene las credenciales de un nodo desde Node-RED
+ * 
+ * @param nodeId ID del nodo
+ * @returns Promise con las credenciales del nodo
+ */
+export async function getNodeCredentials(
+  nodeId: string
+): Promise<Record<string, string>> {
+  // Usar fetch directamente para evitar logging de errores 404
+  // ya que es normal que el nodo no exista aún
+  try {
+    const baseUrl = getNodeRedBaseUrl()
+    const url = `${baseUrl}/credentials/${nodeId}`
+    
+    const response = await fetch(url, {
+      headers: {
+        'Node-RED-API-Version': 'v2',
+        'Accept': 'application/json',
+      },
+    })
+    
+    // Si es 404, es normal - el nodo aún no existe
+    if (response.status === 404) {
+      return {}
+    }
+    
+    if (!response.ok) {
+      // Solo loggear errores que no sean 404
+      apiLogger('⚠️ No se pudieron obtener credenciales para nodo:', nodeId)
+      return {}
+    }
+    
+    const credentials = await response.json()
+    return credentials || {}
+  } catch (err: any) {
+    // Solo loggear errores de red, no errores 404
+    if (!err.message || !err.message.includes('404')) {
+      apiLogger('⚠️ Error al obtener credenciales para nodo:', nodeId)
+    }
+    return {}
+  }
+}
+
+/**
  * Obtiene un flow específico por ID
  * 
  * @param flowId ID del flow a obtener
@@ -1002,6 +1086,8 @@ export const apiClient = {
   getNodes,
   getAvailableNodes,
   saveFlow,
+  saveNodeCredentials,
+  getNodeCredentials,
   getFlow,
   createFlow,
   deleteFlow,

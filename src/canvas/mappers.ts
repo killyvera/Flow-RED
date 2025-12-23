@@ -55,8 +55,14 @@ export function mapNodeRedNodeToReactFlowNode(
   // Si no, usar "baseNode" como fallback
   const type = getNodeType(nodeRedNode.type)
 
-  // Label: usar name si existe, sino usar type
-  const label = nodeRedNode.name || nodeRedNode.type || 'node'
+  // Mapeo de nombres amigables por defecto para tipos específicos
+  const friendlyNameMap: Record<string, string> = {
+    'agent-core': 'Agent Core',
+    'model.azure.openai': 'Azure OpenAI',
+  }
+
+  // Label: usar name si existe, sino usar nombre amigable del mapeo, sino usar type
+  const label = nodeRedNode.name || friendlyNameMap[nodeRedNode.type] || nodeRedNode.type || 'node'
 
   // Calcular número de puertos de salida basado en wires
   const outputPortsCount = nodeRedNode.wires ? nodeRedNode.wires.length : 1
@@ -151,17 +157,34 @@ export function mapNodeRedWiresToReactFlowEdges(
       // Crear un edge único
       const edgeId = `${sourceNodeId}-${outputPortIndex}-${targetId}-${edgeCounter++}`
 
-      // Determinar targetHandle basado en si el target es un subflow
+      // Determinar targetHandle basado en si el target es un subflow o un nodo bidireccional
       let targetHandle = 'input' // Default para nodos normales
+      let edgeType = 'smoothstep' // Default edge type
+      
+      // Verificar si el target es un nodo bidireccional (como Azure OpenAI Model)
+      const targetNode = targetNodeMap?.get(targetId)
+      const sourceNode = targetNodeMap?.get(sourceNodeId)
+      const isBidirectionalTarget = targetNode?.data?.nodeRedType === 'model.azure.openai'
+      const isBidirectionalSource = sourceNode?.data?.nodeRedType === 'model.azure.openai'
+      
+      if (isBidirectionalTarget) {
+        // Para Azure OpenAI Model, usar "input" como targetHandle
+        targetHandle = 'input'
+        edgeType = 'bidirectional'
+      }
+      
+      if (isBidirectionalSource) {
+        // Si el source es Azure OpenAI Model, usar "output-0" como sourceHandle
+        edgeType = 'bidirectional'
+      }
       
       // Verificar si el target es un subflow
-      const targetNode = targetNodeMap?.get(targetId)
       const isSubflow = targetNode?.data?.subflowDefinition || 
                        (targetNode?.data?.nodeRedType && 
                         typeof targetNode.data.nodeRedType === 'string' && 
                         targetNode.data.nodeRedType.startsWith('subflow:'))
       
-      if (isSubflow) {
+      if (isSubflow && !isBidirectionalTarget) {
         // Obtener la definición del subflow
         const subflowDef = targetNode?.data?.subflowDefinition
         const subflowType = targetNode?.data?.nodeRedType as string
@@ -193,18 +216,23 @@ export function mapNodeRedWiresToReactFlowEdges(
         }
       }
 
+      // Determinar sourceHandle - si el source es bidireccional, usar "output-0"
+      const sourceHandle = isBidirectionalSource ? 'output-0' : `output-${outputPortIndex}`
+      
       const edge: ReactFlowEdge = {
         id: edgeId,
         source: sourceNodeId,
         target: targetId,
         // sourceHandle identifica el puerto de salida
-        sourceHandle: `output-${outputPortIndex}`,
+        sourceHandle,
         // targetHandle identifica el puerto de entrada
         // Para subflows con múltiples puertos: "input-0", "input-1", etc.
         // Para nodos normales o subflows con un puerto: "input"
+        // Para nodos bidireccionales: "bidirectional"
         targetHandle,
         // Tipo de edge: usar smoothstep para curvas suaves estilo Flowise/n8n
-        type: 'smoothstep',
+        // O bidirectional para nodos LLM
+        type: edgeType,
         // Estilos modernos
         style: {
           strokeWidth: 2,
@@ -915,12 +943,35 @@ export function transformReactFlowToNodeRed(
     // CRÍTICO: Preservar TODAS las propiedades del nodo original
     // Esto es esencial para que los nodos funcionen correctamente después de guardar
     // Especialmente importante para nodos inject que necesitan props, payloadType, cron, etc.
+    // También importante para nodos personalizados como model.azure.openai que necesitan endpoint, apiKey, etc.
     // 
     // IMPORTANTE: No sobrescribir propiedades que no han cambiado
     // Solo sobrescribir las propiedades que React Flow gestiona (id, type, x, y, z, name, wires, links)
+    // 
+    // CRÍTICO: Para nodos personalizados, preservar TODAS las propiedades de configuración
+    // que vienen de node.data.nodeRedNode (que se actualiza desde los custom editors)
+    // IMPORTANTE: Las credenciales (como apiKey) NO deben incluirse en el nodeRedNode
+    // porque se almacenan por separado en el sistema de credenciales de Node-RED
+    const updatedNodeData = node.data.nodeRedNode && typeof node.data.nodeRedNode === 'object' 
+      ? { ...node.data.nodeRedNode } 
+      : {}
+    
+    // Filtrar credenciales del nodeRedNode (se guardan por separado)
+    // Para model.azure.openai, apiKey es una credencial
+    const isAzureOpenAINode = node.data.nodeRedType === 'model.azure.openai'
+    if (isAzureOpenAINode && 'apiKey' in updatedNodeData) {
+      delete updatedNodeData.apiKey
+    }
+    
     const nodeRedNode: NodeRedNode = {
       // Primero, copiar TODAS las propiedades del nodo original
       ...originalNodeRedNode,
+      
+      // CRÍTICO: Si node.data.nodeRedNode tiene propiedades actualizadas (desde custom editors),
+      // estas deben tener prioridad sobre originalNodeRedNode para preservar cambios del usuario
+      // Esto es especialmente importante para propiedades como endpoint, deployment, etc.
+      // NOTA: apiKey se filtra arriba porque es una credencial
+      ...updatedNodeData,
       
       // Luego, sobrescribir SOLO las propiedades que React Flow gestiona
       id: preservedId,

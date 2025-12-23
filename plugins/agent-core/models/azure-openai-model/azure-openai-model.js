@@ -10,9 +10,12 @@ const AzureOpenAIModelNode = require('../../lib/models/azure-openai/AzureOpenAIM
 
 module.exports = function(RED) {
   function AzureOpenAIModelNodeWrapper(config) {
-    return new AzureOpenAIModelNode(RED, config);
+    // Node-RED espera que la función constructora modifique 'this' directamente
+    // No debe retornar una nueva instancia, sino inicializar 'this'
+    AzureOpenAIModelNode.call(this, RED, config);
   }
 
+  // Herencia correcta de Node-RED
   RED.nodes.registerType('model.azure.openai', AzureOpenAIModelNodeWrapper);
 };
 

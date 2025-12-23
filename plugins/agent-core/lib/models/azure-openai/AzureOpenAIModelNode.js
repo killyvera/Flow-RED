@@ -24,40 +24,45 @@ const ResponseValidator = require('./ResponseValidator');
  *   message: string
  * }
  */
-class AzureOpenAIModelNode {
-  constructor(RED, config) {
-    RED.nodes.createNode(this, config);
+function AzureOpenAIModelNode(RED, config) {
+  // Node-RED requiere que se llame a createNode en el contexto de 'this'
+  RED.nodes.createNode(this, config);
 
-    this.config = {
-      endpoint: config.endpoint,
-      deployment: config.deployment,
-      apiVersion: config.apiVersion || '2024-02-15-preview',
-      apiKey: config.apiKey, // API key desde configuración (opcional, puede venir de env var)
-      temperature: config.temperature !== undefined ? config.temperature : 0,
-      maxTokens: config.maxTokens || 800,
-      timeoutMs: config.timeoutMs || 15000
-    };
+  // Obtener credenciales del sistema de credenciales de Node-RED
+  // Las credenciales se almacenan de forma segura en credentials.json
+  const credentials = this.credentials || {};
 
-    // Validar configuración
-    if (!this.config.endpoint) {
-      this.error('Missing required config: endpoint');
-      return;
-    }
-    if (!this.config.deployment) {
-      this.error('Missing required config: deployment');
-      return;
-    }
+  this.config = {
+    endpoint: config.endpoint,
+    deployment: config.deployment,
+    apiVersion: config.apiVersion || '2024-02-15-preview',
+    // Prioridad: credenciales del nodo > variable de entorno
+    apiKey: credentials.apiKey || process.env.AZURE_OPENAI_API_KEY || '',
+    temperature: config.temperature !== undefined ? config.temperature : 0,
+    maxTokens: config.maxTokens || 800,
+    timeoutMs: config.timeoutMs || 15000
+  };
 
-    // Inicializar cliente
-    try {
-      this.client = new AzureOpenAIClient(this.config);
-    } catch (error) {
-      this.error(`Failed to initialize Azure OpenAI client: ${error.message}`);
-      return;
-    }
+  // Validar configuración
+  if (!this.config.endpoint) {
+    this.error('Missing required config: endpoint');
+    return;
+  }
+  if (!this.config.deployment) {
+    this.error('Missing required config: deployment');
+    return;
+  }
 
-    // Manejar mensajes entrantes
-    this.on('input', async (msg, send, done) => {
+  // Inicializar cliente
+  try {
+    this.client = new AzureOpenAIClient(this.config);
+  } catch (error) {
+    this.error(`Failed to initialize Azure OpenAI client: ${error.message}`);
+    return;
+  }
+
+  // Manejar mensajes entrantes
+  this.on('input', async (msg, send, done) => {
       try {
         // Validar que el mensaje venga del Agent Core
         const input = msg.payload;
@@ -98,11 +103,16 @@ class AzureOpenAIModelNode {
         // Emitir metadata para observabilidad (sin contenido de prompts)
         this.log(`[${traceId}] Request completed: ${response.metadata.durationMs}ms, ${response.metadata.totalTokens} tokens`);
 
-        // Preparar mensaje de salida
+        // Preparar mensaje de salida con metadata para Agent Core
         const outputMsg = {
           payload: validatedResponse,
           metadata: response.metadata,
-          _msgid: msg._msgid
+          _msgid: msg._msgid,
+          _agentCore: {
+            type: 'model_response',
+            traceId: traceId,
+            iteration: input.envelope?.iteration || 1
+          }
         };
 
         // Enviar respuesta
@@ -129,15 +139,14 @@ class AzureOpenAIModelNode {
           _msgid: msg._msgid
         };
 
-        send(errorOutputMsg);
-        done();
-      }
-    });
+      send(errorOutputMsg);
+      done();
+    }
+  });
 
-    this.on('close', () => {
-      // Cleanup si es necesario
-    });
-  }
+  this.on('close', () => {
+    // Cleanup si es necesario
+  });
 }
 
 module.exports = AzureOpenAIModelNode;

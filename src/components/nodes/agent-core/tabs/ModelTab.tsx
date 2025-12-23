@@ -6,12 +6,12 @@ import React from 'react'
 
 export interface ModelTabProps {
   nodeData: any
-  onChange: (data: any) => void
+  onNodeDataChange: (data: any) => void
 }
 
-export function ModelTab({ nodeData, onChange }: ModelTabProps) {
+export function ModelTab({ nodeData, onNodeDataChange }: ModelTabProps) {
   const handleChange = (value: string) => {
-    onChange({ ...nodeData, modelPromptTemplate: value })
+    onNodeDataChange({ ...nodeData, modelPromptTemplate: value })
   }
 
   return (

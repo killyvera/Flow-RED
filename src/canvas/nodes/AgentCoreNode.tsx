@@ -19,7 +19,8 @@ import { Brain, Wrench, Database } from 'lucide-react'
  */
 export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const nodeData = (data.data || data) as any
-  const label = nodeData.label || 'Agent Core'
+  // Usar label del nodo o nombre del nodeRedNode o nombre por defecto
+  const label = nodeData.label || nodeData.nodeRedNode?.name || 'Agent Core'
   const isExecuting = nodeData.isExecuting || false
   const currentIteration = nodeData.currentIteration || 0
   const maxIterations = nodeData.maxIterations || 5

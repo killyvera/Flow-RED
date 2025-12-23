@@ -6,6 +6,11 @@
   "type": "object",
   "required": ["strategy", "maxIterations", "allowedTools"],
   "properties": {
+    "name": {
+      "type": "string",
+      "description": "Friendly name for the node (displayed in the canvas)",
+      "default": ""
+    },
     "strategy": {
       "const": "react",
       "description": "Orchestration strategy - currently only REACT is supported"
