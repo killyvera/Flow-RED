@@ -2,7 +2,7 @@
   "name": "node-red-agent-core",
   "version": "0.1.0",
   "description": "Agent Core orchestrator node for Redflow - implements REACT strategy for AI agent workflows",
-  "main": "index.js",
+  "main": "agent-core.js",
   "engines": {
     "node": ">=14"
   },
