@@ -10,7 +10,26 @@ import { getAvailableNodes } from '@/api/client'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { useCanvasStore } from '@/state/canvasStore'
 import type { NodeRedSubflowDefinition } from '@/api/types'
-import { Workflow, ChevronDown, ChevronRight } from 'lucide-react'
+import { 
+  Workflow, 
+  ChevronDown, 
+  ChevronRight,
+  ArrowRight,
+  Send,
+  Code,
+  Link2,
+  Globe,
+  Radio,
+  Network,
+  Wifi,
+  GitBranch,
+  FileCode,
+  Database,
+  Layout,
+  Square,
+  Box
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 /**
  * Lista de nodos comunes de Node-RED como fallback
@@ -84,7 +103,10 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [isClosing, setIsClosing] = useState(false)
+  const [shouldRender, setShouldRender] = useState(false)
   const hasLoadedRef = useRef(false) // Ref para evitar cargas duplicadas
+  const paletteRef = useRef<HTMLDivElement>(null) // Ref para detectar clicks fuera
   
   // Obtener subflows desde el store
   const nodeRedNodes = useCanvasStore((state) => state.nodeRedNodes)
@@ -198,6 +220,55 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     }
   }, [isOpen, nodes.length, isLoading, subflows]) // Incluir subflows en dependencias
 
+  // Controlar el renderizado basado en isOpen
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true)
+      setIsClosing(false)
+    } else if (!isOpen && shouldRender && !isClosing) {
+      // Si se cierra desde fuera (sin pasar por handleClose), iniciar animación
+      setIsClosing(true)
+      setTimeout(() => {
+        setShouldRender(false)
+        setIsClosing(false)
+      }, 300)
+    }
+  }, [isOpen, shouldRender, isClosing])
+
+  // Función para manejar el cierre con animación
+  const handleClose = () => {
+    if (isClosing) return // Evitar múltiples llamadas
+    setIsClosing(true)
+    // Llamar a onClose inmediatamente para actualizar el estado del padre
+    onClose()
+    // Ocultar el componente después de que termine la animación
+    setTimeout(() => {
+      setShouldRender(false)
+      setIsClosing(false)
+    }, 300) // Duración de la animación
+  }
+
+  // Detectar clicks fuera del componente para cerrarlo
+  useEffect(() => {
+    if (!isOpen || isClosing) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (paletteRef.current && !paletteRef.current.contains(event.target as Node)) {
+        handleClose()
+      }
+    }
+
+    // Agregar listener después de un pequeño delay para evitar que se cierre inmediatamente al abrir
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 100)
+
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen, isClosing, handleClose])
+
   // Función para formatear nombres de subcategorías para mejor legibilidad
   const formatSubcategoryName = (subcategory: string): string => {
     const nameMap: Record<string, string> = {
@@ -231,6 +302,62 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     }
     
     return subcategory
+  }
+
+  // Función para obtener el icono de una categoría
+  const getCategoryIcon = (category: string): LucideIcon => {
+    const categoryMap: Record<string, LucideIcon> = {
+      'input': ArrowRight,
+      'output': Send,
+      'function': Code,
+      'link': Link2,
+      'http': Globe,
+      'mqtt': Radio,
+      'tcp': Network,
+      'udp': Wifi,
+      'websocket': Wifi,
+      'network': Network,
+      'sequence': GitBranch,
+      'parser': FileCode,
+      'storage': Database,
+      'database': Database,
+      'layout': Layout,
+      'dashboard': Square,
+      'ui': Square,
+      'subflows': Workflow,
+      'Otros': Box,
+      'otros': Box,
+    }
+    
+    return categoryMap[category.toLowerCase()] || Box
+  }
+
+  // Función para obtener la descripción de una categoría
+  const getCategoryDescription = (category: string): string => {
+    const descriptionMap: Record<string, string> = {
+      'input': 'Nodos que inician el flujo o reciben datos externos',
+      'output': 'Nodos que finalizan el flujo o envían datos al exterior',
+      'function': 'Nodos para procesar y transformar datos',
+      'link': 'Nodos para conectar flujos no adyacentes',
+      'http': 'Nodos para comunicación HTTP/REST',
+      'mqtt': 'Nodos para protocolo MQTT',
+      'tcp': 'Nodos para comunicación TCP',
+      'udp': 'Nodos para comunicación UDP',
+      'websocket': 'Nodos para comunicación WebSocket',
+      'network': 'Nodos para comunicación de red',
+      'sequence': 'Nodos para controlar el flujo y secuencia de mensajes',
+      'parser': 'Nodos para parsear y formatear datos',
+      'storage': 'Nodos para almacenamiento y bases de datos',
+      'database': 'Nodos para bases de datos',
+      'layout': 'Nodos para organizar y agrupar elementos',
+      'dashboard': 'Nodos para interfaces de usuario y dashboards',
+      'ui': 'Nodos para interfaces de usuario',
+      'subflows': 'Subflujos reutilizables',
+      'Otros': 'Otros nodos que no encajan en categorías específicas',
+      'otros': 'Otros nodos que no encajan en categorías específicas',
+    }
+    
+    return descriptionMap[category.toLowerCase()] || 'Nodos adicionales'
   }
 
   // Función para extraer categoría y subcategoría de un nodo
@@ -470,15 +597,32 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
     return grouped
   }, [filteredNodes])
 
-  if (!isOpen) return null
+  // No renderizar nada si no debe renderizarse
+  if (!shouldRender) return null
 
   return (
-    <div className="absolute left-0 top-0 bottom-0 w-64 bg-bg-primary border-r border-node-border shadow-lg z-50 flex flex-col">
+    <>
+      {/* Overlay/Backdrop para cerrar al hacer click fuera */}
+      <div 
+        className={`fixed inset-0 bg-black/20 z-40 ${
+          isClosing ? 'animate-[fadeOut_0.3s_ease-in]' : 'animate-[fadeIn_0.3s_ease-out]'
+        }`}
+        onClick={handleClose}
+        aria-hidden="true"
+      />
+      
+      {/* Paleta de nodos - ahora en la derecha con animación de slide-in/out */}
+      <div 
+        ref={paletteRef}
+        className={`absolute right-0 top-0 bottom-0 w-64 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col ${
+          isClosing ? 'animate-[slideOutRight_0.3s_ease-in]' : 'animate-[slideInRight_0.3s_ease-out]'
+        }`}
+      >
           {/* Header - más compacto estilo n8n */}
           <div className="p-3 border-b border-node-border flex items-center justify-between">
             <h2 className="text-sm font-semibold text-text-primary">Paleta de Nodos</h2>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-text-secondary hover:text-text-primary transition-colors p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               aria-label="Cerrar paleta"
             >
@@ -540,17 +684,36 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
                 {/* Encabezado de categoría principal - clickeable para expandir/colapsar */}
                 <button
                   onClick={() => toggleCategory(mainCategory)}
-                  className="w-full px-3 py-1.5 bg-bg-secondary hover:bg-bg-secondary/80 text-[10px] font-semibold text-text-secondary uppercase flex items-center justify-between transition-colors"
+                  className="w-full px-3 py-1.5 bg-bg-secondary hover:bg-bg-secondary/80 text-[10px] font-semibold text-text-secondary uppercase grid grid-cols-[auto_1fr_auto] gap-2 transition-colors group"
                 >
-                  <span>{mainCategory}</span>
-                  <div className="flex items-center gap-2">
+                  {/* Icono - ocupa 2 filas, centrado verticalmente */}
+                  {(() => {
+                    const CategoryIcon = getCategoryIcon(mainCategory)
+                    return (
+                      <CategoryIcon 
+                        className="w-4 h-4 text-text-secondary group-hover:text-text-primary flex-shrink-0 transition-colors row-span-2 self-center" 
+                        strokeWidth={2}
+                      />
+                    )
+                  })()}
+                  
+                  {/* Título y descripción - ocupan 2 filas */}
+                  <div className="flex flex-col items-start min-w-0 row-span-2">
+                    <span className="truncate w-full text-left">{mainCategory}</span>
+                    <span className="text-[9px] text-text-tertiary font-normal normal-case text-left w-full break-words leading-tight mt-0.5">
+                      {getCategoryDescription(mainCategory)}
+                    </span>
+                  </div>
+                  
+                  {/* Contador y chevron - ocupan 2 filas, centrado verticalmente */}
+                  <div className="flex items-center gap-2 flex-shrink-0 row-span-2 self-center">
                     <span className="text-[9px] text-text-tertiary font-normal">
                       ({totalNodes})
                     </span>
                     {isExpanded ? (
-                      <ChevronDown className="w-3 h-3" strokeWidth={2} />
+                      <ChevronDown className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
                     ) : (
-                      <ChevronRight className="w-3 h-3" strokeWidth={2} />
+                      <ChevronRight className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
                     )}
                   </div>
                 </button>
@@ -635,7 +798,8 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
             )
           })}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 
