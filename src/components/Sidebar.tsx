@@ -15,8 +15,7 @@ import { FlowList } from './FlowList'
 import { DeleteFlowModal } from './DeleteFlowModal'
 import { ImportFlowModal } from './ImportFlowModal'
 import { exportFlow } from '@/api/client'
-import type { NodeRedNode } from '@/api/types'
-import { getProjects, createProject, deleteProject, getProject, addFlowToProject, removeFlowFromProject, type Project } from '@/utils/projectStorage'
+import { getProjects, createProject, deleteProject, addFlowToProject, removeFlowFromProject, type Project } from '@/utils/projectStorage'
 
 /**
  * Icono personalizado para "Mis flujos"
@@ -90,7 +89,6 @@ export function Sidebar({
   const toggleShowPerfReadout = useCanvasStore((state) => state.toggleShowPerfReadout)
   const { 
     isFlowManagerOpen,
-    openFlowManager, 
     closeFlowManager,
     flows = [],
     activeFlowId = null,
