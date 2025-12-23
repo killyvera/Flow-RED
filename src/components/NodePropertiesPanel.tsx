@@ -686,10 +686,23 @@ export function NodePropertiesPanel({
   }, [isEditMode, activeTab])
 
   // Return temprano DESPUÉS de todos los hooks
-  if (!isOpen || !node) return null
+  console.log('🔍 [NodePropertiesPanel] Renderizando:', {
+    isOpen,
+    hasNode: !!node,
+    nodeId: node?.id,
+    nodeType: node?.type,
+    willRender: isOpen && !!node,
+  })
+  
+  if (!isOpen || !node) {
+    console.log('🔍 [NodePropertiesPanel] ⚠️ Return null - isOpen:', isOpen, 'hasNode:', !!node)
+    return null
+  }
+
+  console.log('🔍 [NodePropertiesPanel] ✅ Renderizando panel visible para:', node.id)
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col">
+    <div className="absolute right-0 top-0 bottom-0 w-80 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col" style={{ zIndex: 9999 }}>
       {/* Header */}
       <div className="border-b border-node-border flex-shrink-0">
         <div className="p-3 flex items-center justify-between">
