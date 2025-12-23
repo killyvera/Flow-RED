@@ -25,6 +25,21 @@ module.exports = {
     httpAdminRoot: false,
     
     // ============================================
+    // CORS CONFIGURATION
+    // ============================================
+    // Permitir peticiones desde el frontend Redflow (localhost:5173)
+    httpAdminCors: {
+        origin: "*", // Permitir cualquier origen en desarrollo
+        credentials: true
+    },
+    
+    // CORS para las rutas HTTP de los nodos
+    httpNodeCors: {
+        origin: "*",
+        credentials: true
+    },
+    
+    // ============================================
     // SERVER CONFIGURATION
     // ============================================
     uiPort: process.env.PORT || 1880,
