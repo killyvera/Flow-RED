@@ -5,13 +5,17 @@
   "description": "Modern visual editor frontend for Node-RED",
   "scripts": {
     "dev": "vite",
+    "dev:full": "concurrently --kill-others --names \"NODE-RED,FRONTEND\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm:start:node-red\" \"npm:dev\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "start": "npm run build && vite preview",
     "start:preview": "vite preview",
     "create-sample-flow": "node scripts/create-sample-flow.js",
     "seed-flows": "node scripts/seed-flows.js",
-    "bench:generate": "npx tsx scripts/bench/generateFlow.ts"
+    "bench:generate": "npx tsx scripts/bench/generateFlow.ts",
+    "setup:node-red": "node scripts/setup-node-red.js",
+    "start:node-red": "npx node-red --settings ./settings.redflow.cjs",
+    "start:node-red:verbose": "npx node-red --settings ./settings.redflow.cjs --verbose"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.1",
@@ -25,9 +29,11 @@
     "@codemirror/view": "^6.39.5",
     "debug": "^4.4.3",
     "lucide-react": "^0.562.0",
+    "node-red": "^5.0.0-beta.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "reactflow": "^11.10.4",
+    "ws": "^8.0.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
@@ -37,6 +43,7 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "concurrently": "^9.2.1",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3",
