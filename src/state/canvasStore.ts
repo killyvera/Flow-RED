@@ -85,6 +85,8 @@ export interface CanvasState {
   explainMode: boolean
   /** Si Performance Mode está activo */
   perfMode: boolean
+  /** Si el PerfReadout está visible */
+  showPerfReadout: boolean
   /** Tamaño de la cola de eventos WebSocket (para métricas) */
   wsEventQueueSize: number
   
@@ -131,6 +133,8 @@ export interface CanvasState {
   // Acciones para Performance Mode
   setPerfMode: (enabled: boolean) => void
   togglePerfMode: () => void
+  setShowPerfReadout: (show: boolean) => void
+  toggleShowPerfReadout: () => void
   
   // Acciones para WebSocket
   setWsEventQueueSize: (size: number) => void
@@ -187,7 +191,7 @@ const initialState: Omit<CanvasState,
   'setSelectedNodeId' | 'setSelectedEdgeId' | 'setEditMode' | 'toggleEditMode' |
   'setLoading' | 'setError' | 'setNodeRedNodes' | 'setFlows' | 'setActiveFlowId' |
   'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'setExecutionFramesEnabled' | 'clearFrames' |
-  'setExplainMode' | 'toggleExplainMode' | 'setPerfMode' | 'togglePerfMode' |
+  'setExplainMode' | 'toggleExplainMode' | 'setPerfMode' | 'togglePerfMode' | 'setShowPerfReadout' | 'toggleShowPerfReadout' |
   'setWsEventQueueSize' | 'reset' | 'setSubflowDefinitions' | 'setCurrentSubflowId'
 > = {
   nodes: [],
@@ -216,6 +220,9 @@ const initialState: Omit<CanvasState,
   perfMode: typeof window !== 'undefined' 
     ? localStorage.getItem('perfMode') === 'true' 
     : false, // Leer desde localStorage si está disponible
+  showPerfReadout: typeof window !== 'undefined' 
+    ? localStorage.getItem('showPerfReadout') !== 'false' 
+    : true, // Mostrar por defecto en dev mode
   wsEventQueueSize: 0, // Tamaño de cola de eventos WebSocket
 }
 
@@ -396,6 +403,19 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       localStorage.setItem('perfMode', newValue.toString())
     }
     return { perfMode: newValue }
+  }),
+  setShowPerfReadout: (show) => {
+    set({ showPerfReadout: show })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showPerfReadout', String(show))
+    }
+  },
+  toggleShowPerfReadout: () => set((state) => {
+    const newValue = !state.showPerfReadout
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showPerfReadout', String(newValue))
+    }
+    return { showPerfReadout: newValue }
   }),
   
   setWsEventQueueSize: (size) => set({ wsEventQueueSize: size }),

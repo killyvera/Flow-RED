@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -85,6 +85,8 @@ export function Sidebar({
   const toggleExplainMode = useCanvasStore((state) => state.toggleExplainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
   const togglePerfMode = useCanvasStore((state) => state.togglePerfMode)
+  const showPerfReadout = useCanvasStore((state) => state.showPerfReadout)
+  const toggleShowPerfReadout = useCanvasStore((state) => state.toggleShowPerfReadout)
   const { 
     isFlowManagerOpen,
     openFlowManager, 
@@ -443,6 +445,22 @@ export function Sidebar({
                     <Gauge className="w-4 h-4" />
                     <span className="font-medium">Perf Mode</span>
                   </button>
+
+                  {/* Botón Performance Readout */}
+                  {import.meta.env.DEV && (
+                    <button
+                      onClick={toggleShowPerfReadout}
+                      className={`w-full px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+                        showPerfReadout
+                          ? 'bg-accent-primary text-white hover:bg-accent-secondary'
+                          : 'bg-bg-tertiary text-text-primary hover:bg-node-hover'
+                      } focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2`}
+                      title={showPerfReadout ? 'Ocultar Performance Readout' : 'Mostrar Performance Readout'}
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span className="font-medium">Perf Readout</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
