@@ -3786,22 +3786,10 @@ export function CanvasPage() {
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
-            onNodeClick={(e, node) => {
+            onNodeClick={(_e, node) => {
               setSelectedNode(node)
-              
-              // Si es un nodo inject (trigger), ejecutarlo con click (estilo n8n)
-              // El handler puede estar en node.data.data.onNodeClick o node.data.onNodeClick
-              const customHandler = node.data?.data?.onNodeClick || node.data?.onNodeClick
-              if (node.type === 'inject' && customHandler) {
-                // Crear un evento sintético para el handler
-                const syntheticEvent = {
-                  ...e,
-                  stopPropagation: () => e?.stopPropagation?.(),
-                  preventDefault: () => e?.preventDefault?.(),
-                  target: e?.target,
-                } as React.MouseEvent
-                customHandler(syntheticEvent)
-              }
+              // Los nodos inject ya no se ejecutan al hacer clic
+              // Solo se ejecutan mediante el botón "Ejecutar Flow"
             }}
             onNodeDoubleClick={(_, node) => {
               // Si es un subflow, navegar a él

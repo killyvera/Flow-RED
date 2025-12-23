@@ -92,11 +92,9 @@ export const InjectNode = memo((props: BaseNodeProps) => {
 
   const baseNodeData = data.data || data as any
   
-  // Handler para click en el icono (solo el icono ejecuta el trigger)
-  const handleIconClick = async (e: React.MouseEvent) => {
-    e.stopPropagation() // Evitar que se abra el panel de propiedades
-    await handleTrigger(e)
-  }
+  // Los nodos inject ya no se ejecutan al hacer clic
+  // Solo se ejecutan mediante el botón "Ejecutar Flow"
+  // No se pasa onIconClick para desactivar la ejecución al hacer clic
   
   return (
     <BaseNode
@@ -106,8 +104,7 @@ export const InjectNode = memo((props: BaseNodeProps) => {
         ...baseNodeData,
         // Sin bodyContent - solo icono y nombre (estilo n8n)
         bodyContent: null,
-        // Agregar handler de click solo al icono
-        onIconClick: handleIconClick,
+        // No se pasa onIconClick - los nodos inject solo se ejecutan con el botón "Ejecutar Flow"
       } as any}
       selected={selected}
       dragging={dragging}
