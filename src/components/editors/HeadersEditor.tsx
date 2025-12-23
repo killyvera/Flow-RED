@@ -46,7 +46,7 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
   const headersToFormItems = useCallback((hdrs: Record<string, string>): KeyValueItem[] => {
     return Object.entries(hdrs).map(([key, value]) => ({
       key,
-      value,
+      value: typeof value === 'string' ? value : (typeof value === 'object' ? JSON.stringify(value) : String(value)),
       enabled: true,
     }))
   }, [])
@@ -271,12 +271,11 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
       {/* Conversion warning */}
       {conversionWarning && (
         <div 
-          className="flex items-start gap-2 p-3 rounded text-sm"
+          className="flex items-start gap-2 p-3 rounded text-sm border"
           style={{
-            backgroundColor: 'var(--color-status-warning)',
-            opacity: 0.1,
-            border: '1px solid var(--color-status-warning)',
-            borderOpacity: 0.3,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-status-warning)',
+            borderWidth: '1px',
             color: 'var(--color-status-warning)',
           }}
         >
@@ -312,12 +311,11 @@ export function HeadersEditor({ headers, onChange, readOnly = false }: HeadersEd
       {/* JSON error */}
       {mode === 'json' && jsonError && (
         <div 
-          className="flex items-start gap-2 p-3 rounded text-sm"
+          className="flex items-start gap-2 p-3 rounded text-sm border"
           style={{
-            backgroundColor: 'var(--color-status-error)',
-            opacity: 0.1,
-            border: '1px solid var(--color-status-error)',
-            borderOpacity: 0.3,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-status-error)',
+            borderWidth: '1px',
             color: 'var(--color-status-error)',
           }}
         >

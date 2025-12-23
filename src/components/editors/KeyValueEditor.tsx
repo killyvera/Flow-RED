@@ -132,13 +132,13 @@ export function KeyValueEditor({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div 
-          className="flex items-center gap-4 text-xs font-medium"
+          className="flex items-center gap-4 text-xs font-medium flex-1 min-w-0"
           style={{ color: 'var(--color-text-tertiary)' }}
         >
-          {allowToggle && <span className="w-8"></span>}
-          <span className="flex-1">{keyLabel}</span>
-          <span className="flex-1">{valueLabel}</span>
-          <span className="w-8"></span>
+          {allowToggle && <span className="w-8 flex-shrink-0"></span>}
+          <span className="flex-1 min-w-0">{keyLabel}</span>
+          <span className="flex-1 min-w-0">{valueLabel}</span>
+          <span className="w-8 flex-shrink-0"></span>
         </div>
         
         {!readOnly && (
@@ -197,12 +197,14 @@ export function KeyValueEditor({
         {items.map((item, index) => (
           <div
             key={index}
-            className="flex items-center gap-2 p-2 rounded border transition-colors"
+            className="flex items-center gap-2 p-2 rounded border transition-colors min-w-0"
             style={{
               backgroundColor: !item.enabled && allowToggle 
                 ? 'var(--color-bg-tertiary)' 
                 : 'var(--color-bg-secondary)',
               borderColor: 'var(--color-node-border)',
+              borderWidth: '1px',
+              borderStyle: 'solid',
               opacity: !item.enabled && allowToggle ? 0.5 : 1,
             }}
           >
@@ -212,7 +214,7 @@ export function KeyValueEditor({
                 type="checkbox"
                 checked={item.enabled !== false}
                 onChange={() => handleToggle(index)}
-                className="w-4 h-4 rounded focus:ring-2 focus:ring-offset-0"
+                className="w-4 h-4 rounded focus:ring-2 focus:ring-offset-0 flex-shrink-0"
                 style={{
                   borderColor: 'var(--color-node-border)',
                   accentColor: 'var(--color-accent-primary)',
@@ -224,13 +226,15 @@ export function KeyValueEditor({
             {/* Key input */}
             <input
               type="text"
-              value={item.key}
+              value={typeof item.key === 'string' ? item.key : String(item.key || '')}
               onChange={(e) => handleKeyChange(index, e.target.value)}
               placeholder={placeholder.key}
-              className="flex-1 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+              className="flex-1 min-w-0 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
               style={{
                 backgroundColor: 'var(--color-bg-primary)',
                 borderColor: 'var(--color-node-border)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
                 color: 'var(--color-text-primary)',
               }}
               disabled={readOnly}
@@ -239,13 +243,15 @@ export function KeyValueEditor({
             {/* Value input */}
             <input
               type="text"
-              value={item.value}
+              value={typeof item.value === 'string' ? item.value : (typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value || ''))}
               onChange={(e) => handleValueChange(index, e.target.value)}
               placeholder={placeholder.value}
-              className="flex-1 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+              className="flex-1 min-w-0 px-3 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:border-transparent"
               style={{
                 backgroundColor: 'var(--color-bg-primary)',
                 borderColor: 'var(--color-node-border)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
                 color: 'var(--color-text-primary)',
               }}
               disabled={readOnly}

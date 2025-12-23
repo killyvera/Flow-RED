@@ -91,12 +91,11 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
 
         {retryCount > 3 && (
           <div 
-            className="flex items-start gap-2 p-3 rounded text-sm"
+            className="flex items-start gap-2 p-3 rounded text-sm border"
             style={{
-              backgroundColor: 'var(--color-status-warning)',
-              opacity: 0.1,
-              border: '1px solid var(--color-status-warning)',
-              borderOpacity: 0.3,
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-status-warning)',
+              borderWidth: '1px',
               color: 'var(--color-status-warning)',
             }}
           >
@@ -138,17 +137,16 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
             />
             
             <div 
-              className="p-3 rounded text-xs"
+              className="p-3 rounded text-xs border"
               style={{
-                backgroundColor: 'var(--color-accent-primary)',
-                opacity: 0.1,
-                border: '1px solid var(--color-accent-primary)',
-                borderOpacity: 0.3,
-                color: 'var(--color-accent-primary)',
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-accent-primary)',
+                borderWidth: '1px',
+                color: 'var(--color-text-primary)',
               }}
             >
-              <p className="font-medium mb-1">TLS Configuration Node</p>
-              <p>
+              <p className="font-medium mb-1" style={{ color: 'var(--color-accent-primary)' }}>TLS Configuration Node</p>
+              <p style={{ color: 'var(--color-text-secondary)' }}>
                 Create a TLS configuration node in Node-RED (Configuration nodes → tls-config) 
                 and reference its ID here. This allows you to use custom certificates, CA certificates, 
                 or disable certificate validation.
@@ -190,19 +188,18 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
             />
             
             <div 
-              className="p-3 rounded text-xs"
+              className="p-3 rounded text-xs border"
               style={{
-                backgroundColor: 'var(--color-accent-primary)',
-                opacity: 0.1,
-                border: '1px solid var(--color-accent-primary)',
-                borderOpacity: 0.3,
-                color: 'var(--color-accent-primary)',
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-accent-primary)',
+                borderWidth: '1px',
+                color: 'var(--color-text-primary)',
               }}
             >
-              <p className="font-medium mb-1">Proxy URL Format</p>
-              <p>
-                Use format: <code>http://proxy.example.com:8080</code><br />
-                With authentication: <code>http://username:password@proxy.example.com:8080</code>
+              <p className="font-medium mb-1" style={{ color: 'var(--color-accent-primary)' }}>Proxy URL Format</p>
+              <p style={{ color: 'var(--color-text-secondary)' }}>
+                Use format: <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>http://proxy.example.com:8080</code><br />
+                With authentication: <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>http://username:password@proxy.example.com:8080</code>
               </p>
             </div>
           </div>
@@ -211,28 +208,29 @@ export function AdvancedTab({ nodeData, onNodeDataChange }: AdvancedTabProps) {
 
       {/* Info Box */}
       <div 
-        className="p-4 rounded text-sm"
+        className="p-4 rounded text-sm border"
         style={{
           backgroundColor: 'var(--color-bg-secondary)',
-          border: '1px solid var(--color-node-border)',
-          color: 'var(--color-text-secondary)',
+          borderColor: 'var(--color-accent-primary)',
+          borderWidth: '1px',
+          color: 'var(--color-text-primary)',
         }}
       >
         <p 
           className="font-medium mb-2"
-          style={{ color: 'var(--color-text-primary)' }}
+          style={{ color: 'var(--color-accent-primary)' }}
         >
           Additional Options
         </p>
-        <p className="text-xs mb-3">
+        <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
           More advanced options can be configured through Node-RED's settings.js or 
           via msg properties at runtime:
         </p>
-        <ul className="list-disc list-inside space-y-1 text-xs pl-2">
-          <li><code>msg.rejectUnauthorized</code> - Validate SSL certificates</li>
-          <li><code>msg.strictSSL</code> - Strict SSL validation</li>
-          <li><code>msg.requestTimeout</code> - Override default timeout</li>
-          <li><code>msg.encoding</code> - Response encoding</li>
+        <ul className="list-disc list-inside space-y-1 text-xs pl-2" style={{ color: 'var(--color-text-secondary)' }}>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>msg.rejectUnauthorized</code> - Validate SSL certificates</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>msg.strictSSL</code> - Strict SSL validation</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>msg.requestTimeout</code> - Override default timeout</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>msg.encoding</code> - Response encoding</li>
         </ul>
       </div>
     </div>

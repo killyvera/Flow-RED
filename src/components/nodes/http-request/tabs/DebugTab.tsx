@@ -146,12 +146,11 @@ export function DebugTab({ nodeData }: DebugTabProps) {
           {warnings.map((warning, index) => (
             <div
               key={index}
-              className="flex items-start gap-2 p-3 rounded text-sm"
+              className="flex items-start gap-2 p-3 rounded text-sm border"
               style={{
-                backgroundColor: 'var(--color-status-warning)',
-                opacity: 0.1,
-                border: '1px solid var(--color-status-warning)',
-                borderOpacity: 0.3,
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-status-warning)',
+                borderWidth: '1px',
                 color: 'var(--color-status-warning)',
               }}
             >
@@ -235,17 +234,16 @@ export function DebugTab({ nodeData }: DebugTabProps) {
 
       {/* Info Box */}
       <div 
-        className="p-4 rounded text-sm"
+        className="p-4 rounded text-sm border"
         style={{
-          backgroundColor: 'var(--color-accent-primary)',
-          opacity: 0.1,
-          border: '1px solid var(--color-accent-primary)',
-          borderOpacity: 0.3,
-          color: 'var(--color-accent-primary)',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-accent-primary)',
+          borderWidth: '1px',
+          color: 'var(--color-text-primary)',
         }}
       >
-        <p className="font-medium mb-2">About This Preview</p>
-        <ul className="list-disc list-inside space-y-1 text-xs pl-2">
+        <p className="font-medium mb-2" style={{ color: 'var(--color-accent-primary)' }}>About This Preview</p>
+        <ul className="list-disc list-inside space-y-1 text-xs pl-2" style={{ color: 'var(--color-text-secondary)' }}>
           <li>This is a static preview of your configuration</li>
           <li>Dynamic values (mustache templates) will be resolved at runtime</li>
           <li>Secrets in headers are redacted for security</li>

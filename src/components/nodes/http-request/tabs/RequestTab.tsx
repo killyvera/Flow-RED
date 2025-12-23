@@ -119,12 +119,11 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
           {/* URL Validation */}
           {url && !urlValidation.valid && (
             <div 
-              className="flex items-start gap-2 p-3 rounded text-sm"
+              className="flex items-start gap-2 p-3 rounded text-sm border"
               style={{
-                backgroundColor: 'var(--color-status-error)',
-                opacity: 0.1,
-                border: '1px solid var(--color-status-error)',
-                borderOpacity: 0.3,
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-status-error)',
+                borderWidth: '1px',
                 color: 'var(--color-status-error)',
               }}
             >
@@ -160,12 +159,11 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
           {/* Timeout Warning */}
           {timeoutValidation.warning && (
             <div 
-              className="flex items-start gap-2 p-3 rounded text-sm"
+              className="flex items-start gap-2 p-3 rounded text-sm border"
               style={{
-                backgroundColor: 'var(--color-status-warning)',
-                opacity: 0.1,
-                border: '1px solid var(--color-status-warning)',
-                borderOpacity: 0.3,
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-status-warning)',
+                borderWidth: '1px',
                 color: 'var(--color-status-warning)',
               }}
             >
@@ -187,22 +185,21 @@ export function RequestTab({ nodeData, onNodeDataChange }: RequestTabProps) {
 
       {/* Info Box */}
       <div 
-        className="p-4 rounded text-sm"
+        className="p-4 rounded text-sm border"
         style={{
-          backgroundColor: 'var(--color-accent-primary)',
-          opacity: 0.1,
-          border: '1px solid var(--color-accent-primary)',
-          borderOpacity: 0.3,
-          color: 'var(--color-accent-primary)',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-accent-primary)',
+          borderWidth: '1px',
+          color: 'var(--color-text-primary)',
         }}
       >
-        <p className="font-medium mb-2">Dynamic Values</p>
-        <p>You can use mustache template syntax to insert values from the message:</p>
-        <ul className="list-disc list-inside mt-2 space-y-1 pl-2">
-          <li><code>{'{{msg.payload}}'}</code> - Insert the message payload</li>
-          <li><code>{'{{msg.topic}}'}</code> - Insert the message topic</li>
-          <li><code>{'{{flow.variable}}'}</code> - Insert a flow variable</li>
-          <li><code>{'{{global.variable}}'}</code> - Insert a global variable</li>
+        <p className="font-medium mb-2" style={{ color: 'var(--color-accent-primary)' }}>Dynamic Values</p>
+        <p style={{ color: 'var(--color-text-secondary)' }}>You can use mustache template syntax to insert values from the message:</p>
+        <ul className="list-disc list-inside mt-2 space-y-1 pl-2" style={{ color: 'var(--color-text-secondary)' }}>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{'{{msg.payload}}'}</code> - Insert the message payload</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{'{{msg.topic}}'}</code> - Insert the message topic</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{'{{flow.variable}}'}</code> - Insert a flow variable</li>
+          <li><code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{'{{global.variable}}'}</code> - Insert a global variable</li>
         </ul>
       </div>
     </div>

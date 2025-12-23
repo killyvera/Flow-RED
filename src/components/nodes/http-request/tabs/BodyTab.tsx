@@ -239,21 +239,20 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
       {/* Content-Type mismatch warning */}
       {contentTypeMismatch && (
         <div 
-          className="flex items-start gap-2 p-3 rounded text-sm"
+          className="flex items-start gap-2 p-3 rounded text-sm border"
           style={{
-            backgroundColor: 'var(--color-status-warning)',
-            opacity: 0.1,
-            border: '1px solid var(--color-status-warning)',
-            borderOpacity: 0.3,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-status-warning)',
+            borderWidth: '1px',
             color: 'var(--color-status-warning)',
           }}
         >
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <div>
             <p className="font-medium">Content-Type Mismatch</p>
-            <p className="text-xs mt-1">
-              Your Content-Type header is <code>{currentContentTypeHeader}</code> but 
-              the body type is <code>{suggestedContentType}</code>. 
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+              Your Content-Type header is <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{currentContentTypeHeader}</code> but 
+              the body type is <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>{suggestedContentType}</code>. 
               Update the header in the Headers tab if needed.
             </p>
           </div>
@@ -285,12 +284,11 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
       {/* JSON error */}
       {mode === 'raw' && contentType === 'json' && jsonError && (
         <div 
-          className="flex items-start gap-2 p-3 rounded text-sm"
+          className="flex items-start gap-2 p-3 rounded text-sm border"
           style={{
-            backgroundColor: 'var(--color-status-error)',
-            opacity: 0.1,
-            border: '1px solid var(--color-status-error)',
-            borderOpacity: 0.3,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-status-error)',
+            borderWidth: '1px',
             color: 'var(--color-status-error)',
           }}
         >
@@ -301,23 +299,22 @@ export function BodyTab({ nodeData, onNodeDataChange }: BodyTabProps) {
 
       {/* Info Box */}
       <div 
-        className="p-4 rounded text-sm"
+        className="p-4 rounded text-sm border"
         style={{
-          backgroundColor: 'var(--color-accent-primary)',
-          opacity: 0.1,
-          border: '1px solid var(--color-accent-primary)',
-          borderOpacity: 0.3,
-          color: 'var(--color-accent-primary)',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-accent-primary)',
+          borderWidth: '1px',
+          color: 'var(--color-text-primary)',
         }}
       >
         <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--color-accent-primary)' }} />
           <div>
-            <p className="font-medium mb-2">Dynamic Body Content</p>
-            <p className="text-xs">
+            <p className="font-medium mb-2" style={{ color: 'var(--color-accent-primary)' }}>Dynamic Body Content</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
               You can use mustache templates in both modes:
             </p>
-            <ul className="list-disc list-inside mt-2 space-y-1 pl-2 text-xs">
+            <ul className="list-disc list-inside mt-2 space-y-1 pl-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
               <li><code>{'{{msg.payload}}'}</code> - Insert the entire message payload</li>
               <li><code>{'{{msg.data.name}}'}</code> - Insert a specific property</li>
               <li>In Form mode, values can be templates</li>

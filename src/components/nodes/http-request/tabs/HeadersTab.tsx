@@ -38,42 +38,41 @@ export function HeadersTab({ nodeData, onNodeDataChange }: HeadersTabProps) {
 
       {/* Info Box */}
       <div 
-        className="p-4 rounded text-sm"
+        className="p-4 rounded text-sm border"
         style={{
-          backgroundColor: 'var(--color-accent-primary)',
-          opacity: 0.1,
-          border: '1px solid var(--color-accent-primary)',
-          borderOpacity: 0.3,
-          color: 'var(--color-accent-primary)',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-accent-primary)',
+          borderWidth: '1px',
+          color: 'var(--color-text-primary)',
         }}
       >
-        <p className="font-medium mb-2">Common Use Cases</p>
-        <ul className="list-disc list-inside space-y-1 pl-2">
+        <p className="font-medium mb-2" style={{ color: 'var(--color-accent-primary)' }}>Common Use Cases</p>
+        <ul className="list-disc list-inside space-y-1 pl-2" style={{ color: 'var(--color-text-secondary)' }}>
           <li>
-            <strong>Authorization:</strong> Bearer tokens, API keys
+            <strong style={{ color: 'var(--color-text-primary)' }}>Authorization:</strong> Bearer tokens, API keys
             <div 
               className="text-xs mt-1 pl-5"
-              style={{ color: 'var(--color-accent-primary)', opacity: 0.8 }}
+              style={{ color: 'var(--color-text-tertiary)' }}
             >
-              Example: <code>Bearer {'{{msg.token}}'}</code>
+              Example: <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>Bearer {'{{msg.token}}'}</code>
             </div>
           </li>
           <li>
-            <strong>Content-Type:</strong> Specify the format of your request body
+            <strong style={{ color: 'var(--color-text-primary)' }}>Content-Type:</strong> Specify the format of your request body
             <div 
               className="text-xs mt-1 pl-5"
-              style={{ color: 'var(--color-accent-primary)', opacity: 0.8 }}
+              style={{ color: 'var(--color-text-tertiary)' }}
             >
-              Example: <code>application/json</code>, <code>application/x-www-form-urlencoded</code>
+              Example: <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>application/json</code>, <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>application/x-www-form-urlencoded</code>
             </div>
           </li>
           <li>
-            <strong>Accept:</strong> Specify the format you want in the response
+            <strong style={{ color: 'var(--color-text-primary)' }}>Accept:</strong> Specify the format you want in the response
             <div 
               className="text-xs mt-1 pl-5"
-              style={{ color: 'var(--color-accent-primary)', opacity: 0.8 }}
+              style={{ color: 'var(--color-text-tertiary)' }}
             >
-              Example: <code>application/json</code>
+              Example: <code style={{ color: 'var(--color-text-primary)', backgroundColor: 'var(--color-bg-tertiary)', padding: '2px 4px', borderRadius: '4px' }}>application/json</code>
             </div>
           </li>
         </ul>
@@ -82,17 +81,16 @@ export function HeadersTab({ nodeData, onNodeDataChange }: HeadersTabProps) {
       {/* Warning for dynamic headers */}
       {Object.values(headers).some((value: unknown) => typeof value === 'string' && value.includes('{{') && value.includes('}}')) && (
         <div 
-          className="p-4 rounded text-sm"
+          className="p-4 rounded text-sm border"
           style={{
-            backgroundColor: 'var(--color-status-warning)',
-            opacity: 0.1,
-            border: '1px solid var(--color-status-warning)',
-            borderOpacity: 0.3,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-status-warning)',
+            borderWidth: '1px',
             color: 'var(--color-status-warning)',
           }}
         >
           <p className="font-medium mb-1">Dynamic Headers Detected</p>
-          <p className="text-xs">
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             Your headers contain mustache templates. Make sure the referenced properties exist 
             in the message at runtime.
           </p>
