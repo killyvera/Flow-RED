@@ -19,18 +19,11 @@ module.exports = function(RED) {
    * This makes the node available in the Node-RED palette and allows
    * users to add it to their flows.
    */
-  RED.nodes.registerType('agent-core', AgentCoreNode.bind(null, RED), {
-    settings: {
-      agentCoreMaxIterations: {
-        value: 5,
-        exportable: true
-      },
-      agentCoreDebug: {
-        value: false,
-        exportable: true
-      }
-    }
-  });
+  function AgentCoreNodeWrapper(config) {
+    AgentCoreNode.call(this, RED, config);
+  }
+  
+  RED.nodes.registerType('agent-core', AgentCoreNodeWrapper);
 
   /**
    * Optional: Register custom HTTP endpoints for agent-core
