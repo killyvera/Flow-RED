@@ -81,7 +81,7 @@ function getDefaultNodes(): Array<{
     { id: 'html', type: 'html', name: 'HTML', category: 'parser', module: 'node-red', enabled: true },
     
     // AI Agents nodes
-    { id: 'agent-core', type: 'agent-core', name: 'Agent Core', category: 'ai-agents', module: 'node-red-agent-core', enabled: true },
+    { id: 'agent-core', type: 'agent-core', name: 'Agent Core', category: 'AI Agents', module: 'node-red-agent-core', enabled: true },
   ]
 }
 
@@ -668,7 +668,7 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
         {!isLoading && !error && Object.entries(nodesByCategoryAndSubcategory)
           .sort(([a], [b]) => {
             // Ordenar categorías: orden preferido primero, luego alfabéticamente
-            const categoryOrder = ['ai-agents', 'input', 'output', 'function', 'link', 'http', 'mqtt', 'tcp', 'udp', 'websocket', 'network', 'sequence', 'parser', 'storage', 'layout', 'dashboard', 'subflows', 'Otros']
+            const categoryOrder = ['AI Agents', 'input', 'output', 'function', 'link', 'http', 'mqtt', 'tcp', 'udp', 'websocket', 'network', 'sequence', 'parser', 'storage', 'layout', 'dashboard', 'subflows', 'Otros']
             const indexA = categoryOrder.indexOf(a)
             const indexB = categoryOrder.indexOf(b)
             
