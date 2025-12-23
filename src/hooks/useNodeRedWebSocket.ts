@@ -40,6 +40,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const addExecutionLog = useCanvasStore((state) => state.addExecutionLog)
   const setActiveEdge = useCanvasStore((state) => state.setActiveEdge)
   const clearActiveEdges = useCanvasStore((state) => state.clearActiveEdges)
+  const setAnimatedEdge = useCanvasStore((state) => state.setAnimatedEdge)
   const setWsEventQueueSize = useCanvasStore((state) => state.setWsEventQueueSize)
   const edges = useCanvasStore((state) => state.edges)
   const nodes = useCanvasStore((state) => state.nodes)
@@ -69,6 +70,67 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   
   // Map para almacenar NodeExecutionData por frame y nodo (para observability)
   const frameNodesDataRef = useRef<Map<string, Map<string, NodeExecutionData>>>(new Map())
+  
+  // Cola global de edges para activación secuencial
+  const globalEdgeQueue = useRef<Array<{ edgeId: string; source: string; target: string; timestamp: number }>>([])
+  const isProcessingEdgeQueue = useRef<boolean>(false)
+  const queuedEdgeIds = useRef<Set<string>>(new Set()) // Para dedupe
+  const edgeActivationTimes = useRef<Map<string, number>>(new Map()) // Para rastrear cuándo se activó cada edge
+  
+  // Función helper para encolar edges (con dedupe solo por cola, no por estado verde)
+  const enqueueEdge = (edgeId: string, source: string, target: string) => {
+    // Evitar duplicados: solo verificar si ya está en la cola
+    // NO bloquear si ya está verde (permite re-animación)
+    if (queuedEdgeIds.current.has(edgeId)) {
+      return // Ya está en la cola
+    }
+    
+    // Agregar a la cola con timestamp para detectar flujos rápidos
+    globalEdgeQueue.current.push({ edgeId, source, target, timestamp: Date.now() })
+    queuedEdgeIds.current.add(edgeId)
+    
+    // Iniciar procesamiento si no está en curso
+    processGlobalEdgeQueue()
+  }
+  
+  // Función para procesar la cola global de edges secuencialmente
+  const processGlobalEdgeQueue = () => {
+    if (isProcessingEdgeQueue.current) return // Ya hay un procesamiento en curso
+    if (globalEdgeQueue.current.length === 0) {
+      // Si no hay más edges, limpiar el edge animado
+      setAnimatedEdge(null)
+      return
+    }
+    
+    isProcessingEdgeQueue.current = true
+    
+    // Procesar todos los edges en la cola en el mismo tick
+    // El último será el que muestre el punto animado
+    while (globalEdgeQueue.current.length > 0) {
+      const edge = globalEdgeQueue.current.shift()!
+      queuedEdgeIds.current.delete(edge.edgeId) // Remover del set de encolados
+      
+      const activationTime = Date.now()
+      const timeSinceEnqueue = activationTime - edge.timestamp
+      
+      console.log('✨ [WebSocket] Procesando edge de la cola global:', {
+        edgeId: edge.edgeId,
+        source: edge.source,
+        target: edge.target,
+        queueLength: globalEdgeQueue.current.length,
+        timeSinceEnqueue
+      })
+      
+      // ✅ Verde persistente (marcar como verde)
+      setActiveEdge(edge.edgeId, true)
+      edgeActivationTimes.current.set(edge.edgeId, activationTime)
+      
+      // ✅ SOLO UNO con punto animado (el último procesado en este tick)
+      setAnimatedEdge(edge.edgeId)
+    }
+    
+    isProcessingEdgeQueue.current = false
+  }
 
   // Detectar disponibilidad del plugin de observability
   useEffect(() => {
@@ -334,34 +396,20 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
                 nodeExecutionStartTimes.current.set(nodeId, Date.now())
               }
               
-              // Activar edges de salida del nodo
+              // Encolar edges de salida del nodo para activación secuencial
               const outgoingEdges = edges.filter(e => e.source === nodeId)
               if (outgoingEdges.length > 0) {
-                console.log('✨ [WebSocket] Nodo en estado RUNNING - Activando edges de salida:', {
+                console.log('✨ [WebSocket] Nodo en estado RUNNING - Encolando edges:', {
                   nodeId,
                   nodeName: getNodeInfo(nodeId).name,
                   edgesCount: outgoingEdges.length,
                   edgeIds: outgoingEdges.map(e => e.id),
                   targets: outgoingEdges.map(e => ({ target: e.target, targetName: getNodeInfo(e.target).name }))
                 })
-                outgoingEdges.forEach((edge, index) => {
-                  // Activar con un pequeño delay para crear efecto de secuencia
-                  const delay = index * 150 // 150ms entre cada edge
-                  setTimeout(() => {
-                    console.log('✨ [WebSocket] Activando edge de salida (running):', {
-                      edgeId: edge.id,
-                      source: edge.source,
-                      target: edge.target,
-                      sourceName: getNodeInfo(edge.source).name,
-                      targetName: getNodeInfo(edge.target).name
-                    })
-                    setActiveEdge(edge.id, true)
-                    // Desactivar después de un tiempo más largo para mejor visibilidad
-                    setTimeout(() => {
-                      console.log('💤 [WebSocket] Desactivando edge (running):', edge.id)
-                      setActiveEdge(edge.id, false)
-                    }, 3000) // Aumentar tiempo para mejor visibilidad del flujo
-                  }, delay)
+                
+                // Encolar todos los edges (enqueueEdge maneja dedupe y procesamiento)
+                outgoingEdges.forEach(edge => {
+                  enqueueEdge(edge.id, edge.source, edge.target)
                 })
               } else {
                 console.log('⚠️ [WebSocket] Nodo running sin edges de salida:', {
@@ -501,45 +549,30 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
               edgeIds: edgeChain
             })
             
-            // Activar todos los edges de la cadena en secuencia
-            edgeChain.forEach((edgeId, index) => {
-              const delay = index * 200 // 200ms entre cada edge para efecto cascada visible
-              setTimeout(() => {
-                const edge = edges.find(e => e.id === edgeId)
-                if (edge) {
-                  console.log('✨ [WebSocket] Activando edge en cadena:', {
-                    index: index + 1,
-                    total: edgeChain.length,
-                    edgeId: edge.id,
-                    source: edge.source,
-                    target: edge.target,
-                    sourceName: getNodeInfo(edge.source).name,
-                    targetName: getNodeInfo(edge.target).name
-                  })
-                  setActiveEdge(edge.id, true)
-                  // Desactivar después de un tiempo
-                  setTimeout(() => {
-                    setActiveEdge(edge.id, false)
-                  }, 3000) // Tiempo más largo para ver el flujo completo
-                }
-              }, delay)
+            // Encolar todos los edges de la cadena (la cola los procesará secuencialmente)
+            edgeChain.forEach((edgeId) => {
+              const edge = edges.find(e => e.id === edgeId)
+              if (edge) {
+                console.log('✨ [WebSocket] Encolando edge en cadena:', {
+                  edgeId: edge.id,
+                  source: edge.source,
+                  target: edge.target,
+                  sourceName: getNodeInfo(edge.source).name,
+                  targetName: getNodeInfo(edge.target).name
+                })
+                enqueueEdge(edge.id, edge.source, edge.target)
+              }
             })
           } else {
             // Si no hay nodo fuente, solo activar edges que llegan al nodo destino
             const incomingEdges = edges.filter(e => e.target === targetNodeId)
-            console.log('🔍 [WebSocket] Sin nodo fuente - activando edges de entrada:', {
+            console.log('🔍 [WebSocket] Sin nodo fuente - encolando edges de entrada:', {
               targetNodeId,
               incomingEdgesCount: incomingEdges.length
             })
             
-            incomingEdges.forEach((edge, index) => {
-              const delay = index * 200
-              setTimeout(() => {
-                setActiveEdge(edge.id, true)
-                setTimeout(() => {
-                  setActiveEdge(edge.id, false)
-                }, 3000)
-              }, delay)
+            incomingEdges.forEach(edge => {
+              enqueueEdge(edge.id, edge.source, edge.target)
             })
           }
           
@@ -613,9 +646,9 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     // Handler para eventos de observability
     const handleObservabilityEvent = (event: ObservabilityEvent) => {
       try {
-        // #region agent log
+        // #region agent log (solo en desarrollo)
         // H1: Registrar todos los eventos que llegan para diagnosticar si node:output está llegando
-        if (event.event === 'node:output' || event.event === 'node:input') {
+        if (import.meta.env.DEV && (event.event === 'node:output' || event.event === 'node:input')) {
           const nodeEvent = event as NodeInputEvent | NodeOutputEvent
           fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:handleObservabilityEvent:entry',message:'Evento de observability recibido',data:{eventType:event.event,nodeId:nodeEvent.nodeId,nodeType:event.event === 'node:output' ? (event as NodeOutputEvent).data.nodeType : (event as NodeInputEvent).data.nodeType,frameId:nodeEvent.frameId,hasOutputs:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length > 0 : false,outputsCount:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length : 0},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
         }
@@ -725,32 +758,29 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
               if (inferredPort !== undefined && inferredPort < subflowDef.in.length) {
                 snapshot.summary = `Input port ${inferredPort + 1}/${subflowDef.in.length}: ${snapshot.summary || 'Input received'}`
                 
-                // Animar solo el edge correspondiente al puerto
+                // Encolar solo el edge correspondiente al puerto
                 const edgeForPort = incomingEdges.find(e => {
                   if (e.targetHandle === `input-${inferredPort}`) return true
                   return incomingEdges.indexOf(e) === inferredPort
                 }) || incomingEdges[inferredPort] || incomingEdges[0]
                 
                 if (edgeForPort) {
-                  setActiveEdge(edgeForPort.id, true)
-                  setTimeout(() => setActiveEdge(edgeForPort.id, false), 2000)
+                  enqueueEdge(edgeForPort.id, edgeForPort.source, edgeForPort.target)
                 }
               } else {
                 // No pudimos inferir el puerto, mostrar información general
                 snapshot.summary = `Subflow input (${subflowDef.in.length} port${subflowDef.in.length > 1 ? 's' : ''}): ${snapshot.summary || 'Input received'}`
                 
-                // Animar todos los edges entrantes
+                // Encolar todos los edges entrantes
                 incomingEdges.forEach(edge => {
-                  setActiveEdge(edge.id, true)
-                  setTimeout(() => setActiveEdge(edge.id, false), 2000)
+                  enqueueEdge(edge.id, edge.source, edge.target)
                 })
               }
             } else {
               // Nodo normal o subflow con un solo puerto
-              // Animar todos los edges entrantes
+              // Encolar todos los edges entrantes
               incomingEdges.forEach(edge => {
-                setActiveEdge(edge.id, true)
-                setTimeout(() => setActiveEdge(edge.id, false), 2000)
+                enqueueEdge(edge.id, edge.source, edge.target)
               })
             }
             
@@ -776,24 +806,26 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
           case 'node:output': {
             const nodeOutput = event as NodeOutputEvent
             
-            // #region agent log
+            // #region agent log (solo en desarrollo)
             // H1: Comparar input vs output payloads para el mismo nodo
-            const frameNodesForComparison = frameNodesDataRef.current.get(nodeOutput.frameId) || new Map()
-            const existingNodeData = frameNodesForComparison.get(nodeOutput.nodeId)
-            const inputPayload = existingNodeData?.input?.payload?.preview
-            const outputPayload = nodeOutput.data.outputs[0]?.payload?.preview
-            const payloadsAreEqual = JSON.stringify(inputPayload) === JSON.stringify(outputPayload)
-            const safeStringify = (val: any) => {
-              if (val === undefined || val === null) return 'undefined'
-              if (typeof val === 'string') return val.substring(0, 50)
-              try {
-                const str = JSON.stringify(val)
-                return str ? str.substring(0, 50) : 'empty'
-              } catch {
-                return 'unserializable'
+            if (import.meta.env.DEV) {
+              const frameNodesForComparison = frameNodesDataRef.current.get(nodeOutput.frameId) || new Map()
+              const existingNodeData = frameNodesForComparison.get(nodeOutput.nodeId)
+              const inputPayload = existingNodeData?.input?.payload?.preview
+              const outputPayload = nodeOutput.data.outputs[0]?.payload?.preview
+              const payloadsAreEqual = JSON.stringify(inputPayload) === JSON.stringify(outputPayload)
+              const safeStringify = (val: any) => {
+                if (val === undefined || val === null) return 'undefined'
+                if (typeof val === 'string') return val.substring(0, 50)
+                try {
+                  const str = JSON.stringify(val)
+                  return str ? str.substring(0, 50) : 'empty'
+                } catch {
+                  return 'unserializable'
+                }
               }
+              fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:node:output',message:'Comparación input vs output',data:{nodeId:nodeOutput.nodeId,nodeType:nodeOutput.data.nodeType,frameId:nodeOutput.frameId,hasInput:!!existingNodeData?.input,hasOutput:nodeOutput.data.outputs.length > 0,inputPayload:safeStringify(inputPayload),outputPayload:safeStringify(outputPayload),payloadsAreEqual,outputsCount:nodeOutput.data.outputs.length,allOutputs:nodeOutput.data.outputs.map((o, idx) => ({index: idx, port: o.port, hasPreview: !!o.payload?.preview, previewType: o.payload?.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
             }
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:node:output',message:'Comparación input vs output',data:{nodeId:nodeOutput.nodeId,nodeType:nodeOutput.data.nodeType,frameId:nodeOutput.frameId,hasInput:!!existingNodeData?.input,hasOutput:nodeOutput.data.outputs.length > 0,inputPayload:safeStringify(inputPayload),outputPayload:safeStringify(outputPayload),payloadsAreEqual,outputsCount:nodeOutput.data.outputs.length,allOutputs:nodeOutput.data.outputs.map((o, idx) => ({index: idx, port: o.port, hasPreview: !!o.payload?.preview, previewType: o.payload?.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
             // #endregion
             
             const snapshot = mapNodeOutputToSnapshot(nodeOutput)
@@ -832,7 +864,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
             frameNodes.set(nodeOutput.nodeId, nodeData)
             frameNodesDataRef.current.set(nodeOutput.frameId, frameNodes)
             
-            // Animar edges salientes (uno por cada output)
+            // Encolar edges salientes (uno por cada output)
             // Para subflows, mapear el port del output al edge correcto
             nodeOutput.data.outputs.forEach((output, index) => {
               const outgoingEdges = edges.filter(e => e.source === nodeOutput.nodeId)
@@ -848,15 +880,13 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
                 }) || outgoingEdges[portIndex] || outgoingEdges[0]
                 
                 if (edgeForPort) {
-                  setActiveEdge(edgeForPort.id, true)
-                  setTimeout(() => setActiveEdge(edgeForPort.id, false), 2000)
+                  enqueueEdge(edgeForPort.id, edgeForPort.source, edgeForPort.target)
                 }
               } else {
                 // Para nodos normales, usar el índice
                 const edgeToActivate = outgoingEdges[index] || outgoingEdges[0]
                 if (edgeToActivate) {
-                  setActiveEdge(edgeToActivate.id, true)
-                  setTimeout(() => setActiveEdge(edgeToActivate.id, false), 2000)
+                  enqueueEdge(edgeToActivate.id, edgeToActivate.source, edgeToActivate.target)
                 }
               }
             })
@@ -893,6 +923,14 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
               // Las estadísticas se pueden mostrar en la UI
               wsLogger('[Observability] Frame terminado:', stats)
             }
+            
+            // Limpiar edges activos cuando termina el frame
+            // Los edges se quedan verdes durante la ejecución, pero se limpian al finalizar
+            clearActiveEdges() // Esto también limpia animatedEdgeId
+            edgeActivationTimes.current.clear()
+            globalEdgeQueue.current = []
+            queuedEdgeIds.current.clear()
+            isProcessingEdgeQueue.current = false
             
             // Limpiar datos del frame después de un delay
             setTimeout(() => {
@@ -981,7 +1019,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
       wsLogger('Hook desmontado, limpiando suscripción')
     }
-  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setWsEventQueueSize, edges, nodes, nodeRedNodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
+  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setAnimatedEdge, setWsEventQueueSize, edges, nodes, nodeRedNodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
 
   // Limpiar estados cuando se deshabilita
   useEffect(() => {

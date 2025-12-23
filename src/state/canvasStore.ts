@@ -63,8 +63,10 @@ export interface CanvasState {
   /** Estado de conexión WebSocket */
   wsConnected: boolean
   
-  /** Edges activos (transmitiendo datos) - Set de edge IDs */
+  /** Edges activos (transmitiendo datos) - Set de edge IDs (verde persistente) */
   activeEdges: Set<string>
+  /** Edge actualmente animado (punto animado) - solo uno a la vez */
+  animatedEdgeId: string | null
   /** Logs de ejecución */
   executionLogs: ExecutionLogEntry[]
   /** Máximo número de logs a mantener */
@@ -100,6 +102,7 @@ export interface CanvasState {
   // Acciones para ejecución
   setActiveEdge: (edgeId: string, active: boolean) => void
   clearActiveEdges: () => void
+  setAnimatedEdge: (edgeId: string | null) => void
   addExecutionLog: (entry: Omit<ExecutionLogEntry, 'id' | 'timestamp'>) => void
   clearExecutionLogs: () => void
   setSelectedNodeId: (id: string | null) => void
@@ -180,7 +183,7 @@ function sanitizeOrphanGroupParents(nodes: ReactFlowNode[]): ReactFlowNode[] {
 const initialState: Omit<CanvasState, 
   'setNodes' | 'setEdges' | 'setGroups' | 'setCollapsedGroupIds' | 'toggleGroupCollapsed' |
   'setNodeRuntimeState' | 'clearNodeRuntimeState' | 'clearAllRuntimeStates' | 'setWsConnected' |
-  'setActiveEdge' | 'clearActiveEdges' | 'addExecutionLog' | 'clearExecutionLogs' |
+  'setActiveEdge' | 'clearActiveEdges' | 'setAnimatedEdge' | 'addExecutionLog' | 'clearExecutionLogs' |
   'setSelectedNodeId' | 'setSelectedEdgeId' | 'setEditMode' | 'toggleEditMode' |
   'setLoading' | 'setError' | 'setNodeRedNodes' | 'setFlows' | 'setActiveFlowId' |
   'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'setExecutionFramesEnabled' | 'clearFrames' |
@@ -202,6 +205,7 @@ const initialState: Omit<CanvasState,
   nodeRuntimeStates: new Map<string, NodeRuntimeState>(),
   wsConnected: false,
   activeEdges: new Set<string>(),
+  animatedEdgeId: null,
   executionLogs: [],
   maxLogs: 1000,
   currentFrame: null,
@@ -262,7 +266,8 @@ export const useCanvasStore = create<CanvasState>((set) => ({
               return { activeEdges: newActiveEdges }
             })
           },
-  clearActiveEdges: () => set({ activeEdges: new Set() }),
+  clearActiveEdges: () => set({ activeEdges: new Set(), animatedEdgeId: null }),
+  setAnimatedEdge: (edgeId) => set({ animatedEdgeId: edgeId }),
   addExecutionLog: (entry) => {
     // console.log('📝 [canvasStore] Agregando log:', entry)
     set((state) => {

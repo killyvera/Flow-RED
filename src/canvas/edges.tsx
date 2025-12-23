@@ -28,21 +28,39 @@ const AnimatedEdge = memo(function AnimatedEdge({
   markerEnd,
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
+  const animatedEdgeId = useCanvasStore((state) => state.animatedEdgeId)
   const explainMode = useCanvasStore((state) => state.explainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
-  const isActive = activeEdges.has(id) && !perfMode // Deshabilitar activación en perf mode
-  const [isHovered, setIsHovered] = useState(false)
   
-  // Log cuando el edge se activa/desactiva
+  // Separar estados: verde persistente vs punto animado
+  const isGreen = activeEdges.has(id) && !perfMode // Verde persistente
+  const isAnimated = animatedEdgeId === id && !perfMode // Punto animado (solo uno)
+  
+  const [isHovered, setIsHovered] = useState(false)
+  const [shouldShowAnimation, setShouldShowAnimation] = useState(false)
+  
+  // Detectar si el flujo es muy rápido (menos de 1ms) y solo mostrar animación si no lo es
+  // El efecto debe depender de isAnimated, no de isGreen
   React.useEffect(() => {
-    if (isActive) {
-      console.log('✨ [AnimatedEdge] Edge activado:', {
-        edgeId: id,
-        activeEdgesCount: activeEdges.size,
-        allActiveEdges: Array.from(activeEdges)
-      })
+    if (isAnimated) {
+      // Si el edge es el animado, esperar un pequeño delay para ver si el flujo es rápido
+      // Si después de 1ms el edge sigue siendo el animado, mostrar la animación
+      const timeoutId = setTimeout(() => {
+        // Verificar que el edge siga siendo el animado después del delay
+        const stillAnimated = useCanvasStore.getState().animatedEdgeId === id
+        if (stillAnimated) {
+          setShouldShowAnimation(true)
+        }
+      }, 1) // 1ms de delay para detectar flujos rápidos
+      
+      return () => {
+        clearTimeout(timeoutId)
+        setShouldShowAnimation(false)
+      }
+    } else {
+      setShouldShowAnimation(false)
     }
-  }, [isActive, id, activeEdges])
+  }, [isAnimated, id])
 
   const [edgePath] = getSmoothStepPath({
     sourceX,
@@ -57,6 +75,25 @@ const AnimatedEdge = memo(function AnimatedEdge({
   const labelX = (sourceX + targetX) / 2
   const labelY = (sourceY + targetY) / 2
 
+  // Crear markerEnd dinámico que cambia a verde cuando está activo
+  const getMarkerType = (): MarkerType => {
+    if (typeof markerEnd === 'string') return 'arrowclosed' as MarkerType
+    if (markerEnd && typeof markerEnd === 'object' && 'type' in markerEnd) {
+      return (markerEnd as any).type as MarkerType
+    }
+    return 'arrowclosed' as MarkerType
+  }
+  
+  const activeMarkerEnd: any = isGreen
+    ? {
+        type: getMarkerType(),
+        color: '#22c55e', // Verde cuando está activo
+        width: 20,
+        height: 20,
+        id: `marker-${id}-active`, // ID único para forzar actualización
+      }
+    : markerEnd
+
   return (
     <>
       {/* Edge base usando BaseEdge de React Flow */}
@@ -66,57 +103,42 @@ const AnimatedEdge = memo(function AnimatedEdge({
           path={edgePath}
           style={{
             ...style,
-            strokeWidth: isActive && !perfMode ? 4 : (style.strokeWidth as number) || 2,
-            stroke: isActive && !perfMode
-              ? 'var(--color-edge-active)' // Color activo del tema
+            strokeWidth: isGreen ? 4 : (style.strokeWidth as number) || 2,
+            stroke: isGreen
+              ? '#22c55e' // Verde cuando está activo - se queda verde, no vuelve al color original
               : (style.stroke as string) || 'var(--color-edge-default)', // Color por defecto del tema
             fill: 'none',
             transition: perfMode ? 'none' : 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
-            filter: perfMode || !isActive ? 'none' : 'drop-shadow(0 0 6px var(--color-edge-active-glow))',
+            filter: perfMode || !isGreen ? 'none' : 'drop-shadow(0 0 6px rgba(34, 197, 94, 0.5))',
           }}
-          markerEnd={markerEnd}
+          markerEnd={activeMarkerEnd}
         />
       </g>
       
-      {/* Capa de pulso cuando está activo (solo si no está en perf mode) */}
-      {isActive && !perfMode && (
-        <>
-          {/* Path de pulso con animación CSS */}
-          <BaseEdge
+      {/* Punto animado solo si es el edge actualmente animado y el flujo no es muy rápido (más de 1ms) */}
+      {isAnimated && shouldShowAnimation && (
+        <circle r="8" fill="#22c55e" className="edge-moving-dot" opacity="1">
+          <animateMotion
+            dur="1.5s"
+            repeatCount="indefinite"
             path={edgePath}
-            style={{
-              strokeWidth: 6,
-              stroke: 'var(--color-edge-active)',
-              fill: 'none',
-              opacity: 0.4,
-              filter: 'drop-shadow(0 0 4px var(--color-edge-active-glow))',
-            }}
+            keyPoints="0;1"
+            keyTimes="0;1"
+            calcMode="linear"
           />
-          
-          {/* Punto animado que se mueve por el edge usando SVG animateMotion */}
-          <circle r="8" fill="var(--color-edge-active)" className="edge-moving-dot" opacity="1">
-            <animateMotion
-              dur="1.5s"
-              repeatCount="indefinite"
-              path={edgePath}
-              keyPoints="0;1"
-              keyTimes="0;1"
-              calcMode="linear"
-            />
-            <animate
-              attributeName="opacity"
-              values="0.7;1;0.7"
-              dur="1.5s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="r"
-              values="6;8;6"
-              dur="1.5s"
-              repeatCount="indefinite"
-            />
-          </circle>
-        </>
+          <animate
+            attributeName="opacity"
+            values="0.7;1;0.7"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="r"
+            values="6;8;6"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </circle>
       )}
       
       {/* Label en Explain Mode (solo en hover) */}

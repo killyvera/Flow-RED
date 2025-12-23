@@ -50,7 +50,7 @@ import { useKeyboardShortcuts } from '@/utils/keyboardShortcuts'
 import { pasteFromClipboard, copyToClipboard } from '@/utils/clipboard'
 import { validateConnectionComplete } from '@/utils/connectionValidator'
 import { getNodeType } from '@/canvas/nodes/nodeFactory'
-import { saveFlow, type SaveFlowError, nodeRedRequest } from '@/api/client'
+import { saveFlow, type SaveFlowError, nodeRedRequest, triggerInjectNode } from '@/api/client'
 import { transformReactFlowToNodeRed, transformNodeRedFlow } from '@/canvas/mappers'
 import type { NodeRedGroup, NodeRedSubflowDefinition, NodeRedNode } from '@/api/types'
 import { hasUnsavedChanges, createFlowSnapshot, type SavedFlowState } from '@/utils/dirtyState'
@@ -298,6 +298,10 @@ export function CanvasPage() {
 
   // Estado para búsqueda
   const [isSearchOpen, setIsSearchOpen] = React.useState(false)
+
+  // Estado para editar nombre del flow
+  const [isEditingFlowName, setIsEditingFlowName] = React.useState(false)
+  const [editingFlowName, setEditingFlowName] = React.useState('')
 
   // Estado para navegación de subflows (breadcrumb)
   const [subflowBreadcrumb, setSubflowBreadcrumb] = React.useState<Array<{
@@ -2699,6 +2703,106 @@ export function CanvasPage() {
     }))
   }, [flows, activeFlowId, isDirty])
 
+  // Handler para iniciar edición del nombre del flow
+  const handleStartEditFlowName = useCallback(() => {
+    if (!activeFlowId) return
+    const currentFlow = flows.find((f) => f.id === activeFlowId)
+    const currentName = currentFlow?.label || currentFlow?.name || 'Flow activo'
+    setEditingFlowName(currentName)
+    setIsEditingFlowName(true)
+  }, [activeFlowId, flows])
+
+  // Handler para guardar el nuevo nombre del flow
+  const handleSaveFlowName = useCallback(async () => {
+    if (!activeFlowId || !editingFlowName.trim()) {
+      setIsEditingFlowName(false)
+      return
+    }
+
+    try {
+      // Obtener el nodo tab del flow actual
+      const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const flowTab = currentNodeRedNodes.find(n => n.type === 'tab' && n.id === activeFlowId)
+      
+      if (flowTab) {
+        // Actualizar el label del tab
+        const updatedTab = { ...flowTab, label: editingFlowName.trim() }
+        
+        // Obtener todos los nodos del flow actual
+        const flowNodes = currentNodeRedNodes.filter(n => n.z === activeFlowId || n.id === activeFlowId)
+        const otherNodes = currentNodeRedNodes.filter(n => n.z !== activeFlowId && n.id !== activeFlowId)
+        
+        // Reemplazar el tab en la lista de nodos
+        const updatedNodes = [
+          ...otherNodes,
+          updatedTab,
+          ...flowNodes.filter(n => n.id !== activeFlowId)
+        ]
+        
+        // Guardar el flow con el nuevo nombre
+        await saveFlow(activeFlowId, updatedNodes)
+        
+        // Recargar flows para actualizar la UI
+        await loadFlows()
+      }
+      
+      setIsEditingFlowName(false)
+    } catch (err) {
+      console.error('Error al guardar nombre del flow:', err)
+      alert('Error al guardar el nombre del flow')
+      setIsEditingFlowName(false)
+    }
+  }, [activeFlowId, editingFlowName, loadFlows])
+
+  // Handler para cancelar edición
+  const handleCancelEditFlowName = useCallback(() => {
+    setIsEditingFlowName(false)
+    setEditingFlowName('')
+  }, [])
+
+  // Estado para ejecución del flow
+  const [isExecutingFlow, setIsExecutingFlow] = React.useState(false)
+
+  // Handler para ejecutar el flow (activar nodos inject)
+  const handleExecuteFlow = useCallback(async () => {
+    if (!activeFlowId || isExecutingFlow) return
+
+    try {
+      setIsExecutingFlow(true)
+      
+      // Obtener todos los nodos del flow activo
+      const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const injectNodes = currentNodeRedNodes.filter(
+        n => n.type === 'inject' && 
+        (n.z === activeFlowId || n.id === activeFlowId) &&
+        !n.disabled
+      )
+
+      if (injectNodes.length === 0) {
+        alert('No hay nodos inject en este flow para ejecutar')
+        setIsExecutingFlow(false)
+        return
+      }
+
+      // Ejecutar todos los nodos inject del flow
+      const executionPromises = injectNodes.map(node => 
+        triggerInjectNode(node.id).catch(err => {
+          console.error(`Error al ejecutar nodo inject ${node.id}:`, err)
+          return null // Continuar con los demás aunque uno falle
+        })
+      )
+
+      await Promise.all(executionPromises)
+      
+      console.log(`✅ Flow ejecutado: ${injectNodes.length} nodo(s) inject activado(s)`)
+    } catch (err) {
+      console.error('Error al ejecutar flow:', err)
+      alert(`Error al ejecutar flow: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+    } finally {
+      setIsExecutingFlow(false)
+    }
+  }, [activeFlowId, isExecutingFlow])
+
   // Función wrapper para switchFlow que verifica cambios no guardados
   const handleSwitchFlow = useCallback(async (newFlowId: string) => {
     if (isDirty) {
@@ -3203,28 +3307,52 @@ export function CanvasPage() {
   const executionBarStats = currentFrame ? currentFrameStats : lastFrameStats
 
   return (
-    <div className={`w-full h-full bg-canvas-bg flex flex-col ${perfMode ? 'perf-mode' : ''}`}>
+    <div className={`w-full h-full bg-canvas-bg flex flex-col ${perfMode ? 'perf-mode' : ''}`} style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       {/* Barra superior con selector de flow y estado */}
-      <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4">
-        {/* Contenido izquierdo */}
-        <div className="flex items-center gap-4">
-          {/* Nombre del flujo actual */}
+      <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4 w-full min-w-0" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+        {/* Contenido izquierdo - Nombre del flow */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          {/* Nombre del flujo actual - Editable */}
           {!isLoading && !error && activeFlowId && (
-            <div className="text-xs font-medium text-text-primary">
-              {flows.find((f) => f.id === activeFlowId)?.label ||
-                flows.find((f) => f.id === activeFlowId)?.name ||
-                'Flow activo'}
-            </div>
+            <>
+              {isEditingFlowName ? (
+                <input
+                  type="text"
+                  value={editingFlowName}
+                  onChange={(e) => setEditingFlowName(e.target.value)}
+                  onBlur={handleSaveFlowName}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveFlowName()
+                    } else if (e.key === 'Escape') {
+                      handleCancelEditFlowName()
+                    }
+                  }}
+                  autoFocus
+                  className="text-xs font-medium text-text-primary bg-bg-primary border border-accent-primary rounded px-2 py-1 min-w-[100px] focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                />
+              ) : (
+                <div
+                  onClick={handleStartEditFlowName}
+                  className="text-xs font-medium text-text-primary whitespace-nowrap cursor-pointer hover:text-accent-primary transition-colors"
+                  title="Haz clic para editar el nombre"
+                >
+                  {flows.find((f) => f.id === activeFlowId)?.label ||
+                    flows.find((f) => f.id === activeFlowId)?.name ||
+                    'Flow activo'}
+                </div>
+              )}
+            </>
           )}
 
           {/* Estado de carga */}
           {isLoading && (
-            <div className="text-xs text-text-secondary">Cargando flows...</div>
+            <div className="text-xs text-text-secondary whitespace-nowrap">Cargando flows...</div>
           )}
 
           {/* Error con botón de reintento */}
           {error && (
-            <div className="text-xs text-status-error flex items-center gap-2">
+            <div className="text-xs text-status-error flex items-center gap-2 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -3241,9 +3369,9 @@ export function CanvasPage() {
         </div>
 
         {/* Contenido central - Pestañas de flows */}
-        <div className="flex-1 flex justify-center min-w-0">
+        <div className="flex-1 flex justify-center min-w-0 mx-4 overflow-hidden">
           {flows.length > 0 && (
-            <div className="w-full max-w-[60%]">
+            <div className="w-full max-w-[60%] min-w-0 overflow-hidden">
               <FlowTabs
                 flows={flowTabs}
                 activeFlowId={activeFlowId}
@@ -3254,7 +3382,7 @@ export function CanvasPage() {
         </div>
 
         {/* Contenido derecho - Botón de guardar, indicadores y ExecutionBar */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-shrink-0 min-w-0">
           {/* Botón de guardar (solo en modo edición) */}
           {isEditMode && activeFlowId && (
             <>
@@ -3318,25 +3446,9 @@ export function CanvasPage() {
               {executionFramesEnabled && <div className="w-px h-6 bg-canvas-grid" />}
             </>
           )}
-          {/* ExecutionBar - Contenido lateral derecho */}
-          {executionFramesEnabled && (
-            <>
-              {/* Estado actual */}
-              <div className="flex items-center gap-2">
-              {currentFrame ? (
-                <>
-                  <Circle className="w-2 h-2 text-status-success animate-pulse" fill="currentColor" />
-                  <span className="text-xs font-medium text-text-primary">Recording</span>
-                </>
-              ) : (
-                <>
-                  <Circle className="w-2 h-2 text-text-tertiary" fill="currentColor" />
-                  <span className="text-xs text-text-secondary">Idle</span>
-                </>
-              )}
-            </div>
 
-            {/* Botones de control */}
+          {/* Botón de captura (ExecutionBar) - Solo si está habilitado */}
+          {executionFramesEnabled && activeFlowId && (
             <div className="flex items-center gap-2">
               {currentFrame ? (
                 <button
@@ -3354,6 +3466,28 @@ export function CanvasPage() {
                 >
                   <Play className="w-3 h-3" />
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* ExecutionBar - Contenido lateral derecho */}
+          {executionFramesEnabled && (
+            <>
+              {/* Separador antes de ExecutionBar */}
+              <div className="w-px h-6 bg-canvas-grid" />
+              
+              {/* Estado actual */}
+              <div className="flex items-center gap-2">
+              {currentFrame ? (
+                <>
+                  <Circle className="w-2 h-2 text-status-success animate-pulse" fill="currentColor" />
+                  <span className="text-xs font-medium text-text-primary">Recording</span>
+                </>
+              ) : (
+                <>
+                  <Circle className="w-2 h-2 text-text-tertiary" fill="currentColor" />
+                  <span className="text-xs text-text-secondary">Idle</span>
+                </>
               )}
             </div>
 
@@ -3494,6 +3628,31 @@ export function CanvasPage() {
 
       {/* Canvas de React Flow */}
       <div className="flex-1 relative">
+        {/* Botón flotante de ejecutar flow - Centrado en la parte inferior */}
+        {activeFlowId && (
+          <button
+            onClick={handleExecuteFlow}
+            disabled={isExecutingFlow}
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 px-4 py-2.5 text-sm bg-status-success/10 hover:bg-status-success/20 text-status-success rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg border border-status-success/20"
+            title="Ejecutar flow (activar todos los nodos inject)"
+          >
+            {isExecutingFlow ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Ejecutando...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                <span>Ejecutar Flow</span>
+              </>
+            )}
+          </button>
+        )}
+
         {/* Botón flotante de Paleta - Esquina superior derecha */}
         {isEditMode && (
           <button
@@ -3629,22 +3788,10 @@ export function CanvasPage() {
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
-            onNodeClick={(e, node) => {
+            onNodeClick={(_e, node) => {
               setSelectedNode(node)
-              
-              // Si es un nodo inject (trigger), ejecutarlo con click (estilo n8n)
-              // El handler puede estar en node.data.data.onNodeClick o node.data.onNodeClick
-              const customHandler = node.data?.data?.onNodeClick || node.data?.onNodeClick
-              if (node.type === 'inject' && customHandler) {
-                // Crear un evento sintético para el handler
-                const syntheticEvent = {
-                  ...e,
-                  stopPropagation: () => e?.stopPropagation?.(),
-                  preventDefault: () => e?.preventDefault?.(),
-                  target: e?.target,
-                } as React.MouseEvent
-                customHandler(syntheticEvent)
-              }
+              // Los nodos inject ya no se ejecutan al hacer clic
+              // Solo se ejecutan mediante el botón "Ejecutar Flow"
             }}
             onNodeDoubleClick={(_, node) => {
               // Si es un subflow, navegar a él
