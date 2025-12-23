@@ -3176,80 +3176,6 @@ export function CanvasPage() {
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4">
         {/* Contenido izquierdo */}
         <div className="flex items-center gap-4">
-        {/* Botón de guardar (solo en modo edición) */}
-        {isEditMode && activeFlowId && (
-          <>
-            <div className="w-px h-6 bg-canvas-grid" />
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-3 py-1.5 text-xs bg-accent-primary text-white rounded-md hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Guardando...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Save & Deploy</span>
-                </>
-              )}
-            </button>
-            {/* TEMPORALMENTE COMENTADO: Botón de recargar flows - innecesario y solo alenta la app */}
-            {/* <button
-              onClick={handleReloadFlows}
-              disabled={isLoading}
-              className="px-3 py-1.5 text-xs bg-bg-secondary text-text-primary rounded-md hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-              title="Recargar flows desde Node-RED para sincronizar IDs (útil tras seed o redeploy)"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 016.623 15M20 20h-4" />
-              </svg>
-              <span>{isLoading ? 'Recargando...' : 'Recargar flows'}</span>
-            </button> */}
-            {/* Indicador de cambios no guardados */}
-            {isDirty && !isSaving && (
-              <span className="text-xs text-status-warning flex items-center gap-1" title="Tienes cambios sin guardar">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                Sin guardar
-              </span>
-            )}
-            {saveSuccess && (
-              <span className="text-xs text-status-success flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                Guardado
-              </span>
-            )}
-            {saveError && (
-              <div className="relative group">
-                <span className="text-xs text-status-error flex items-center gap-1 max-w-xs truncate cursor-help">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  Error
-                </span>
-                {/* Tooltip con detalles del error */}
-                <div className="absolute left-0 top-full mt-1 px-2 py-1.5 bg-bg-primary border border-node-border rounded-md shadow-lg text-[10px] text-text-primary whitespace-pre-line max-w-md z-50 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200">
-                  {saveError.split('\n').map((line, i) => (
-                    <div key={i}>{line}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
         {/* Separador */}
         {(flows.length > 1 || isLoading || error) && (
           <div className="w-px h-6 bg-canvas-grid" />
@@ -3313,11 +3239,76 @@ export function CanvasPage() {
         )}
         </div>
 
-        {/* ExecutionBar - Contenido lateral derecho */}
-        {executionFramesEnabled && (
-          <div className="flex items-center gap-4">
-            {/* Estado actual */}
-            <div className="flex items-center gap-2">
+        {/* Contenido derecho - Botón de guardar, indicadores y ExecutionBar */}
+        <div className="flex items-center gap-4">
+          {/* Botón de guardar (solo en modo edición) */}
+          {isEditMode && activeFlowId && (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="px-3 py-1.5 text-xs bg-accent-primary text-white rounded-md hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              >
+                {isSaving ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Save & Deploy</span>
+                  </>
+                )}
+              </button>
+              {/* Indicadores de estado de guardado */}
+              {saveSuccess && (
+                <span className="text-xs text-status-success flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Guardado
+                </span>
+              )}
+              {saveError && (
+                <div className="relative group">
+                  <span className="text-xs text-status-error flex items-center gap-1 max-w-xs truncate cursor-help">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    Error
+                  </span>
+                  {/* Tooltip con detalles del error */}
+                  <div className="absolute left-0 top-full mt-1 px-2 py-1.5 bg-bg-primary border border-node-border rounded-md shadow-lg text-[10px] text-text-primary whitespace-pre-line max-w-md z-50 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200">
+                    {saveError.split('\n').map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Indicador de cambios no guardados */}
+              {isDirty && !isSaving && (
+                <span className="text-xs text-status-warning flex items-center gap-1" title="Tienes cambios sin guardar">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Sin guardar
+                </span>
+              )}
+              {/* Separador antes de ExecutionBar */}
+              {executionFramesEnabled && <div className="w-px h-6 bg-canvas-grid" />}
+            </>
+          )}
+          {/* ExecutionBar - Contenido lateral derecho */}
+          {executionFramesEnabled && (
+            <>
+              {/* Estado actual */}
+              <div className="flex items-center gap-2">
               {currentFrame ? (
                 <>
                   <Circle className="w-2 h-2 text-status-success animate-pulse" fill="currentColor" />
@@ -3387,8 +3378,9 @@ export function CanvasPage() {
             >
               {executionFramesEnabled ? 'Disable' : 'Enable'}
             </button>
-          </div>
-        )}
+            </> 
+          )}
+        </div>
       </div>
 
       {/* Paleta de nodos */}
