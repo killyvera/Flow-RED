@@ -38,31 +38,23 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
       }}
     >
       {/* Input Handle (Izquierda) */}
-      <div
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="input"
+        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
         style={{
-          position: 'absolute',
           left: -5,
           top: '50%',
           transform: 'translateY(-50%)',
-          width: 10,
-          height: 10,
-          zIndex: 10,
         }}
-      >
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="input"
-          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
-          style={{
-            left: 0,
-            top: '50%',
-          }}
-        />
-      </div>
+      />
 
       {/* Output Handle (Derecha) - Result */}
-      <div
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output-3"
         onDoubleClick={(e) => {
           e.stopPropagation()
           const event = new CustomEvent('handleDoubleClick', {
@@ -75,27 +67,13 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           window.dispatchEvent(event)
         }}
+        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
         style={{
-          position: 'absolute',
           right: -5,
           top: '50%',
           transform: 'translateY(-50%)',
-          width: 10,
-          height: 10,
-          zIndex: 10,
         }}
-      >
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="output-3"
-          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
-          style={{
-            right: 0,
-            top: '50%',
-          }}
-        />
-      </div>
+      />
 
       {/* Header */}
       <div
@@ -138,7 +116,10 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
 
       {/* Bottom Handles - Model, Tool, Memory */}
       {/* Output 0: Model (izquierda) */}
-      <div
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="output-0"
         onDoubleClick={(e) => {
           e.stopPropagation()
           const event = new CustomEvent('handleDoubleClick', {
@@ -151,31 +132,19 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           window.dispatchEvent(event)
         }}
+        className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
         style={{
-          position: 'absolute',
           left: '25%',
           bottom: -5,
-          transform: 'translateX(-50%)',
-          width: 10,
-          height: 10,
-          zIndex: 10,
+          background: '#667eea',
         }}
-      >
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="output-0"
-          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
-          style={{
-            left: '50%',
-            bottom: 0,
-            background: '#667eea',
-          }}
-        />
-      </div>
+      />
 
       {/* Output 1: Tool (centro) */}
-      <div
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="output-1"
         onDoubleClick={(e) => {
           e.stopPropagation()
           const event = new CustomEvent('handleDoubleClick', {
@@ -188,31 +157,19 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           window.dispatchEvent(event)
         }}
+        className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
         style={{
-          position: 'absolute',
           left: '50%',
           bottom: -5,
-          transform: 'translateX(-50%)',
-          width: 10,
-          height: 10,
-          zIndex: 10,
+          background: '#f59e0b',
         }}
-      >
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="output-1"
-          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
-          style={{
-            left: '50%',
-            bottom: 0,
-            background: '#f59e0b',
-          }}
-        />
-      </div>
+      />
 
       {/* Output 2: Memory (derecha) */}
-      <div
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="output-2"
         onDoubleClick={(e) => {
           e.stopPropagation()
           const event = new CustomEvent('handleDoubleClick', {
@@ -225,28 +182,13 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           window.dispatchEvent(event)
         }}
+        className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
         style={{
-          position: 'absolute',
           left: '75%',
           bottom: -5,
-          transform: 'translateX(-50%)',
-          width: 10,
-          height: 10,
-          zIndex: 10,
+          background: '#8b5cf6',
         }}
-      >
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="output-2"
-          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
-          style={{
-            left: '50%',
-            bottom: 0,
-            background: '#8b5cf6',
-          }}
-        />
-      </div>
+      />
 
       {/* Label debajo del nodo */}
       <div className="absolute top-full left-0 right-0 mt-1 text-center">
