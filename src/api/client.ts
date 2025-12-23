@@ -263,15 +263,23 @@ export async function getAvailableNodes(): Promise<Array<{
                 name: moduleInfo.name,
                 category: moduleInfo.category,
                 sets: moduleInfo.sets,
+                types: moduleInfo.types,
                 fullModuleInfo: moduleInfo
               })
+            }
+            
+            // Para ciertos nodos conocidos, usar categoría correcta si Node-RED no la proporciona
+            let nodeCategory = moduleInfo.category || moduleId
+            if (nodeType === 'agent-core' && (!moduleInfo.category || moduleInfo.category === moduleId)) {
+              nodeCategory = 'AI Agents'
+              apiLogger('🔧 Corrigiendo categoría de agent-core a "AI Agents"')
             }
             
             availableNodes.push({
               id: `${moduleId}.${nodeType}`, // ID único con módulo para referencia
               type: nodeType, // Tipo único del nodo (usado como clave principal)
               name: moduleInfo.name || nodeType,
-              category: moduleInfo.category || moduleId,
+              category: nodeCategory,
               module: moduleId,
               enabled: moduleInfo.enabled !== false,
             })
