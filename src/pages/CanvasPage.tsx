@@ -64,6 +64,7 @@ import { InjectNode } from '@/canvas/nodes/InjectNode'
 import { DebugNode } from '@/canvas/nodes/DebugNode'
 import { GroupNode } from '@/canvas/nodes/GroupNode'
 import { SubflowNode } from '@/canvas/nodes/SubflowNode'
+import { AgentCoreNode } from '@/canvas/nodes/AgentCoreNode'
 import { SearchModal } from '@/components/SearchModal'
 import { SubflowBreadcrumb } from '@/components/SubflowBreadcrumb'
 import { isSubflowInstance, extractSubflowIdFromType } from '@/utils/subflowUtils'
@@ -76,6 +77,7 @@ const baseNodeTypes = {
   debug: DebugNode,
   group: GroupNode,
   subflow: SubflowNode,
+  'agent-core': AgentCoreNode,
 }
 
 /**
