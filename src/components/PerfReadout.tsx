@@ -24,11 +24,9 @@ interface Position {
 }
 
 export function PerfReadout() {
-  // Solo mostrar en dev mode
-  if (!import.meta.env.DEV) {
-    return null
-  }
-
+  // Llamar TODOS los hooks primero (antes de cualquier return condicional)
+  // Esto es crítico para cumplir con las reglas de los hooks de React
+  const showPerfReadout = useCanvasStore((state) => state.showPerfReadout)
   const nodes = useCanvasStore((state) => state.nodes)
   const edges = useCanvasStore((state) => state.edges)
   const queueSize = useCanvasStore((state) => state.wsEventQueueSize)
@@ -67,7 +65,7 @@ export function PerfReadout() {
   // Estado para el drag
   const [isDragging, setIsDragging] = useState(false)
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
-
+  
   // Guardar posición en localStorage cuando cambie
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -78,25 +76,6 @@ export function PerfReadout() {
       }
     }
   }, [position])
-
-  // Manejar inicio del drag
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!elementRef.current) return
-    
-    // Solo iniciar drag si se hace clic en el header (título)
-    const target = e.target as HTMLElement
-    const header = target.closest('.perf-readout-header')
-    if (!header) return
-
-    e.preventDefault()
-    setIsDragging(true)
-    
-    const rect = elementRef.current.getBoundingClientRect()
-    dragOffsetRef.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    }
-  }
 
   // Manejar movimiento del mouse durante el drag
   useEffect(() => {
@@ -167,6 +146,35 @@ export function PerfReadout() {
 
     return () => clearInterval(interval)
   }, [nodes.length, edges.length, queueSize])
+  
+  // Solo mostrar en dev mode - después de TODOS los hooks
+  if (!import.meta.env.DEV) {
+    return null
+  }
+  
+  // Si está oculto, no renderizar - después de TODOS los hooks
+  if (!showPerfReadout) {
+    return null
+  }
+
+  // Manejar inicio del drag (función helper, no hook)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!elementRef.current) return
+    
+    // Solo iniciar drag si se hace clic en el header (título)
+    const target = e.target as HTMLElement
+    const header = target.closest('.perf-readout-header')
+    if (!header) return
+
+    e.preventDefault()
+    setIsDragging(true)
+    
+    const rect = elementRef.current.getBoundingClientRect()
+    dragOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    }
+  }
 
   return (
     <div

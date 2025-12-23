@@ -2,7 +2,7 @@
  * Item individual de flow en la lista
  */
 
-import { MoreVertical, Edit, Copy, Download, Trash2, Workflow } from 'lucide-react'
+import { MoreVertical, Edit, Copy, Download, Trash2, Workflow, X } from 'lucide-react'
 import { useState } from 'react'
 import type { NodeRedNode } from '@/api/types'
 import { countFlowNodes } from '@/utils/flowUtils'
@@ -18,6 +18,7 @@ export interface FlowItemProps {
   onExport: () => void
   onDelete: () => void
   onConvertToSubflow?: () => void
+  onRemoveFromProject?: () => void
 }
 
 export function FlowItem({
@@ -30,6 +31,7 @@ export function FlowItem({
   onExport,
   onDelete,
   onConvertToSubflow,
+  onRemoveFromProject,
 }: FlowItemProps) {
   const [showMenu, setShowMenu] = useState(false)
   const nodeCount = countFlowNodes(flow, allNodes)
@@ -153,6 +155,23 @@ export function FlowItem({
                   >
                     <Workflow className="w-4 h-4" />
                     Convertir a Subflow
+                  </button>
+                </>
+              )}
+              {/* Opción para remover del proyecto (solo si está disponible) */}
+              {onRemoveFromProject && (
+                <>
+                  <div className="border-t border-node-border my-1" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowMenu(false)
+                      onRemoveFromProject()
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-status-warning hover:bg-node-hover flex items-center gap-2 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Remover del proyecto
                   </button>
                 </>
               )}

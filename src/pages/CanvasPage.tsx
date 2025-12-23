@@ -4141,14 +4141,6 @@ export function CanvasPage() {
 
         {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
         {/* Visible en modo edición (ambas pestañas) y fuera de modo edición (solo estado) */}
-        {console.log('🎨 [CanvasPage] Condición de renderizado NodePropertiesPanel:', {
-          hasSelectedNode: !!selectedNode,
-          selectedNodeType: selectedNode?.type,
-          selectedNodeId: selectedNode?.id,
-          isNotGroup: selectedNode?.type !== 'group',
-          isPropertiesOpen,
-          shouldRender: !!selectedNode && selectedNode?.type !== 'group',
-        })}
         {selectedNode && selectedNode.type !== 'group' && (
           <NodePropertiesPanel
             node={selectedNode}
