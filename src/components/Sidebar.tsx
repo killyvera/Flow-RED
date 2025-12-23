@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity, Folder, FolderOpen } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -15,7 +15,7 @@ import { FlowList } from './FlowList'
 import { DeleteFlowModal } from './DeleteFlowModal'
 import { ImportFlowModal } from './ImportFlowModal'
 import { exportFlow } from '@/api/client'
-import type { NodeRedNode } from '@/api/types'
+import { getProjects, createProject, deleteProject, addFlowToProject, removeFlowFromProject, type Project } from '@/utils/projectStorage'
 
 /**
  * Icono personalizado para "Mis flujos"
@@ -66,7 +66,7 @@ interface SidebarItem {
   onClick: () => void
 }
 
-type SidebarView = 'menu' | 'settings' | 'flows' | 'devtools'
+type SidebarView = 'menu' | 'settings' | 'flows' | 'devtools' | 'projects' | 'project-flows'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -89,7 +89,6 @@ export function Sidebar({
   const toggleShowPerfReadout = useCanvasStore((state) => state.toggleShowPerfReadout)
   const { 
     isFlowManagerOpen,
-    openFlowManager, 
     closeFlowManager,
     flows = [],
     activeFlowId = null,
@@ -113,6 +112,27 @@ export function Sidebar({
   const [importModal, setImportModal] = useState(false)
   const [newFlowName, setNewFlowName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  
+  // Estado para proyectos
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
+
+  // Cargar proyectos al montar o cuando cambia la vista
+  React.useEffect(() => {
+    if (currentView === 'projects' || currentView === 'project-flows') {
+      setIsLoadingProjects(true)
+      getProjects()
+        .then(setProjects)
+        .catch(err => {
+          console.error('Error al cargar proyectos:', err)
+          setProjects([])
+        })
+        .finally(() => setIsLoadingProjects(false))
+    }
+  }, [currentView])
 
   // Sincronizar vista con el contexto FlowManager
   React.useEffect(() => {
@@ -147,6 +167,24 @@ export function Sidebar({
   }, [isCollapsed, currentView, onCollapse, closeFlowManager])
 
   const topSidebarItems: SidebarItem[] = [
+    {
+      id: 'projects',
+      icon: Folder,
+      label: 'Mis Proyectos',
+      onClick: () => {
+        // Si está colapsado, expandir primero y luego cambiar la vista
+        if (isCollapsed) {
+          isExpandingForFlowsRef.current = true
+          onToggleCollapse()
+          // Cambiar la vista después de un breve delay para asegurar que el sidebar se expanda
+          setTimeout(() => {
+            setCurrentView('projects')
+          }, 50)
+        } else {
+          setCurrentView('projects')
+        }
+      },
+    },
     {
       id: 'create-flow',
       icon: FlowsIcon,
@@ -196,10 +234,99 @@ export function Sidebar({
 
   const handleBackToMenu = () => {
     setCurrentView('menu')
+    setSelectedProjectId(null)
     if (closeFlowManager) {
       closeFlowManager()
     }
   }
+  
+  const handleBackToProjects = () => {
+    setCurrentView('projects')
+    setSelectedProjectId(null)
+  }
+  
+  // Handlers para proyectos
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) {
+      alert('Por favor, ingresa un nombre para el proyecto')
+      return
+    }
+    setIsCreatingProject(true)
+    try {
+      const project = await createProject(newProjectName.trim())
+      setProjects(prev => [...prev, project])
+      setNewProjectName('')
+    } catch (err) {
+      console.error('Error al crear proyecto:', err)
+      alert('Error al crear proyecto')
+    } finally {
+      setIsCreatingProject(false)
+    }
+  }
+  
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este proyecto? Los flujos no se eliminarán.')) {
+      return
+    }
+    try {
+      await deleteProject(projectId)
+      setProjects(prev => prev.filter(p => p.id !== projectId))
+      if (selectedProjectId === projectId) {
+        setSelectedProjectId(null)
+        setCurrentView('projects')
+      }
+    } catch (err) {
+      console.error('Error al eliminar proyecto:', err)
+      alert('Error al eliminar proyecto')
+    }
+  }
+  
+  const handleSelectProject = (projectId: string) => {
+    setSelectedProjectId(projectId)
+    setCurrentView('project-flows')
+  }
+  
+  const handleAddFlowToProject = async (flowId: string) => {
+    if (!selectedProjectId) return
+    try {
+      await addFlowToProject(selectedProjectId, flowId)
+      // Recargar proyectos para actualizar la lista
+      const updatedProjects = await getProjects()
+      setProjects(updatedProjects)
+    } catch (err) {
+      console.error('Error al agregar flujo al proyecto:', err)
+      alert('Error al agregar flujo al proyecto')
+    }
+  }
+  
+  const handleRemoveFlowFromProject = async (flowId: string) => {
+    if (!selectedProjectId) return
+    try {
+      await removeFlowFromProject(selectedProjectId, flowId)
+      // Recargar proyectos para actualizar la lista
+      const updatedProjects = await getProjects()
+      setProjects(updatedProjects)
+    } catch (err) {
+      console.error('Error al remover flujo del proyecto:', err)
+      alert('Error al remover flujo del proyecto')
+    }
+  }
+  
+  // Obtener flujos del proyecto seleccionado
+  const projectFlows = React.useMemo(() => {
+    if (!selectedProjectId) return []
+    const project = projects.find(p => p.id === selectedProjectId)
+    if (!project) return []
+    return flows.filter(f => project.flowIds.includes(f.id))
+  }, [selectedProjectId, projects, flows])
+  
+  // Obtener flujos disponibles para agregar al proyecto
+  const availableFlows = React.useMemo(() => {
+    if (!selectedProjectId) return []
+    const project = projects.find(p => p.id === selectedProjectId)
+    if (!project) return []
+    return flows.filter(f => !project.flowIds.includes(f.id))
+  }, [selectedProjectId, projects, flows])
 
   // Handlers para FlowManager
   const handleExport = async (flowId: string) => {
@@ -473,6 +600,227 @@ export function Sidebar({
                   className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   aria-label="Volver al menú principal"
                   title="Volver al menú principal"
+                >
+                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : currentView === 'projects' ? (
+          /* Vista de proyectos */
+          <div className="flex flex-col h-full absolute inset-0">
+            {/* Header de proyectos */}
+            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid flex-shrink-0">
+              <button
+                onClick={handleBackToMenu}
+                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                aria-label="Volver al menú principal"
+                title="Volver al menú principal"
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+              </button>
+              {!isCollapsed && (
+                <div className="flex items-center gap-2 flex-1">
+                  <Folder className="w-5 h-5 text-text-primary" strokeWidth={2} />
+                  <h2 className="text-lg font-semibold text-text-primary">Mis Proyectos</h2>
+                </div>
+              )}
+            </div>
+
+            {/* Contenido de proyectos */}
+            {!isCollapsed && (
+              <>
+                {/* Actions */}
+                <div className="p-3 border-b border-canvas-grid space-y-2 flex-shrink-0">
+                  {/* Create project */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleCreateProject()
+                        }
+                      }}
+                      placeholder="Nombre del proyecto..."
+                      disabled={isCreatingProject || isLoadingProjects}
+                      className="flex-1 px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                    />
+                    <button
+                      onClick={handleCreateProject}
+                      disabled={isCreatingProject || isLoadingProjects || !newProjectName.trim()}
+                      className="px-3 py-2 bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Crear proyecto"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Project list */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                  {isLoadingProjects ? (
+                    <div className="flex items-center justify-center py-8 text-text-secondary">
+                      <span className="text-sm">Cargando proyectos...</span>
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
+                      <Folder className="w-12 h-12 mb-3 opacity-50" />
+                      <p className="text-sm">No hay proyectos</p>
+                      <p className="text-xs text-text-tertiary mt-1">Crea un proyecto para organizar tus flujos</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {projects.map((project) => (
+                        <div
+                          key={project.id}
+                          className="p-3 bg-bg-primary rounded-md border border-node-border hover:border-node-border/80 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              onClick={() => handleSelectProject(project.id)}
+                              className="flex items-center gap-2 flex-1 text-left hover:text-accent-primary transition-colors"
+                            >
+                              <FolderOpen className="w-4 h-4 text-text-secondary" />
+                              <span className="text-sm font-medium text-text-primary">{project.name}</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProject(project.id)}
+                              className="p-1 text-text-secondary hover:text-status-error hover:bg-node-hover rounded transition-colors"
+                              title="Eliminar proyecto"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {project.description && (
+                            <p className="text-xs text-text-tertiary mb-2">{project.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 text-xs text-text-tertiary">
+                            <span>{project.flowIds.length} flujo{project.flowIds.length !== 1 ? 's' : ''}</span>
+                            <span>•</span>
+                            <span>{new Date(project.updatedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Si está colapsado, solo mostrar el botón de regresar */}
+            {isCollapsed && (
+              <div className="flex-1 flex items-center justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                  aria-label="Volver al menú principal"
+                  title="Volver al menú principal"
+                >
+                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : currentView === 'project-flows' ? (
+          /* Vista de flujos dentro de un proyecto */
+          <div className="flex flex-col h-full absolute inset-0">
+            {/* Header */}
+            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid flex-shrink-0">
+              <button
+                onClick={handleBackToProjects}
+                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                aria-label="Volver a proyectos"
+                title="Volver a proyectos"
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+              </button>
+              {!isCollapsed && (
+                <div className="flex items-center gap-2 flex-1">
+                  <FolderOpen className="w-5 h-5 text-text-primary" strokeWidth={2} />
+                  <h2 className="text-lg font-semibold text-text-primary truncate">
+                    {projects.find(p => p.id === selectedProjectId)?.name || 'Proyecto'}
+                  </h2>
+                </div>
+              )}
+            </div>
+
+            {/* Contenido */}
+            {!isCollapsed && (
+              <>
+                {/* Actions */}
+                <div className="p-3 border-b border-canvas-grid space-y-2 flex-shrink-0">
+                  {/* Agregar flujo al proyecto */}
+                  {availableFlows.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-text-secondary">Agregar flujo al proyecto</label>
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleAddFlowToProject(e.target.value)
+                            e.target.value = ''
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                        defaultValue=""
+                      >
+                        <option value="">Seleccionar flujo...</option>
+                        {availableFlows.map((flow) => (
+                          <option key={flow.id} value={flow.id}>
+                            {flow.label || flow.name || flow.id}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Flow list */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {projectFlows.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
+                      <FlowsIcon className="w-12 h-12 mb-3 opacity-50" />
+                      <p className="text-sm">No hay flujos en este proyecto</p>
+                      <p className="text-xs text-text-tertiary mt-1">
+                        {availableFlows.length > 0 
+                          ? 'Selecciona un flujo de arriba para agregarlo'
+                          : 'Todos los flujos ya están en este proyecto'}
+                      </p>
+                    </div>
+                  ) : (
+                    <FlowList
+                      flows={projectFlows}
+                      activeFlowId={activeFlowId}
+                      allNodes={allNodes}
+                      onSelectFlow={onSelectFlow || (() => {})}
+                      onEditFlow={onEditFlow || (() => {})}
+                      onDuplicateFlow={onDuplicateFlow || (() => {})}
+                      onExportFlow={handleExport}
+                      onDeleteFlow={(flowId) => {
+                        const flow = projectFlows.find((f) => f.id === flowId)
+                        setDeleteModal({
+                          isOpen: true,
+                          flowId,
+                          flowName: flow?.label || flow?.name || `Flow ${flowId.slice(0, 8)}`,
+                        })
+                      }}
+                      onConvertToSubflow={onConvertToSubflow}
+                      onRemoveFromProject={selectedProjectId ? (flowId) => handleRemoveFlowFromProject(flowId) : undefined}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Si está colapsado, solo mostrar el botón de regresar */}
+            {isCollapsed && (
+              <div className="flex-1 flex items-center justify-center">
+                <button
+                  onClick={handleBackToProjects}
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                  aria-label="Volver a proyectos"
+                  title="Volver a proyectos"
                 >
                   <ArrowLeft className="w-5 h-5" strokeWidth={2} />
                 </button>
