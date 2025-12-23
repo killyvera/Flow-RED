@@ -6,7 +6,7 @@
  * en el schema de Node-RED.
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Node } from 'reactflow'
 import { X, Loader2, Info, Settings, ChevronDown, ChevronUp, Database, Play, Code } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -660,6 +660,8 @@ export function NodePropertiesPanel({
   
   // Edges conectados al nodo (input/output)
   const edges = useCanvasStore((state) => state.edges)
+  const nodes = useCanvasStore((state) => state.nodes)
+  
   const inputEdges = useMemo(() => {
     if (!node?.id) return []
     return edges.filter(e => e.target === node.id)
@@ -669,6 +671,34 @@ export function NodePropertiesPanel({
     if (!node?.id) return []
     return edges.filter(e => e.source === node.id)
   }, [edges, node?.id])
+  
+  // Obtener información de nodos conectados (inputs)
+  const inputNodes = useMemo(() => {
+    if (!node?.id) return []
+    return inputEdges.map(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source)
+      return {
+        edge,
+        node: sourceNode,
+        name: sourceNode?.data?.label || sourceNode?.data?.nodeRedName || sourceNode?.data?.nodeRedType || edge.source,
+        type: sourceNode?.data?.nodeRedType || 'unknown',
+      }
+    })
+  }, [inputEdges, nodes])
+  
+  // Obtener información de nodos conectados (outputs)
+  const outputNodes = useMemo(() => {
+    if (!node?.id) return []
+    return outputEdges.map(edge => {
+      const targetNode = nodes.find(n => n.id === edge.target)
+      return {
+        edge,
+        node: targetNode,
+        name: targetNode?.data?.label || targetNode?.data?.nodeRedName || targetNode?.data?.nodeRedType || edge.target,
+        type: targetNode?.data?.nodeRedType || 'unknown',
+      }
+    })
+  }, [outputEdges, nodes])
 
   // Pestañas del panel - nueva estructura: data, execution, configuration, advanced
   type TabType = 'data' | 'execution' | 'configuration' | 'advanced'
@@ -689,29 +719,39 @@ export function NodePropertiesPanel({
   if (!isOpen || !node) return null
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-bg-primary border-l border-node-border shadow-lg z-50 flex flex-col">
-      {/* Header */}
-      <div className="border-b border-node-border flex-shrink-0">
-        <div className="p-3 flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold text-text-primary truncate">
-              {nodeName}
-            </h2>
-            <p className="text-xs text-text-tertiary truncate mt-0.5">
-              {nodeType}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
-            aria-label="Cerrar panel"
-          >
-            <X className="w-4 h-4" strokeWidth={2} />
-          </button>
-        </div>
-        
-        {/* Pestañas - nueva estructura */}
-        <div className="flex border-t border-node-border overflow-x-auto">
+    <>
+      {/* Overlay modal */}
+      <div 
+        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+        onClick={onClose}
+      >
+        {/* Modal container - 3 paneles */}
+        <div 
+          className="bg-bg-primary border border-node-border shadow-2xl rounded-lg w-[85vw] max-w-[1000px] h-[75vh] max-h-[700px] flex flex-col z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="border-b border-node-border flex-shrink-0">
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-semibold text-text-primary truncate">
+                  {nodeName}
+                </h2>
+                <p className="text-xs text-text-tertiary truncate mt-0.5">
+                  {nodeType}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-text-secondary hover:text-text-primary transition-colors p-1.5 rounded-md hover:bg-bg-secondary flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                aria-label="Cerrar panel"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+            
+            {/* Pestañas - nueva estructura */}
+            <div className="flex border-t border-node-border overflow-x-auto">
           {/* Tab Data - siempre visible */}
           <button
             onClick={() => setActiveTab('data')}
@@ -831,12 +871,60 @@ export function NodePropertiesPanel({
             >
               Context
             </button>
+            </div>
+          )}
           </div>
-        )}
-      </div>
 
-      {/* Contenido scrollable */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Contenido principal - 3 paneles */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Panel izquierdo - Inputs */}
+            <div className="w-56 border-r border-node-border bg-bg-secondary/30 flex flex-col flex-shrink-0">
+              <div className="p-3 border-b border-node-border">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Input Connections
+                </h3>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+                {inputNodes.length > 0 ? (
+                  <div className="space-y-2">
+                    {inputNodes.map(({ edge, name, type }) => (
+                      <div
+                        key={edge.id}
+                        className="p-3 bg-bg-primary rounded-md border border-node-border/50 hover:border-node-border transition-colors"
+                      >
+                        <div className="text-xs font-medium text-text-primary mb-1">
+                          {name}
+                        </div>
+                        <div className="text-[10px] text-text-tertiary mb-2">
+                          {type}
+                        </div>
+                        <div className="text-[10px] text-text-secondary font-mono">
+                          {edge.source}
+                          {edge.sourceHandle && ` [${edge.sourceHandle}]`}
+                          {' → '}
+                          {edge.target}
+                          {edge.targetHandle && ` [${edge.targetHandle}]`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-text-secondary">
+                    <p className="text-xs">No input connections</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">
+                      {isTriggerNode(nodeType || '') 
+                        ? 'This is a trigger node - no inputs'
+                        : 'No upstream nodes connected'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Panel central - Propiedades */}
+            <div className="w-96 flex flex-col min-w-0 flex-shrink-0">
+              {/* Contenido scrollable */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
         {activeTab === 'data' ? (
           /* Tab Data con sub-tabs */
           <div className="p-3 space-y-4">
@@ -1381,7 +1469,53 @@ export function NodePropertiesPanel({
             </div>
           </div>
         ) : null}
+              </div>
+            </div>
+
+            {/* Panel derecho - Outputs */}
+            <div className="w-56 border-l border-node-border bg-bg-secondary/30 flex flex-col flex-shrink-0">
+              <div className="p-3 border-b border-node-border">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Output Connections
+                </h3>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+                {outputNodes.length > 0 ? (
+                  <div className="space-y-2">
+                    {outputNodes.map(({ edge, name, type }) => (
+                      <div
+                        key={edge.id}
+                        className="p-3 bg-bg-primary rounded-md border border-node-border/50 hover:border-node-border transition-colors"
+                      >
+                        <div className="text-xs font-medium text-text-primary mb-1">
+                          {name}
+                        </div>
+                        <div className="text-[10px] text-text-tertiary mb-2">
+                          {type}
+                        </div>
+                        <div className="text-[10px] text-text-secondary font-mono">
+                          {edge.source}
+                          {edge.sourceHandle && ` [${edge.sourceHandle}]`}
+                          {' → '}
+                          {edge.target}
+                          {edge.targetHandle && ` [${edge.targetHandle}]`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-text-secondary">
+                    <p className="text-xs">No output connections</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">
+                      No downstream nodes connected
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
