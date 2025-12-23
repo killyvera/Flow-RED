@@ -17,6 +17,7 @@ export interface FlowListProps {
   onExportFlow: (flowId: string) => void
   onDeleteFlow: (flowId: string) => void
   onConvertToSubflow?: (flowId: string) => Promise<void>
+  onRemoveFromProject?: (flowId: string) => void
 }
 
 export function FlowList({
@@ -29,6 +30,7 @@ export function FlowList({
   onExportFlow,
   onDeleteFlow,
   onConvertToSubflow,
+  onRemoveFromProject,
 }: FlowListProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -79,6 +81,7 @@ export function FlowList({
               onExport={() => onExportFlow(flow.id)}
               onDelete={() => onDeleteFlow(flow.id)}
               onConvertToSubflow={onConvertToSubflow ? () => onConvertToSubflow(flow.id) : undefined}
+              onRemoveFromProject={onRemoveFromProject ? () => onRemoveFromProject(flow.id) : undefined}
             />
           ))
         )}
