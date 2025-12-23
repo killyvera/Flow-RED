@@ -297,6 +297,10 @@ export function CanvasPage() {
   // Estado para búsqueda
   const [isSearchOpen, setIsSearchOpen] = React.useState(false)
 
+  // Estado para editar nombre del flow
+  const [isEditingFlowName, setIsEditingFlowName] = React.useState(false)
+  const [editingFlowName, setEditingFlowName] = React.useState('')
+
   // Estado para navegación de subflows (breadcrumb)
   const [subflowBreadcrumb, setSubflowBreadcrumb] = React.useState<Array<{
     flowId: string
@@ -2697,6 +2701,63 @@ export function CanvasPage() {
     }))
   }, [flows, activeFlowId, isDirty])
 
+  // Handler para iniciar edición del nombre del flow
+  const handleStartEditFlowName = useCallback(() => {
+    if (!activeFlowId) return
+    const currentFlow = flows.find((f) => f.id === activeFlowId)
+    const currentName = currentFlow?.label || currentFlow?.name || 'Flow activo'
+    setEditingFlowName(currentName)
+    setIsEditingFlowName(true)
+  }, [activeFlowId, flows])
+
+  // Handler para guardar el nuevo nombre del flow
+  const handleSaveFlowName = useCallback(async () => {
+    if (!activeFlowId || !editingFlowName.trim()) {
+      setIsEditingFlowName(false)
+      return
+    }
+
+    try {
+      // Obtener el nodo tab del flow actual
+      const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes
+      const flowTab = currentNodeRedNodes.find(n => n.type === 'tab' && n.id === activeFlowId)
+      
+      if (flowTab) {
+        // Actualizar el label del tab
+        const updatedTab = { ...flowTab, label: editingFlowName.trim() }
+        
+        // Obtener todos los nodos del flow actual
+        const flowNodes = currentNodeRedNodes.filter(n => n.z === activeFlowId || n.id === activeFlowId)
+        const otherNodes = currentNodeRedNodes.filter(n => n.z !== activeFlowId && n.id !== activeFlowId)
+        
+        // Reemplazar el tab en la lista de nodos
+        const updatedNodes = [
+          ...otherNodes,
+          updatedTab,
+          ...flowNodes.filter(n => n.id !== activeFlowId)
+        ]
+        
+        // Guardar el flow con el nuevo nombre
+        await saveFlow(activeFlowId, updatedNodes)
+        
+        // Recargar flows para actualizar la UI
+        await loadFlows()
+      }
+      
+      setIsEditingFlowName(false)
+    } catch (err) {
+      console.error('Error al guardar nombre del flow:', err)
+      alert('Error al guardar el nombre del flow')
+      setIsEditingFlowName(false)
+    }
+  }, [activeFlowId, editingFlowName, loadFlows])
+
+  // Handler para cancelar edición
+  const handleCancelEditFlowName = useCallback(() => {
+    setIsEditingFlowName(false)
+    setEditingFlowName('')
+  }, [])
+
   // Función wrapper para switchFlow que verifica cambios no guardados
   const handleSwitchFlow = useCallback(async (newFlowId: string) => {
     if (isDirty) {
@@ -3206,13 +3267,37 @@ export function CanvasPage() {
       <div className="bg-bg-secondary border-b border-canvas-grid p-2 flex items-center justify-between gap-4 w-full min-w-0" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
         {/* Contenido izquierdo - Nombre del flow */}
         <div className="flex items-center gap-4 flex-shrink-0">
-          {/* Nombre del flujo actual */}
+          {/* Nombre del flujo actual - Editable */}
           {!isLoading && !error && activeFlowId && (
-            <div className="text-xs font-medium text-text-primary whitespace-nowrap">
-              {flows.find((f) => f.id === activeFlowId)?.label ||
-                flows.find((f) => f.id === activeFlowId)?.name ||
-                'Flow activo'}
-            </div>
+            <>
+              {isEditingFlowName ? (
+                <input
+                  type="text"
+                  value={editingFlowName}
+                  onChange={(e) => setEditingFlowName(e.target.value)}
+                  onBlur={handleSaveFlowName}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveFlowName()
+                    } else if (e.key === 'Escape') {
+                      handleCancelEditFlowName()
+                    }
+                  }}
+                  autoFocus
+                  className="text-xs font-medium text-text-primary bg-bg-primary border border-accent-primary rounded px-2 py-1 min-w-[100px] focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                />
+              ) : (
+                <div
+                  onClick={handleStartEditFlowName}
+                  className="text-xs font-medium text-text-primary whitespace-nowrap cursor-pointer hover:text-accent-primary transition-colors"
+                  title="Haz clic para editar el nombre"
+                >
+                  {flows.find((f) => f.id === activeFlowId)?.label ||
+                    flows.find((f) => f.id === activeFlowId)?.name ||
+                    'Flow activo'}
+                </div>
+              )}
+            </>
           )}
 
           {/* Estado de carga */}
