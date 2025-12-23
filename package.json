@@ -13,8 +13,8 @@
     "seed-flows": "node scripts/seed-flows.js",
     "bench:generate": "npx tsx scripts/bench/generateFlow.ts",
     "setup:node-red": "node scripts/setup-node-red.js",
-    "start:node-red": "npx node-red --settings ./settings.redflow.js",
-    "start:node-red:verbose": "npx node-red --settings ./settings.redflow.js --verbose"
+    "start:node-red": "npx node-red --settings ./settings.redflow.cjs",
+    "start:node-red:verbose": "npx node-red --settings ./settings.redflow.cjs --verbose"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.1",

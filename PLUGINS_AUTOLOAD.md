@@ -2,16 +2,16 @@
 
 Este documento explica cómo configurar Node-RED para que cargue automáticamente los plugins de Redflow al iniciar.
 
-## Método 1: Usar settings.redflow.js (Recomendado)
+## Método 1: Usar settings.redflow.cjs (Recomendado)
 
 ### Paso 1: Usar el archivo de configuración incluido
 
-El proyecto incluye `settings.redflow.js` que ya está configurado para cargar automáticamente todos los plugins.
+El proyecto incluye `settings.redflow.cjs` que ya está configurado para cargar automáticamente todos los plugins.
 
 ### Paso 2: Iniciar Node-RED con este archivo
 
 ```bash
-node-red --settings ./settings.redflow.js
+node-red --settings ./settings.redflow.cjs
 ```
 
 ### Paso 3: Verificar que los plugins se cargaron
