@@ -1,0 +1,416 @@
+<!--
+  Agent Core Node - Editor Configuration UI
+  
+  This file defines the Node-RED editor interface for the agent-core node.
+  It includes the configuration form, help text, and client-side JavaScript.
+-->
+
+<script type="text/javascript">
+  RED.nodes.registerType('agent-core', {
+    category: 'AI Agents',
+    color: '#9B59B6',
+    defaults: {
+      name: { value: "" },
+      strategy: { value: "react", required: true },
+      maxIterations: { value: 5, required: true, validate: RED.validators.number() },
+      allowedTools: { value: [] },
+      stopConditions: { value: [] },
+      modelPromptTemplate: { value: "" },
+      debug: { value: false }
+    },
+    inputs: 1,
+    outputs: 3,
+    outputLabels: ["model", "tool", "result"],
+    icon: "font-awesome/fa-robot",
+    label: function() {
+      return this.name || "agent-core";
+    },
+    labelStyle: function() {
+      return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function() {
+      const node = this;
+
+      // Initialize tabs
+      const tabs = RED.tabs.create({
+        id: "node-input-agent-core-tabs",
+        onchange: function(tab) {
+          $("#node-input-agent-core-tabs-content").children().hide();
+          $("#" + tab.id).show();
+        }
+      });
+
+      tabs.addTab({
+        id: "agent-core-tab-strategy",
+        label: "Strategy"
+      });
+
+      tabs.addTab({
+        id: "agent-core-tab-tools",
+        label: "Tools"
+      });
+
+      tabs.addTab({
+        id: "agent-core-tab-conditions",
+        label: "Stop Conditions"
+      });
+
+      tabs.addTab({
+        id: "agent-core-tab-model",
+        label: "Model"
+      });
+
+      tabs.addTab({
+        id: "agent-core-tab-debug",
+        label: "Debug"
+      });
+
+      // Initialize allowed tools list
+      if (!node.allowedTools) {
+        node.allowedTools = [];
+      }
+
+      function updateToolsList() {
+        const container = $("#node-input-tools-container");
+        container.empty();
+
+        node.allowedTools.forEach(function(tool, index) {
+          const row = $('<div/>', {
+            class: 'form-row',
+            style: 'display: flex; gap: 8px; margin-bottom: 8px;'
+          }).appendTo(container);
+
+          $('<input/>', {
+            type: 'text',
+            class: 'tool-name',
+            placeholder: 'Tool name (e.g., http-request)',
+            value: tool,
+            style: 'flex: 1;'
+          }).appendTo(row);
+
+          $('<button/>', {
+            type: 'button',
+            class: 'red-ui-button',
+            text: 'Remove'
+          }).on('click', function() {
+            node.allowedTools.splice(index, 1);
+            updateToolsList();
+          }).appendTo(row);
+        });
+      }
+
+      // Add tool button
+      $("#node-input-add-tool").on('click', function() {
+        node.allowedTools.push("");
+        updateToolsList();
+      });
+
+      updateToolsList();
+
+      // Initialize stop conditions list
+      if (!node.stopConditions) {
+        node.stopConditions = [];
+      }
+
+      function updateConditionsList() {
+        const container = $("#node-input-conditions-container");
+        container.empty();
+
+        node.stopConditions.forEach(function(condition, index) {
+          const row = $('<div/>', {
+            class: 'form-row',
+            style: 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;'
+          }).appendTo(container);
+
+          $('<select/>', {
+            class: 'condition-type',
+            style: 'width: 150px;'
+          })
+          .append($('<option value="maxIterations">Max Iterations</option>'))
+          .append($('<option value="goalAchieved">Goal Achieved</option>'))
+          .append($('<option value="timeout">Timeout</option>'))
+          .append($('<option value="error">Error</option>'))
+          .val(condition.type || 'maxIterations')
+          .appendTo(row);
+
+          $('<input/>', {
+            type: 'text',
+            class: 'condition-value',
+            placeholder: 'Value',
+            value: condition.value || '',
+            style: 'flex: 1;'
+          }).appendTo(row);
+
+          $('<button/>', {
+            type: 'button',
+            class: 'red-ui-button',
+            text: 'Remove'
+          }).on('click', function() {
+            node.stopConditions.splice(index, 1);
+            updateConditionsList();
+          }).appendTo(row);
+        });
+      }
+
+      // Add condition button
+      $("#node-input-add-condition").on('click', function() {
+        node.stopConditions.push({ type: 'maxIterations', value: '' });
+        updateConditionsList();
+      });
+
+      updateConditionsList();
+    },
+    oneditsave: function() {
+      const node = this;
+
+      // Save allowed tools
+      node.allowedTools = [];
+      $("#node-input-tools-container .tool-name").each(function() {
+        const val = $(this).val().trim();
+        if (val) {
+          node.allowedTools.push(val);
+        }
+      });
+
+      // Save stop conditions
+      node.stopConditions = [];
+      $("#node-input-conditions-container > div").each(function() {
+        const type = $(this).find('.condition-type').val();
+        const value = $(this).find('.condition-value').val().trim();
+        if (type && value) {
+          node.stopConditions.push({ type: type, value: value });
+        }
+      });
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="agent-core">
+  <!-- Tabs Container -->
+  <div id="node-input-agent-core-tabs-container" style="min-height: 400px;">
+    <ul id="node-input-agent-core-tabs" style="min-width: 600px; margin-bottom: 20px;"></ul>
+    
+    <div id="node-input-agent-core-tabs-content" style="min-height: 300px;">
+      
+      <!-- Strategy Tab -->
+      <div id="agent-core-tab-strategy" style="display:none">
+        <div class="form-row">
+          <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+          <input type="text" id="node-input-name" placeholder="Agent Core">
+        </div>
+        
+        <div class="form-row">
+          <label for="node-input-strategy"><i class="fa fa-cogs"></i> Strategy</label>
+          <select id="node-input-strategy" style="width: 70%;">
+            <option value="react">REACT (Reason → Act)</option>
+          </select>
+        </div>
+        
+        <div class="form-row">
+          <label for="node-input-maxIterations"><i class="fa fa-repeat"></i> Max Iterations</label>
+          <input type="number" id="node-input-maxIterations" min="1" max="20" placeholder="5" style="width: 70%;">
+        </div>
+
+        <div class="form-tips">
+          <strong>Strategy:</strong> REACT (Reason → Act) implements a loop where the agent:
+          <ol>
+            <li><strong>Reasons</strong>: Analyzes the current state and decides next action</li>
+            <li><strong>Acts</strong>: Executes the chosen action via a tool</li>
+            <li>Repeats until goal is achieved or stop condition is met</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Tools Tab -->
+      <div id="agent-core-tab-tools" style="display:none">
+        <div class="form-row">
+          <label style="width: 100%; margin-bottom: 10px;">
+            <i class="fa fa-wrench"></i> Allowed Tools
+          </label>
+          <div id="node-input-tools-container" style="width: 100%;"></div>
+          <button type="button" id="node-input-add-tool" class="red-ui-button" style="margin-top: 10px;">
+            <i class="fa fa-plus"></i> Add Tool
+          </button>
+        </div>
+
+        <div class="form-tips" style="margin-top: 20px;">
+          <strong>Tool Configuration:</strong>
+          <ul>
+            <li>Only listed tools can be called by the agent</li>
+            <li>Tool names should match the Node-RED node types (e.g., "http request", "function", "exec")</li>
+            <li>Leave empty to allow all tools (not recommended for production)</li>
+            <li>The agent will validate tool calls against this whitelist</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Stop Conditions Tab -->
+      <div id="agent-core-tab-conditions" style="display:none">
+        <div class="form-row">
+          <label style="width: 100%; margin-bottom: 10px;">
+            <i class="fa fa-stop-circle"></i> Stop Conditions
+          </label>
+          <div id="node-input-conditions-container" style="width: 100%;"></div>
+          <button type="button" id="node-input-add-condition" class="red-ui-button" style="margin-top: 10px;">
+            <i class="fa fa-plus"></i> Add Condition
+          </button>
+        </div>
+
+        <div class="form-tips" style="margin-top: 20px;">
+          <strong>Stop Condition Types:</strong>
+          <ul>
+            <li><strong>Max Iterations</strong>: Stop after N iterations (e.g., "5")</li>
+            <li><strong>Goal Achieved</strong>: Stop when model declares goal met (value: "true")</li>
+            <li><strong>Timeout</strong>: Stop after N seconds (e.g., "30")</li>
+            <li><strong>Error</strong>: Stop on any error (value: "true")</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Model Tab -->
+      <div id="agent-core-tab-model" style="display:none">
+        <div class="form-row">
+          <label for="node-input-modelPromptTemplate" style="width: 100%; margin-bottom: 10px;">
+            <i class="fa fa-file-text"></i> Model Prompt Template
+          </label>
+          <textarea id="node-input-modelPromptTemplate" rows="15" style="width: 100%; font-family: monospace; font-size: 12px;" placeholder="You are an AI agent that follows the REACT strategy...
+
+Available Tools:
+{{tools}}
+
+Current Iteration: {{iteration}}
+History: {{history}}
+
+Task: {{task}}
+
+Respond with JSON:
+{
+  &quot;reason&quot;: &quot;your reasoning&quot;,
+  &quot;action&quot;: &quot;tool_name&quot;,
+  &quot;parameters&quot;: {...}
+}"></textarea>
+        </div>
+
+        <div class="form-tips">
+          <strong>Template Variables:</strong>
+          <ul>
+            <li><code>{{tools}}</code>: List of available tools</li>
+            <li><code>{{iteration}}</code>: Current iteration number</li>
+            <li><code>{{history}}</code>: Previous actions and results</li>
+            <li><code>{{task}}</code>: The current task/goal</li>
+            <li><code>{{state}}</code>: Current agent state</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Debug Tab -->
+      <div id="agent-core-tab-debug" style="display:none">
+        <div class="form-row">
+          <label for="node-input-debug" style="width: auto;">
+            <i class="fa fa-bug"></i> Enable Debug Mode
+          </label>
+          <input type="checkbox" id="node-input-debug" style="width: auto; margin-left: 10px;">
+        </div>
+
+        <div class="form-tips">
+          <strong>Debug Mode:</strong>
+          <ul>
+            <li>Logs detailed information about each iteration</li>
+            <li>Shows model requests and responses</li>
+            <li>Displays tool execution details</li>
+            <li>Tracks envelope transformations</li>
+            <li><strong>Warning:</strong> May generate large amounts of log data</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="agent-core">
+  <p>
+    <strong>Agent Core Node</strong> - REACT Strategy Orchestrator for AI Agent Workflows
+  </p>
+
+  <h3>Overview</h3>
+  <p>
+    The Agent Core node orchestrates AI agent workflows using the REACT (Reason → Act) strategy.
+    It does NOT execute actions directly - it only routes, validates, and orchestrates message flow
+    between Model nodes (reasoning) and Tool nodes (actions).
+  </p>
+
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>Initial task or continuation envelope from a Tool node</dd>
+    
+    <dt>task <span class="property-type">string</span></dt>
+    <dd>The goal/task for the agent to accomplish (optional, can be in payload)</dd>
+  </dl>
+
+  <h3>Outputs</h3>
+  <ol class="node-ports">
+    <li>Model Output
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">AgentEnvelope</span></dt>
+        <dd>Envelope sent to Model node for reasoning</dd>
+      </dl>
+    </li>
+    <li>Tool Output
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">AgentEnvelope</span></dt>
+        <dd>Envelope sent to Tool node for execution</dd>
+      </dl>
+    </li>
+    <li>Result Output
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>Final result when agent completes or stops</dd>
+      </dl>
+    </li>
+  </ol>
+
+  <h3>Configuration</h3>
+  <dl class="message-properties">
+    <dt>Strategy</dt>
+    <dd>REACT (Reason → Act) - only strategy currently supported</dd>
+    
+    <dt>Max Iterations</dt>
+    <dd>Maximum number of REACT loops before stopping (1-20)</dd>
+    
+    <dt>Allowed Tools</dt>
+    <dd>Whitelist of tool node types the agent can use</dd>
+    
+    <dt>Stop Conditions</dt>
+    <dd>Conditions that will halt the agent loop</dd>
+    
+    <dt>Model Prompt Template</dt>
+    <dd>Template for prompts sent to the Model node</dd>
+  </dl>
+
+  <h3>REACT Loop Flow</h3>
+  <ol>
+    <li>Agent Core receives task → sends to Model (output 1)</li>
+    <li>Model responds with action → Agent validates → sends to Tool (output 2)</li>
+    <li>Tool executes → returns to Agent Core (input)</li>
+    <li>Agent checks stop conditions → repeats or outputs result (output 3)</li>
+  </ol>
+
+  <h3>Details</h3>
+  <p>
+    This node is a pure orchestrator - it manages the REACT loop but does not:
+  </p>
+  <ul>
+    <li>Call LLM APIs (use a Model node)</li>
+    <li>Execute HTTP requests (use http-request node)</li>
+    <li>Run database queries (use appropriate tool node)</li>
+    <li>Store data (use context or database node)</li>
+  </ul>
+
+  <p>
+    <strong>For more information:</strong> See the agent-core documentation in 
+    <code>plugins/agent-core/README.md</code>
+  </p>
+</script>
+

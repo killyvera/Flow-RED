@@ -9,7 +9,8 @@
   "node-red": {
     "version": ">=3.0.0",
     "nodes": {
-      "agent-core": "index.js"
+      "agent-core": "index.js",
+      "agent-core-html": "agent-core.html"
     }
   },
   "keywords": [
