@@ -23,11 +23,11 @@ function AgentCoreNode(RED, config) {
   const node = this;
 
   // Configuration
-  node.strategy = config.strategy || 'react';
-  node.maxIterations = parseInt(config.maxIterations) || 5;
-  node.allowedTools = config.allowedTools || [];
-  node.stopConditions = config.stopConditions || [];
-  node.debug = config.debug || false;
+  node.strategy = (config && config.strategy) || 'react';
+  node.maxIterations = parseInt((config && config.maxIterations) || 5);
+  node.allowedTools = (config && config.allowedTools) || [];
+  node.stopConditions = (config && config.stopConditions) || [];
+  node.debug = (config && config.debug) || false;
 
   // Initialize strategy
   node.reactStrategy = new ReactStrategy({
