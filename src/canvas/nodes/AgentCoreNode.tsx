@@ -1,31 +1,25 @@
 /**
- * AgentCoreNode - Nodo visual para el Agent Core
+ * AgentCoreNode - Nodo personalizado para Agent Core
  * 
- * Características especiales:
- * - 3 outputs: model, tool, result
- * - Visualización de estado de ejecución
- * - Indicadores de iteración actual
- * - Badge con estrategia REACT
+ * Este nodo tiene un layout especial:
+ * - Input (izquierda): Recibe datos
+ * - Output 0 (bottom-left): Model - Para enviar prompts al LLM
+ * - Output 1 (bottom-center): Tool - Para ejecutar herramientas
+ * - Output 2 (bottom-right): Memory - Para interactuar con memoria
+ * - Output 3 (derecha): Result - Resultado final
  */
 
 import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
-import { Brain, Wrench, CheckCircle } from 'lucide-react'
+import { Brain, Wrench, Database } from 'lucide-react'
 
 /**
  * AgentCoreNode Component
- * 
- * Extiende BaseNode con visualización específica para el agente:
- * - Output 0 (top): Model (cerebro)
- * - Output 1 (middle): Tool (herramienta)
- * - Output 2 (bottom): Result (check)
  */
 export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const nodeData = (data.data || data) as any
   const label = nodeData.label || 'Agent Core'
-  
-  // Estado del agente (si está ejecutando)
   const isExecuting = nodeData.isExecuting || false
   const currentIteration = nodeData.currentIteration || 0
   const maxIterations = nodeData.maxIterations || 5
@@ -33,127 +27,232 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
   return (
     <div
       className={`
-        relative rounded-lg shadow-lg transition-all duration-200
-        ${selected ? 'ring-2 ring-blue-500' : ''}
+        relative bg-node-default border border-node-border rounded-lg shadow-node
+        transition-all duration-200
+        ${selected ? 'ring-2 ring-accent-primary' : ''}
         ${isExecuting ? 'animate-pulse' : ''}
       `}
       style={{
-        minWidth: '200px',
-        backgroundColor: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
+        minWidth: '180px',
+        minHeight: '120px',
       }}
     >
-      {/* Input Handle */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="input"
+      {/* Input Handle (Izquierda) */}
+      <div
         style={{
-          width: '12px',
-          height: '12px',
-          background: 'var(--color-primary)',
-          border: '2px solid var(--color-surface)',
+          position: 'absolute',
+          left: -5,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
         }}
-      />
+      >
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="input"
+          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+          style={{
+            left: 0,
+            top: '50%',
+          }}
+        />
+      </div>
+
+      {/* Output Handle (Derecha) - Result */}
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'output-3',
+              handleType: 'source',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
+        }}
+        style={{
+          position: 'absolute',
+          right: -5,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
+        }}
+      >
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="output-3"
+          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+          style={{
+            right: 0,
+            top: '50%',
+          }}
+        />
+      </div>
 
       {/* Header */}
       <div
-        className="px-4 py-3 rounded-t-lg flex items-center gap-2"
+        className="px-3 py-2 rounded-t-lg flex items-center gap-2"
         style={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: '#ffffff',
         }}
       >
-        <Brain className="w-5 h-5" />
-        <div className="flex-1">
-          <div className="font-semibold text-sm">{label}</div>
-          <div className="text-xs opacity-80">REACT Strategy</div>
+        <Brain className="w-4 h-4" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-[11px] truncate">Agent Core</div>
+          <div className="text-[9px] opacity-80">REACT</div>
         </div>
         {isExecuting && (
-          <div className="text-xs bg-white/20 px-2 py-1 rounded">
+          <div className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded">
             {currentIteration}/{maxIterations}
           </div>
         )}
       </div>
 
       {/* Body */}
-      <div className="px-4 py-3 space-y-2">
-        <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-          Orchestrates AI agent workflows
-        </div>
-        
-        {/* Output indicators */}
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center gap-2" style={{ color: 'var(--color-text-tertiary)' }}>
-            <Brain className="w-3 h-3" />
+      <div className="px-3 py-2 pb-4">
+        {/* Output indicators en la parte inferior */}
+        <div className="flex items-center justify-around gap-2 mt-2">
+          <div className="flex flex-col items-center gap-0.5 text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>
+            <Brain className="w-3 h-3" style={{ color: '#667eea' }} />
             <span>Model</span>
           </div>
-          <div className="flex items-center gap-2" style={{ color: 'var(--color-text-tertiary)' }}>
-            <Wrench className="w-3 h-3" />
+          <div className="flex flex-col items-center gap-0.5 text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>
+            <Wrench className="w-3 h-3" style={{ color: '#f59e0b' }} />
             <span>Tool</span>
           </div>
-          <div className="flex items-center gap-2" style={{ color: 'var(--color-text-tertiary)' }}>
-            <CheckCircle className="w-3 h-3" />
-            <span>Result</span>
+          <div className="flex flex-col items-center gap-0.5 text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>
+            <Database className="w-3 h-3" style={{ color: '#8b5cf6' }} />
+            <span>Memory</span>
           </div>
         </div>
       </div>
 
-      {/* Output Handles - 3 outputs */}
-      {/* Output 0: Model (top) */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="output-0"
-        style={{
-          top: '35%',
-          width: '12px',
-          height: '12px',
-          background: '#667eea',
-          border: '2px solid var(--color-surface)',
-        }}
-      />
-
-      {/* Output 1: Tool (middle) */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="output-1"
-        style={{
-          top: '50%',
-          width: '12px',
-          height: '12px',
-          background: '#f59e0b',
-          border: '2px solid var(--color-surface)',
-        }}
-      />
-
-      {/* Output 2: Result (bottom) */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="output-2"
-        style={{
-          top: '65%',
-          width: '12px',
-          height: '12px',
-          background: '#10b981',
-          border: '2px solid var(--color-surface)',
-        }}
-      />
-
-      {/* Label debajo del nodo */}
+      {/* Bottom Handles - Model, Tool, Memory */}
+      {/* Output 0: Model (izquierda) */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 text-xs text-center whitespace-nowrap px-2 py-1 rounded"
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'output-0',
+              handleType: 'source',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
+        }}
         style={{
-          top: '100%',
-          marginTop: '4px',
-          color: 'var(--color-text-secondary)',
-          backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
+          position: 'absolute',
+          left: '25%',
+          bottom: -5,
+          transform: 'translateX(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
         }}
       >
-        {label}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="output-0"
+          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
+          style={{
+            left: '50%',
+            bottom: 0,
+            background: '#667eea',
+          }}
+        />
+      </div>
+
+      {/* Output 1: Tool (centro) */}
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'output-1',
+              handleType: 'source',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
+        }}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          bottom: -5,
+          transform: 'translateX(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
+        }}
+      >
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="output-1"
+          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
+          style={{
+            left: '50%',
+            bottom: 0,
+            background: '#f59e0b',
+          }}
+        />
+      </div>
+
+      {/* Output 2: Memory (derecha) */}
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'output-2',
+              handleType: 'source',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
+        }}
+        style={{
+          position: 'absolute',
+          left: '75%',
+          bottom: -5,
+          transform: 'translateX(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
+        }}
+      >
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="output-2"
+          className="!w-2.5 !h-2.5 !border-2 !border-node-border hover:!border-accent-primary transition-all duration-200"
+          style={{
+            left: '50%',
+            bottom: 0,
+            background: '#8b5cf6',
+          }}
+        />
+      </div>
+
+      {/* Label debajo del nodo */}
+      <div className="absolute top-full left-0 right-0 mt-1 text-center">
+        <span className="text-[10px] text-text-secondary font-medium">
+          {label}
+        </span>
       </div>
     </div>
   )

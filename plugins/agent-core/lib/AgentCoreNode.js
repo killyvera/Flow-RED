@@ -81,14 +81,18 @@ function AgentCoreNode(RED, config) {
       node.reactStrategy.execute(envelope, {
         sendToModel: (modelMsg) => {
           // Output 0: model
-          send([modelMsg, null, null]);
+          send([modelMsg, null, null, null]);
         },
         sendToTool: (toolMsg) => {
           // Output 1: tool
-          send([null, toolMsg, null]);
+          send([null, toolMsg, null, null]);
+        },
+        sendToMemory: (memoryMsg) => {
+          // Output 2: memory
+          send([null, null, memoryMsg, null]);
         },
         onComplete: (finalEnvelope) => {
-          // Output 2: result
+          // Output 3: result
           const resultMsg = {
             ...msg,
             payload: finalEnvelope,
@@ -98,7 +102,7 @@ function AgentCoreNode(RED, config) {
               traceId: finalEnvelope.observability.traceId
             }
           };
-          send([null, null, resultMsg]);
+          send([null, null, null, resultMsg]);
           
           // Cleanup
           node.activeExecutions.delete(executionId);
