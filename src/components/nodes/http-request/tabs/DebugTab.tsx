@@ -21,11 +21,18 @@ export function DebugTab({ nodeData }: DebugTabProps) {
   const [showSecrets, setShowSecrets] = useState(false)
 
   // Redactar secretos de un valor
-  const redactSecret = (value: string, show: boolean): string => {
-    if (show) return value
+  const redactSecret = (value: any, show: boolean): string => {
+    // Convertir a string si no lo es
+    const stringValue = typeof value === 'string' 
+      ? value 
+      : typeof value === 'object' 
+        ? JSON.stringify(value)
+        : String(value || '')
+    
+    if (show) return stringValue
 
     // Detectar tokens/secrets
-    const lowerValue = value.toLowerCase()
+    const lowerValue = stringValue.toLowerCase()
     if (
       lowerValue.includes('bearer') ||
       lowerValue.includes('token') ||
@@ -34,14 +41,14 @@ export function DebugTab({ nodeData }: DebugTabProps) {
       lowerValue.includes('password')
     ) {
       // Extraer y redactar la parte secreta
-      const parts = value.split(' ')
+      const parts = stringValue.split(' ')
       if (parts.length > 1) {
         return `${parts[0]} ***REDACTED***`
       }
       return '***REDACTED***'
     }
 
-    return value
+    return stringValue
   }
 
   // Generar preview de la petición
@@ -54,7 +61,7 @@ export function DebugTab({ nodeData }: DebugTabProps) {
     // Headers redactados
     const redactedHeaders: Record<string, string> = {}
     for (const [key, value] of Object.entries(headers)) {
-      redactedHeaders[key] = redactSecret(value as string, showSecrets)
+      redactedHeaders[key] = redactSecret(value, showSecrets)
     }
 
     // Construir preview
