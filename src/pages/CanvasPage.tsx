@@ -3796,40 +3796,6 @@ export function CanvasPage() {
           
         </div>
 
-        {/* Panel de propiedades para grupos */}
-        {isEditMode && selectedNode?.type === 'group' && (
-          <GroupPropertiesPanel
-            node={selectedNode}
-            isOpen={isPropertiesOpen}
-            onClose={() => {
-              setIsPropertiesOpen(false)
-              setSelectedNode(null)
-            }}
-            onUpdateGroup={handleUpdateGroup}
-          />
-        )}
-
-        {/* Panel de propiedades para nodos normales (solo si no es grupo) */}
-        {/* Visible en modo edición (ambas pestañas) y fuera de modo edición (solo estado) */}
-        {selectedNode && selectedNode.type !== 'group' && (
-          <NodePropertiesPanel
-            node={selectedNode}
-            isOpen={isPropertiesOpen}
-            isEditMode={isEditMode}
-            onClose={() => {
-              setIsPropertiesOpen(false)
-              setSelectedNode(null)
-            }}
-            onUpdateNode={isEditMode ? (nodeId, updates) => {
-              const updatedNodes = nodes.map(n => 
-                n.id === nodeId ? { ...n, ...updates } : n
-              )
-              setNodesLocal(updatedNodes)
-              setNodes(updatedNodes)
-            } : undefined}
-          />
-        )}
-
         {/* Menú contextual */}
         {contextMenu && (
           <ContextMenu
