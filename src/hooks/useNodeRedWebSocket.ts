@@ -647,12 +647,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
     const handleObservabilityEvent = (event: ObservabilityEvent) => {
       try {
         // #region agent log (solo en desarrollo)
-        // H1: Registrar todos los eventos que llegan para diagnosticar si node:output está llegando
-        if (import.meta.env.DEV && (event.event === 'node:output' || event.event === 'node:input')) {
-          const nodeEvent = event as NodeInputEvent | NodeOutputEvent
-          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:handleObservabilityEvent:entry',message:'Evento de observability recibido',data:{eventType:event.event,nodeId:nodeEvent.nodeId,nodeType:event.event === 'node:output' ? (event as NodeOutputEvent).data.nodeType : (event as NodeInputEvent).data.nodeType,frameId:nodeEvent.frameId,hasOutputs:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length > 0 : false,outputsCount:event.event === 'node:output' ? (event as NodeOutputEvent).data.outputs.length : 0},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-        }
-        // #endregion
+        // Debugging code removed - was causing connection errors to 127.0.0.1:7243
         
         switch (event.event) {
           case 'connected':
@@ -824,9 +819,8 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
                   return 'unserializable'
                 }
               }
-              fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeRedWebSocket.ts:node:output',message:'Comparación input vs output',data:{nodeId:nodeOutput.nodeId,nodeType:nodeOutput.data.nodeType,frameId:nodeOutput.frameId,hasInput:!!existingNodeData?.input,hasOutput:nodeOutput.data.outputs.length > 0,inputPayload:safeStringify(inputPayload),outputPayload:safeStringify(outputPayload),payloadsAreEqual,outputsCount:nodeOutput.data.outputs.length,allOutputs:nodeOutput.data.outputs.map((o, idx) => ({index: idx, port: o.port, hasPreview: !!o.payload?.preview, previewType: o.payload?.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
             }
-            // #endregion
+            // Debugging code removed - was causing connection errors
             
             const snapshot = mapNodeOutputToSnapshot(nodeOutput)
             

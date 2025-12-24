@@ -9,7 +9,8 @@
   "node-red": {
     "version": ">=3.0.0",
     "nodes": {
-      "agent-core": "agent-core.js"
+      "agent-core": "agent-core.js",
+      "model.azure.openai": "models/azure-openai-model/azure-openai-model.js"
     }
   },
   "keywords": [

@@ -13,9 +13,9 @@ vamente
       debug: { value: false }
     },
     inputs: 1,
-    outputs: 4,
+    outputs: 5,
     outputLabels: function() {
-      return ["model", "tool", "memory", "result"];
+      return ["model", "tool", "memory", "result", "model_response"];
     },
     icon: "font-awesome/fa-robot",
     label: function() {
@@ -347,22 +347,34 @@ Respond with JSON:
 
   <h3>Outputs</h3>
   <ol class="node-ports">
-    <li>Model Output
+    <li>Model Output (0)
       <dl class="message-properties">
         <dt>payload <span class="property-type">AgentEnvelope</span></dt>
         <dd>Envelope sent to Model node for reasoning</dd>
       </dl>
     </li>
-    <li>Tool Output
+    <li>Tool Output (1)
       <dl class="message-properties">
         <dt>payload <span class="property-type">AgentEnvelope</span></dt>
         <dd>Envelope sent to Tool node for execution</dd>
       </dl>
     </li>
-    <li>Result Output
+    <li>Memory Output (2)
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">AgentEnvelope</span></dt>
+        <dd>Envelope sent to Memory node for storage/retrieval</dd>
+      </dl>
+    </li>
+    <li>Result Output (3)
       <dl class="message-properties">
         <dt>payload <span class="property-type">object</span></dt>
-        <dd>Final result when agent completes or stops</dd>
+        <dd>Final result when agent completes or stops. Contains the last message/data from the agent.</dd>
+      </dl>
+    </li>
+    <li>Model Response Output (4)
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">ModelResponse</span></dt>
+        <dd>Direct output of model responses. Connect this to debug/webhook/http nodes to see model responses in real-time.</dd>
       </dl>
     </li>
   </ol>

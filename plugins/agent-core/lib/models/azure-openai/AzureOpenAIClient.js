@@ -18,9 +18,10 @@ class AzureOpenAIClient {
    * @param {number} config.timeoutMs - Timeout en milisegundos
    */
   constructor(config) {
-    this.endpoint = config.endpoint;
+    // Normalizar endpoint: remover barras finales y espacios
+    this.endpoint = (config.endpoint || '').trim().replace(/\/+$/, '');
     this.deployment = config.deployment;
-    this.apiVersion = config.apiVersion || '2024-02-15-preview';
+    this.apiVersion = config.apiVersion || '2024-12-01-preview';
     this.temperature = config.temperature !== undefined ? config.temperature : 0;
     this.maxTokens = config.maxTokens || 800;
     this.timeoutMs = config.timeoutMs || 15000;
@@ -31,6 +32,16 @@ class AzureOpenAIClient {
     if (!this.apiKey) {
       throw new Error('API key is required. Configure it in the node settings or set AZURE_OPENAI_API_KEY environment variable');
     }
+    
+    // Validar que el endpoint sea válido
+    if (!this.endpoint) {
+      throw new Error('Endpoint is required');
+    }
+    
+    // Validar formato del endpoint
+    if (!this.endpoint.startsWith('http://') && !this.endpoint.startsWith('https://')) {
+      throw new Error('Endpoint must start with http:// or https://');
+    }
   }
 
   /**
@@ -38,7 +49,18 @@ class AzureOpenAIClient {
    * @returns {string} URL completa
    */
   buildUrl() {
-    return `${this.endpoint}/openai/deployments/${this.deployment}/chat/completions?api-version=${this.apiVersion}`;
+    // Normalizar endpoint: remover barras finales y espacios
+    let normalizedEndpoint = this.endpoint.trim().replace(/\/+$/, '');
+    
+    // Asegurar que no tenga protocolo duplicado o paths incorrectos
+    // Si el endpoint ya incluye /openai, no agregarlo de nuevo
+    if (normalizedEndpoint.includes('/openai')) {
+      // El endpoint ya tiene el path /openai, usar tal cual
+      return `${normalizedEndpoint}/deployments/${this.deployment}/chat/completions?api-version=${this.apiVersion}`;
+    }
+    
+    // Construir URL estándar de Azure OpenAI
+    return `${normalizedEndpoint}/openai/deployments/${this.deployment}/chat/completions?api-version=${this.apiVersion}`;
   }
 
   /**
@@ -101,12 +123,36 @@ class AzureOpenAIClient {
           const durationMs = Date.now() - startTime;
 
           if (res.statusCode !== 200) {
+            // Intentar parsear el error para dar un mensaje más descriptivo
+            let errorMessage = `HTTP ${res.statusCode}: ${data}`;
+            try {
+              const errorData = JSON.parse(data);
+              if (res.statusCode === 404) {
+                errorMessage = `Deployment "${this.deployment}" not found. ` +
+                  `Please verify:\n` +
+                  `1. The deployment name is correct in your Azure OpenAI resource\n` +
+                  `2. The endpoint is correct: ${this.endpoint}\n` +
+                  `3. The deployment exists and is active\n` +
+                  `Error details: ${errorData.error?.message || data}`;
+              } else if (res.statusCode === 401) {
+                errorMessage = `Authentication failed. Please verify your API key is correct.`;
+              } else if (res.statusCode === 403) {
+                errorMessage = `Access forbidden. Please verify your API key has the correct permissions.`;
+              } else if (errorData.error?.message) {
+                errorMessage = `HTTP ${res.statusCode}: ${errorData.error.message}`;
+              }
+            } catch (parseError) {
+              // Si no se puede parsear, usar el mensaje original
+            }
+            
             return reject({
               code: 'AZURE_OPENAI_HTTP_ERROR',
-              message: `HTTP ${res.statusCode}: ${data}`,
+              message: errorMessage,
               statusCode: res.statusCode,
               traceId,
-              durationMs
+              durationMs,
+              deployment: this.deployment,
+              endpoint: this.endpoint
             });
           }
 

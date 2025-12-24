@@ -12,6 +12,7 @@
     "start:preview": "vite preview",
     "create-sample-flow": "node scripts/create-sample-flow.js",
     "seed-flows": "node scripts/seed-flows.js",
+    "test:agent-core": "node scripts/test-agent-core-flow.js",
     "bench:generate": "npx tsx scripts/bench/generateFlow.ts",
     "setup:node-red": "node scripts/setup-node-red.js",
     "start:node-red": "npx node-red --settings ./settings.redflow.cjs",

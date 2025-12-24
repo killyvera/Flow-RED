@@ -702,12 +702,7 @@ export function CanvasPage() {
     try {
       const allNodeRedNodes = useCanvasStore.getState().nodeRedNodes
       
-      // #region agent log
-      // Hipótesis A,D,E: Verificar estructura de subflows en el store
-      const subflowsInStore = allNodeRedNodes.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z) as NodeRedSubflowDefinition[]
-      const internalNodesInStore = allNodeRedNodes.filter(n => n.z && subflowsInStore.some(sf => sf.id === n.z))
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave:init',message:'Subflows en store al iniciar guardado',data:{activeFlowId,subflowCount:subflowsInStore.length,internalNodesInStoreCount:internalNodesInStore.length,subflows:subflowsInStore.map(sf=>({id:sf.id,name:sf.name,hasFlow:!!sf.flow,flowLength:Array.isArray(sf.flow)?sf.flow.length:0,flowNodeIds:Array.isArray(sf.flow)?sf.flow.map(n=>({id:n.id,z:n.z,hasZ:n.z!==undefined})):[],inWires:sf.in?.map(p=>p.wires?.map(w=>w.id)||[])||[],outWires:sf.out?.map(p=>p.wires?.map(w=>w.id)||[])||[]})),internalNodesInStore:internalNodesInStore.map(n=>({id:n.id,type:n.type,z:n.z}))},timestamp:Date.now(),sessionId:'debug-session',runId:'subflow-debug',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Transformar nodos y edges a formato Node-RED
       console.log('[handleSave] Antes de transformar:', {
@@ -1607,8 +1602,7 @@ export function CanvasPage() {
       const tabIndex = allNodesToSave.findIndex(n => n.type === 'tab')
       const firstInternalIndex = allNodesToSave.findIndex(n => finalInternalNodes.some(internal => internal.id === n.id))
       const firstSubflowDefIndex = allNodesToSave.findIndex(n => finalSubflowDefs.some(sf => sf.id === n.id))
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave:beforeSend',message:'Payload final antes de enviar a Node-RED',data:{activeFlowId,totalNodes:allNodesToSave.length,tabsCount:tabsInPayload.length,subflowDefsCount:finalSubflowDefs.length,internalNodesCount:finalInternalNodes.length,orderCheck:{tabIndex,firstInternalIndex,firstSubflowDefIndex,isCorrectOrder:tabIndex<firstInternalIndex&&firstInternalIndex<firstSubflowDefIndex},subflowDetails:finalSubflowDefs.map(sf=>({id:sf.id,name:sf.name,hasFlow:!!sf.flow,flowLength:Array.isArray(sf.flow)?sf.flow.length:0,flowNodesWithZ:Array.isArray(sf.flow)?sf.flow.filter(n=>n.z!==undefined).length:0,flowNodeDetails:Array.isArray(sf.flow)?sf.flow.map(n=>({id:n.id,z:n.z,hasZ:n.z!==undefined,type:n.type})):[]})),internalNodeDetails:finalInternalNodes.map(n=>({id:n.id,type:n.type,z:n.z,hasZ:n.z!==undefined}))},timestamp:Date.now(),sessionId:'debug-session',runId:'subflow-debug',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Guardar usando la API (la validación se hace dentro de saveFlow)
       console.log('[handleSave] Guardando flow en Node-RED...')
@@ -1617,6 +1611,90 @@ export function CanvasPage() {
         const result = await saveFlow(activeFlowId, allNodesToSave, currentRev)
         currentRev = result.rev
         console.log('[handleSave] ✅ Flow guardado exitosamente')
+        
+        // CRÍTICO: Esperar un momento para que Node-RED procese el flow y los nodos estén desplegados
+        // antes de intentar guardar credenciales
+        // Node-RED necesita tiempo para desplegar el flow completamente
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
+        // CRÍTICO: Después de guardar el flow, guardar credenciales de nodos con credentialId
+        // Esto es necesario porque el backend de Node-RED necesita las credenciales en su sistema
+        // aunque usemos el sistema centralizado en el frontend
+        try {
+          const { getCredentialData } = await import('@/utils/credentialManager')
+          const { saveNodeCredentials } = await import('@/api/client')
+          
+          // Buscar nodos con credentialId y guardar sus credenciales en Node-RED
+          for (const node of nodes) {
+            const nodeRedNode = node.data?.nodeRedNode
+            if (nodeRedNode?.credentialId && node.id) {
+              try {
+                const credentialData = await getCredentialData(nodeRedNode.credentialId)
+                if (credentialData?.apiKey) {
+                  console.log(`[handleSave] Intentando guardar credenciales para nodo ${node.id}...`)
+                  // Intentar guardar con retry (el nodo puede tardar en estar disponible)
+                  let retries = 3
+                  let saved = false
+                  while (retries > 0 && !saved) {
+                    try {
+                      await saveNodeCredentials(node.id, { apiKey: credentialData.apiKey })
+                      // Verificar que realmente se guardaron
+                      const { getNodeCredentials } = await import('@/api/client')
+                      const savedCreds = await getNodeCredentials(node.id)
+                      if (savedCreds.apiKey) {
+                        console.log(`[handleSave] ✅ Credenciales guardadas y verificadas para nodo ${node.id} desde credentialId ${nodeRedNode.credentialId}`)
+                        saved = true
+                      } else if (retries > 1) {
+                        // No se guardaron, esperar y reintentar
+                        console.log(`[handleSave] Credenciales no encontradas para nodo ${node.id}, esperando... (${retries - 1} intentos restantes)`)
+                        await new Promise(resolve => setTimeout(resolve, 1000))
+                        retries--
+                      } else {
+                        console.warn(`[handleSave] ⚠️ Credenciales no se guardaron para nodo ${node.id} después de verificación`)
+                        retries = 0
+                      }
+                    } catch (err: any) {
+                      if (err.message && err.message.includes('404') && retries > 1) {
+                        // El nodo aún no existe, esperar un poco más
+                        console.log(`[handleSave] Nodo ${node.id} aún no existe, esperando... (${retries - 1} intentos restantes)`)
+                        await new Promise(resolve => setTimeout(resolve, 1000))
+                        retries--
+                      } else {
+                        console.warn(`[handleSave] Error al guardar credenciales para nodo ${node.id}:`, err.message)
+                        if (retries > 1) {
+                          await new Promise(resolve => setTimeout(resolve, 1000))
+                          retries--
+                        } else {
+                          retries = 0
+                        }
+                      }
+                    }
+                  }
+                  if (!saved) {
+                    console.warn(`[handleSave] ⚠️ No se pudieron guardar credenciales para nodo ${node.id} después de ${3} intentos`)
+                    console.warn(`[handleSave] Las credenciales se guardaron como pendientes y se intentarán guardar más tarde`)
+                  }
+                } else {
+                  console.warn(`[handleSave] ⚠️ No hay API key en la credencial para nodo ${node.id}`)
+                }
+              } catch (err) {
+                console.warn(`[handleSave] ⚠️ No se pudieron guardar credenciales para nodo ${node.id}:`, err)
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[handleSave] ⚠️ Error al guardar credenciales centralizadas:', err)
+        }
+        
+        // CRÍTICO: Intentar guardar credenciales pendientes después de guardar el flow
+        // Esto es necesario porque las credenciales pueden fallar con 404 si el nodo no existe aún
+        try {
+          const { savePendingCredentials } = await import('@/api/client')
+          await savePendingCredentials()
+        } catch (credErr) {
+          console.warn('[handleSave] Error al guardar credenciales pendientes:', credErr)
+          // No bloquear el guardado si fallan las credenciales
+        }
       } catch (saveErr: any) {
         // Manejar conflictos (HTTP 409 o rev mismatch)
         if (saveErr && typeof saveErr === 'object' && 'code' in saveErr) {
@@ -1657,8 +1735,7 @@ export function CanvasPage() {
       // H1,H4: Verificar propiedades después de recargar desde Node-RED
       const functionNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'function')
       const injectNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'inject')
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:handleSave:afterReload',message:'Estado después de recargar desde Node-RED',data:{activeFlowId,totalNodes:updatedNodeRedNodes.length,functionNodes:functionNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasFunc:!!n.func,funcLength:n.func?.length||0,funcPreview:n.func?.substring?.(0,30),outputs:n.outputs,noerr:n.noerr,wires:n.wires})),injectNodes:injectNodesAfter.slice(0,5).map(n=>({id:n.id,name:n.name,hasProps:!!n.props,propsCount:Array.isArray(n.props)?n.props.length:0,payloadType:n.payloadType,payload:typeof n.payload,topic:n.topic,repeat:n.repeat,crontab:n.crontab,once:n.once,wires:n.wires}))},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H4'})}).catch(()=>{});
-      // #endregion
+      // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Renderizar el flow activo con los datos actualizados desde Node-RED
       // Usar los nodos del store directamente para asegurar que tenemos la versión más reciente
@@ -2098,6 +2175,22 @@ export function CanvasPage() {
     // Crear el nuevo nodo
     const newNodeId = `${nodeType}-${Date.now()}`
     const newNodeType = getNodeType(nodeType)
+    
+    // Valores por defecto según el tipo de nodo
+    const defaultNodeRedNode: any = {
+      id: newNodeId,
+      type: nodeType,
+      name: '', // Dejar vacío para que use el label function del HTML
+      z: activeFlowId,
+    }
+    
+    // Agregar valores por defecto para nodos específicos
+    if (nodeType === 'model.azure.openai') {
+      defaultNodeRedNode.endpoint = ''
+      defaultNodeRedNode.deployment = ''
+      defaultNodeRedNode.apiVersion = '2024-02-15-preview'
+    }
+    
     const newNode: Node = {
       id: newNodeId,
       type: newNodeType,
@@ -2107,12 +2200,7 @@ export function CanvasPage() {
         nodeRedType: nodeType,
         flowId: activeFlowId,
         outputPortsCount: 1,
-        nodeRedNode: {
-          id: newNodeId,
-          type: nodeType,
-          name: '', // Dejar vacío para que use el label function del HTML
-          z: activeFlowId,
-        },
+        nodeRedNode: defaultNodeRedNode,
       },
     }
 
@@ -2184,8 +2272,32 @@ export function CanvasPage() {
     setEdgesLocal(updatedEdges)
   }, [nodes, edges, setNodesLocal, setEdgesLocal])
 
-  const handleDelete = useCallback((nodeIds: string[], edgeIds: string[]) => {
+  const handleDelete = useCallback(async (nodeIds: string[], edgeIds: string[]) => {
     const nodeIdsToDelete = new Set(nodeIds)
+
+    // Desregistrar uso de credenciales centralizadas y eliminar configuraciones para los nodos que se eliminan
+    const nodesToDelete = nodes.filter(n => nodeIdsToDelete.has(n.id))
+    for (const node of nodesToDelete) {
+      const credentialId = node.data?.nodeRedNode?.credentialId
+      if (credentialId && node.id) {
+        try {
+          const { unregisterCredentialUsage } = await import('@/utils/credentialManager')
+          await unregisterCredentialUsage(credentialId, node.id)
+        } catch (err) {
+          console.warn('Error al desregistrar uso de credencial al eliminar nodo:', err)
+        }
+      }
+      
+      // Eliminar configuración guardada del nodo
+      if (node.id) {
+        try {
+          const { removeNodeConfig } = await import('@/utils/nodeConfigStorage')
+          await removeNodeConfig(node.id)
+        } catch (err) {
+          console.warn('Error al eliminar configuración del nodo:', err)
+        }
+      }
+    }
 
     // Si se eliminan grupos, primero desasignar sus hijos (limpiar parentId y g)
     const deletedGroupIds = nodes

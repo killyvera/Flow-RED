@@ -215,19 +215,13 @@ export function useNodeOutputData(nodeId: string | null) {
   const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
 
   return useMemo(() => {
-    // #region agent log
-    // H1: Registrar entrada al hook
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:entry',message:'Hook useNodeOutputData ejecutado',data:{nodeId,hasNodeId:!!nodeId},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     if (!nodeId) return null
 
     const snapshots = nodeSnapshots.get(nodeId) || []
     
-    // #region agent log
-    // H1: Verificar snapshots disponibles
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:snapshots',message:'Snapshots disponibles',data:{nodeId,snapshotsCount:snapshots.length,snapshots:snapshots.map(s=>({frameId:s.frameId,status:s.status,summary:s.summary,hasPayloadPreview:!!s.payloadPreview}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     if (snapshots.length === 0) return null
 
@@ -248,8 +242,7 @@ export function useNodeOutputData(nodeId: string | null) {
         !(s.summary && (s.summary.toLowerCase().includes('input') || s.summary.toLowerCase().includes('received')))
       return (isIdle && hasOutputSummary) || (isNotInput && !hasOutputSummary && s.payloadPreview)
     })
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:init',message:'Búsqueda de snapshots de output',data:{nodeId,totalSnapshots:snapshots.length,allSnapshotsWithPreview:allSnapshotsWithPreview.map(s=>({frameId:s.frameId,status:s.status,summary:s.summary,ts:s.ts})),outputSnapshots:outputSnapshots.map(s=>({frameId:s.frameId,status:s.status,summary:s.summary,ts:s.ts}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
     // 1. Buscar snapshots de OUTPUT del nodo actual
     // Los eventos node:output tienen status: 'idle' (o 'warning', 'error') y summary que indica output
@@ -291,30 +284,21 @@ export function useNodeOutputData(nodeId: string | null) {
       }
     }
 
-    // #region agent log
-    // H1: Confirmar que se está intentando inferir (no se encontró snapshot de output directo)
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:noDirectOutput',message:'No se encontró snapshot de output directo, intentando inferir',data:{nodeId,hasLatestOutputSnapshot:!!latestOutputSnapshot,latestOutputSnapshotHasPreview:!!latestOutputSnapshot?.payloadPreview},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
     // 2. Si no hay snapshots de output, inferir desde el nodo downstream en el mismo frame
     // El input del downstream es el output del nodo actual
     const effectiveFrameId = snapshots.length > 0 ? snapshots[snapshots.length - 1]?.frameId : null
     
-    // #region agent log
-    // H1: Verificar si se puede inferir desde downstream
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:beforeInfer',message:'Antes de inferir desde downstream',data:{nodeId,effectiveFrameId,hasEffectiveFrameId:!!effectiveFrameId,snapshotsCount:snapshots.length},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     if (!effectiveFrameId) return null
 
     // Buscar el primer nodo downstream usando edges de React Flow
     let outputEdges = edges.filter((e) => e.source === nodeId)
     
-    // #region agent log
-    // H1: Verificar edges de salida y todos los edges disponibles
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     const allEdgesWithSource = edges.filter(e => e.source === nodeId || e.target === nodeId)
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:edges',message:'Edges de salida encontrados',data:{nodeId,outputEdgesCount:outputEdges.length,outputEdges:outputEdges.map(e=>({id:e.id,source:e.source,target:e.target})),allEdgesCount:edges.length,allEdgesWithNode:allEdgesWithSource.map(e=>({id:e.id,source:e.source,target:e.target,isSource:e.source===nodeId,isTarget:e.target===nodeId}))},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     
     // Si no hay edges de React Flow, intentar usar wires de Node-RED
     let downstreamNodeId: string | null = null
@@ -354,10 +338,7 @@ export function useNodeOutputData(nodeId: string | null) {
             allWiresInPort: firstPortWires
           })
           
-          // #region agent log
-          // H1: Encontrar downstream desde wires de Node-RED
-          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:wires',message:'Encontrando downstream desde wires de Node-RED',data:{nodeId,hasWires:!!nodeRedNode.wires,wiresLength:nodeRedNode.wires.length,firstPortWires:firstPortWires,downstreamNodeId},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-          // #endregion
+          // Debugging code removed - was causing connection errors to 127.0.0.1:7243
         } else {
           console.log(`[useNodeOutputData] ❌ firstPortWires está vacío o no es array para ${nodeId}`)
         }
@@ -397,10 +378,7 @@ export function useNodeOutputData(nodeId: string | null) {
       }
     }
     
-    // #region agent log
-    // H1: Verificar nodo downstream
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:downstream',message:'Nodo downstream encontrado',data:{nodeId,downstreamNodeId,hasDownstreamNode:!!downstreamNode,downstreamNodeType:downstreamNode?.data?.nodeRedType,foundInNodes:!!nodes.find(n=>n.id===downstreamNodeId),foundInNodeRedNodes:!!nodeRedNodes.find(n=>n.id===downstreamNodeId)},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     if (!downstreamNode) return null
 
@@ -411,10 +389,7 @@ export function useNodeOutputData(nodeId: string | null) {
       (s.status === 'running' || (s.summary && (s.summary.toLowerCase().includes('input') || s.summary.toLowerCase().includes('received'))))
     )
 
-    // #region agent log
-    // H1: Registrar si se está infiriendo desde downstream
-    fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useNodeInspectorData.ts:useNodeOutputData:infer',message:'Inferencia de output desde downstream',data:{nodeId,effectiveFrameId,downstreamNodeId:downstreamNode.id,downstreamNodeType:downstreamNode.data?.nodeRedType,hasDownstreamInputSnapshot:!!downstreamInputSnapshot,downstreamInputSnapshotFrameId:downstreamInputSnapshot?.frameId,downstreamInputSnapshotStatus:downstreamInputSnapshot?.status,downstreamInputSnapshotSummary:downstreamInputSnapshot?.summary},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
     if (downstreamInputSnapshot?.payloadPreview) {
       console.log(`[useNodeOutputData] ✅ Inferencia exitosa desde downstream:`, {

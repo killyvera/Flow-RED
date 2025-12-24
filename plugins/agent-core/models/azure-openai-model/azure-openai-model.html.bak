@@ -1,0 +1,13 @@
+<!-- 
+  NOTA: Este archivo HTML NO se usa para la UI del editor.
+  La UI se maneja completamente en React en src/components/nodes/agent-core/models/azure-openai-model/
+  
+  Este archivo solo contiene el template y help text como referencia o fallback.
+  El registro del nodo se hace en azure-openai-model.js
+-->
+
+<!-- Help text (opcional, solo como referencia) -->
+<script type="text/html" data-help-name="model.azure.openai">
+  <p>Nodo Model para Azure OpenAI en el sistema de agentes Redflow.</p>
+  <p><strong>Nota:</strong> La configuración de este nodo se maneja en la UI de Redflow (React), no en el editor de Node-RED.</p>
+</script>

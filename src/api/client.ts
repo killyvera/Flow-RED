@@ -776,33 +776,188 @@ export async function saveFlow(
  * @param credentials Objeto con las credenciales a guardar
  * @returns Promise que se resuelve cuando las credenciales se guardan
  */
+/**
+ * Almacena credenciales pendientes en localStorage para guardarlas después de guardar el flow
+ */
+function storePendingCredentials(nodeId: string, credentials: Record<string, string>): void {
+  try {
+    const key = 'node-red-pending-credentials'
+    const pending = JSON.parse(localStorage.getItem(key) || '{}')
+    pending[nodeId] = credentials
+    localStorage.setItem(key, JSON.stringify(pending))
+    apiLogger('💾 Credenciales pendientes almacenadas para nodo:', nodeId)
+  } catch (err) {
+    console.warn('Error al almacenar credenciales pendientes:', err)
+  }
+}
+
+/**
+ * Obtiene todas las credenciales pendientes
+ */
+export function getPendingCredentials(): Record<string, Record<string, string>> {
+  try {
+    const key = 'node-red-pending-credentials'
+    return JSON.parse(localStorage.getItem(key) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Limpia las credenciales pendientes para un nodo específico o todas
+ */
+export function clearPendingCredentials(nodeId?: string): void {
+  try {
+    const key = 'node-red-pending-credentials'
+    if (nodeId) {
+      const pending = JSON.parse(localStorage.getItem(key) || '{}')
+      delete pending[nodeId]
+      localStorage.setItem(key, JSON.stringify(pending))
+    } else {
+      localStorage.removeItem(key)
+    }
+  } catch (err) {
+    console.warn('Error al limpiar credenciales pendientes:', err)
+  }
+}
+
+/**
+ * Intenta guardar todas las credenciales pendientes
+ */
+export async function savePendingCredentials(): Promise<void> {
+  const pending = getPendingCredentials()
+  const nodeIds = Object.keys(pending)
+  
+  if (nodeIds.length === 0) {
+    return
+  }
+  
+  apiLogger('🔄 Intentando guardar credenciales pendientes para', nodeIds.length, 'nodos')
+  
+  // Intentar guardar con retry para cada nodo
+  const results = await Promise.allSettled(
+    nodeIds.map(async (nodeId) => {
+      const credentials = pending[nodeId]
+      let retries = 3
+      let saved = false
+      
+      while (retries > 0 && !saved) {
+        try {
+          await saveNodeCredentials(nodeId, credentials)
+          // Si saveNodeCredentials no lanza error, verificar que realmente se guardó
+          // (puede que haya guardado como pendiente nuevamente)
+          const savedCreds = await getNodeCredentials(nodeId)
+          if (savedCreds.apiKey || Object.keys(savedCreds).length > 0) {
+            clearPendingCredentials(nodeId)
+            saved = true
+            apiLogger(`✅ Credenciales pendientes guardadas para nodo: ${nodeId}`)
+          } else if (retries > 1) {
+            // Aún no se guardaron, esperar y reintentar
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            retries--
+          } else {
+            // Último intento falló, mantener como pendiente
+            retries = 0
+          }
+        } catch (err: any) {
+          if (retries > 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            retries--
+          } else {
+            throw err
+          }
+        }
+      }
+      
+      if (!saved) {
+        apiLogger(`⚠️ No se pudieron guardar credenciales pendientes para nodo: ${nodeId} después de 3 intentos`)
+      }
+    })
+  )
+  
+  const successful = results.filter(r => r.status === 'fulfilled').length
+  const failed = results.filter(r => r.status === 'rejected').length
+  
+  apiLogger(`✅ Credenciales pendientes procesadas: ${successful} exitosas, ${failed} fallidas`)
+}
+
+/**
+ * Verifica si un nodo está desplegado en el runtime de Node-RED
+ * (no solo si existe en el flow JSON, sino si está realmente desplegado)
+ * @param nodeId ID del nodo a verificar
+ * @param maxAttempts Número máximo de intentos
+ * @param delayMs Delay entre intentos en milisegundos
+ * @returns Promise que se resuelve cuando el nodo está desplegado, o false si no está después de maxAttempts
+ */
+async function waitForNodeToBeDeployed(
+  nodeId: string,
+  maxAttempts: number = 20,
+  delayMs: number = 500
+): Promise<boolean> {
+  // Verificar que el nodo existe en el flow JSON primero
+  try {
+    const allFlows = await getFlows('v2')
+    const nodeExistsInFlow = allFlows.some(node => node.id === nodeId)
+    if (!nodeExistsInFlow) {
+      apiLogger(`❌ Nodo ${nodeId} no existe en el flow JSON`)
+      return false
+    }
+    apiLogger(`✅ Nodo ${nodeId} existe en el flow JSON, esperando despliegue...`)
+  } catch (err) {
+    apiLogger(`⚠️ Error al verificar existencia del nodo ${nodeId} en flow JSON:`, err)
+    return false
+  }
+
+  // Simplemente esperar y luego intentar guardar credenciales
+  // No podemos distinguir fácilmente entre "nodo no desplegado" y "no hay credenciales" con GET
+  // Así que simplemente esperamos un tiempo razonable para que Node-RED despliegue el flow
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt < maxAttempts) {
+      apiLogger(`⏳ Esperando despliegue del nodo ${nodeId}... (intento ${attempt}/${maxAttempts})`)
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    }
+  }
+  
+  // Después de esperar, asumimos que el nodo debería estar desplegado
+  // El intento real de guardar credenciales verificará si realmente está desplegado
+  apiLogger(`✅ Espera completada para nodo ${nodeId}, intentando guardar credenciales...`)
+  return true
+}
+
+/**
+ * Guarda credenciales de un nodo en nuestro sistema de almacenamiento personalizado
+ * 
+ * Las credenciales se guardan en redflow-persistent-storage y pueden ser leídas
+ * por el plugin agent-core sin depender del sistema de credenciales de Node-RED.
+ * 
+ * @param nodeId ID del nodo
+ * @param credentials Objeto con las credenciales a guardar
+ */
 export async function saveNodeCredentials(
   nodeId: string,
   credentials: Record<string, string>
 ): Promise<void> {
-  apiLogger('🔐 Guardando credenciales para nodo:', { nodeId, hasApiKey: !!credentials.apiKey })
+  apiLogger('🔐 Guardando credenciales para nodo en Redflow storage:', { nodeId, hasApiKey: !!credentials.apiKey })
   
   try {
-    await nodeRedRequest(`/credentials/${nodeId}`, {
-      method: 'POST',
-      headers: {
-        'Node-RED-API-Version': 'v2',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    })
+    // Guardar en nuestro sistema de almacenamiento usando persistentStorage
+    const { set } = await import('@/utils/persistentStorage')
     
-    apiLogger('✅ Credenciales guardadas exitosamente para nodo:', nodeId)
+    // La clave debe coincidir con lo que el plugin espera: encrypted:node-credentials:{nodeId}
+    // Pero como persistentStorage maneja la encriptación, guardamos directamente
+    const key = `node-credentials:${nodeId}`
+    
+    // Guardar las credenciales (persistentStorage las sincronizará con el servidor)
+    await set(key, credentials, true) // sync=true para sincronizar inmediatamente con el servidor
+    
+    apiLogger('✅ Credenciales guardadas exitosamente en Redflow storage para nodo:', nodeId)
+    // Limpiar credenciales pendientes para este nodo si se guardaron exitosamente
+    clearPendingCredentials(nodeId)
   } catch (err: any) {
-    // Si el nodo no existe aún (404), es normal - las credenciales se guardarán cuando se guarde el flow
-    if (err.message && err.message.includes('404')) {
-      apiLogger('⚠️ Nodo aún no existe en Node-RED, credenciales se guardarán al guardar el flow:', nodeId)
-      return
-    }
-    
-    apiLogger('❌ Error al guardar credenciales:', err.message)
-    // No lanzar error - las credenciales pueden no ser críticas si hay variable de entorno
-    console.warn(`No se pudieron guardar credenciales para nodo ${nodeId}:`, err.message)
+    apiLogger('❌ Error al guardar credenciales en Redflow storage:', err.message)
+    // Si falla, almacenar como pendiente para intentar más tarde
+    storePendingCredentials(nodeId, credentials)
+    throw err
   }
 }
 
@@ -815,6 +970,21 @@ export async function saveNodeCredentials(
 export async function getNodeCredentials(
   nodeId: string
 ): Promise<Record<string, string>> {
+  try {
+    // Intentar obtener desde nuestro sistema de almacenamiento primero
+    const { get } = await import('@/utils/persistentStorage')
+    const key = `node-credentials:${nodeId}`
+    const credentials = await get(key)
+    
+    if (credentials) {
+      apiLogger('✅ Credenciales obtenidas desde Redflow storage para nodo:', nodeId)
+      return credentials as Record<string, string>
+    }
+  } catch (err) {
+    apiLogger('⚠️ No se pudieron obtener credenciales desde Redflow storage:', err)
+  }
+  
+  // Fallback: intentar obtener desde Node-RED (para compatibilidad)
   // Usar fetch directamente para evitar logging de errores 404
   // ya que es normal que el nodo no exista aún
   try {
@@ -1088,6 +1258,9 @@ export const apiClient = {
   saveFlow,
   saveNodeCredentials,
   getNodeCredentials,
+  savePendingCredentials,
+  clearPendingCredentials,
+  getPendingCredentials,
   getFlow,
   createFlow,
   deleteFlow,

@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity, Folder, FolderOpen } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity, Folder, FolderOpen, Key, Sparkles } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -16,6 +16,8 @@ import { DeleteFlowModal } from './DeleteFlowModal'
 import { ImportFlowModal } from './ImportFlowModal'
 import { exportFlow } from '@/api/client'
 import { getProjects, createProject, deleteProject, addFlowToProject, removeFlowFromProject, type Project } from '@/utils/projectStorage'
+import { CredentialManager } from '@/components/credentials/CredentialManager'
+import { createAgentCoreTestFlow } from '@/utils/testAgentCoreFlow'
 
 /**
  * Icono personalizado para "Mis flujos"
@@ -66,7 +68,18 @@ interface SidebarItem {
   onClick: () => void
 }
 
-type SidebarView = 'menu' | 'settings' | 'flows' | 'devtools' | 'projects' | 'project-flows'
+type SidebarView = 'menu' | 'settings' | 'flows' | 'devtools' | 'projects' | 'project-flows' | 'credentials'
+
+// Componente wrapper para CredentialManager en el Sidebar
+function CredentialManagerView() {
+  const [isOpen, setIsOpen] = useState(true)
+  
+  return (
+    <div className="h-full">
+      <CredentialManager isOpen={isOpen} onClose={() => setIsOpen(false)} inline={true} />
+    </div>
+  )
+}
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -206,6 +219,18 @@ export function Sidebar({
   ]
 
   const bottomSidebarItems: SidebarItem[] = [
+    {
+      id: 'credentials',
+      icon: Key, // Necesitamos importar Key de lucide-react
+      label: 'Credenciales',
+      onClick: () => {
+        setCurrentView('credentials')
+        // Si está colapsado, expandir al abrir credenciales
+        if (isCollapsed) {
+          onToggleCollapse()
+        }
+      },
+    },
     {
       id: 'devtools',
       icon: Wrench,
@@ -447,6 +472,48 @@ export function Sidebar({
               </div>
             )}
           </div>
+        ) : currentView === 'credentials' ? (
+          /* Vista de credenciales */
+          <div className="flex flex-col h-full absolute inset-0">
+            {/* Header */}
+            <div className="flex items-center gap-2 p-4 border-b border-canvas-grid flex-shrink-0">
+              <button
+                onClick={handleBackToMenu}
+                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                aria-label="Volver al menú principal"
+                title="Volver al menú principal"
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+              </button>
+              {!isCollapsed && (
+                <div className="flex items-center gap-2 flex-1">
+                  <Key className="w-5 h-5 text-text-primary" strokeWidth={2} />
+                  <h2 className="text-lg font-semibold text-text-primary">Credenciales</h2>
+                </div>
+              )}
+            </div>
+
+            {/* Contenido */}
+            {!isCollapsed && (
+              <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                <CredentialManagerView />
+              </div>
+            )}
+
+            {/* Si está colapsado, solo mostrar el botón de regresar */}
+            {isCollapsed && (
+              <div className="flex-1 flex items-center justify-center">
+                <button
+                  onClick={handleBackToMenu}
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-node-hover rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                  aria-label="Volver al menú principal"
+                  title="Volver al menú principal"
+                >
+                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+          </div>
         ) : currentView === 'settings' ? (
           /* Vista de configuración */
           <div className="flex flex-col h-full absolute inset-0">
@@ -588,6 +655,29 @@ export function Sidebar({
                       <span className="font-medium">Perf Readout</span>
                     </button>
                   )}
+
+                  {/* Separador */}
+                  <div className="my-2 border-t border-node-border" />
+
+                  {/* Botón Test Agent Core Flow */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const result = await createAgentCoreTestFlow({ 
+                          autoExecute: false,
+                          task: 'Responde con un saludo amigable en español y explica brevemente qué es la inteligencia artificial'
+                        })
+                        alert(`✅ Flujo creado exitosamente!\n\nFlow ID: ${result.flowId}\n\nAbre Node-RED para ver el flujo "Hola Mundo Agéntico" y ejecútalo haciendo clic en el botón inject.`)
+                      } catch (error: any) {
+                        alert(`❌ Error: ${error.message}`)
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2 bg-accent-primary text-white hover:bg-accent-secondary focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                    title="Crear flujo de test con agent-core y Azure OpenAI"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="font-medium">Crear Test: Hola Mundo Agéntico</span>
+                  </button>
                 </div>
               </div>
             )}

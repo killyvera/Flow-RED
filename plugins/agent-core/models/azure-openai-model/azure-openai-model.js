@@ -15,7 +15,11 @@ module.exports = function(RED) {
     AzureOpenAIModelNode.call(this, RED, config);
   }
 
-  // Herencia correcta de Node-RED
+  // Registrar el nodo
+  // NOTA: Si el nodo ya está registrado (por ejemplo, si Node-RED lo detectó automáticamente
+  // desde el archivo .html), Node-RED lanzará un error. Esto es normal y se puede ignorar.
   RED.nodes.registerType('model.azure.openai', AzureOpenAIModelNodeWrapper);
+  
+  RED.log.info('[agent-core] Nodo model.azure.openai registrado exitosamente');
 };
 

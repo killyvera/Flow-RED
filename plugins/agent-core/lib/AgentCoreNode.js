@@ -63,16 +63,48 @@ function AgentCoreNode(RED, config) {
     try {
       if (node.debug) {
         node.log('[agent-core] Received input message');
+        node.log('[agent-core] Message keys: ' + Object.keys(msg).join(', '));
+        node.log('[agent-core] _agentCore: ' + JSON.stringify(msg._agentCore));
       }
 
       // Check if this is a model response (has _agentCore metadata)
       if (msg._agentCore && msg._agentCore.type === 'model_response') {
+        if (node.debug) {
+          node.log('[agent-core] Detected model response, traceId: ' + msg._agentCore.traceId);
+        }
         // This is a response from the model - continue existing execution
         const traceId = msg._agentCore.traceId;
         const execution = node.activeExecutions.get(traceId);
         
         if (!execution) {
           node.error(`[agent-core] Received model response for unknown traceId: ${traceId}`, msg);
+          if (done) done();
+          return;
+        }
+
+        // Check if the payload contains an error (from model node)
+        if (msg.payload && typeof msg.payload === 'object' && msg.payload.error) {
+          const error = msg.payload.error;
+          node.error(`[agent-core] Model node returned error: ${error.code || 'UNKNOWN'}: ${error.message || 'Unknown error'}`, msg);
+          
+          // Stop execution and send error to output
+          const errorMsg = {
+            ...msg,
+            payload: {
+              error: error,
+              envelope: execution.envelope
+            },
+            agentResult: {
+              completed: false,
+              iterations: execution.envelope.state.iteration,
+              traceId: execution.envelope.observability.traceId,
+              error: error
+            }
+          };
+          // Output 3: result (error también va al resultado)
+          // Output 4: model_response (también enviar el error como respuesta del modelo)
+          send([null, null, null, errorMsg, errorMsg]);
+          node.activeExecutions.delete(traceId);
           if (done) done();
           return;
         }
@@ -91,38 +123,62 @@ function AgentCoreNode(RED, config) {
           tool: validated.tool
         });
 
+        // IMPORTANTE: Enviar la respuesta del modelo al output 4 (model_response)
+        // Esto permite conectar la respuesta del modelo directamente a debug/webhook/http nodes
+        const modelResponseMsg = {
+          ...msg,
+          payload: validated,
+          envelope: execution.envelope,
+          agentResult: {
+            iteration: execution.envelope.state.iteration,
+            traceId: execution.envelope.observability.traceId,
+            action: validated.action,
+            tool: validated.tool,
+            confidence: validated.confidence,
+            message: validated.message || validated.input?.message || null
+          }
+        };
+        // Output 4: model_response (nueva salida para respuestas del modelo)
+        send([null, null, null, null, modelResponseMsg]);
+
         // Continue REACT loop
         node.reactStrategy.continueLoop(execution.envelope, {
           sendToModel: (modelMsg) => {
-            send([modelMsg, null, null, null]);
+            // Output 0: model
+            send([modelMsg, null, null, null, null]);
           },
           sendToTool: (toolMsg) => {
-            send([null, toolMsg, null, null]);
+            // Output 1: tool
+            send([null, toolMsg, null, null, null]);
           },
           sendToMemory: (memoryMsg) => {
-            send([null, null, memoryMsg, null]);
+            // Output 2: memory
+            send([null, null, memoryMsg, null, null]);
           },
           onComplete: (finalEnvelope) => {
+            // Output 3: result (resultado final del agent)
             // Extraer el mensaje del modelo si existe
             const modelMessage = finalEnvelope.model?.lastResponse?.message || 
                                  finalEnvelope.model?.lastResponse?.input?.message ||
+                                 finalEnvelope.model?.lastResponse?.payload?.message ||
                                  null;
             
             const resultMsg = {
               ...msg,
               // Si hay un mensaje del modelo, usarlo como payload principal
               // Si no, usar el envelope completo
-              payload: modelMessage || finalEnvelope,
+              payload: modelMessage || finalEnvelope.model?.lastResponse || finalEnvelope,
               // Preservar el envelope completo en una propiedad separada
               envelope: finalEnvelope,
               agentResult: {
                 completed: finalEnvelope.state.completed,
                 iterations: finalEnvelope.state.iteration,
                 traceId: finalEnvelope.observability.traceId,
-                message: modelMessage
+                message: modelMessage,
+                finalAction: finalEnvelope.state.lastAction
               }
             };
-            send([null, null, null, resultMsg]);
+            send([null, null, null, resultMsg, null]);
             node.activeExecutions.delete(traceId);
             if (done) done();
           },
@@ -157,38 +213,40 @@ function AgentCoreNode(RED, config) {
       node.reactStrategy.execute(envelope, {
         sendToModel: (modelMsg) => {
           // Output 0: model
-          send([modelMsg, null, null, null]);
+          send([modelMsg, null, null, null, null]);
         },
         sendToTool: (toolMsg) => {
           // Output 1: tool
-          send([null, toolMsg, null, null]);
+          send([null, toolMsg, null, null, null]);
         },
         sendToMemory: (memoryMsg) => {
           // Output 2: memory
-          send([null, null, memoryMsg, null]);
+          send([null, null, memoryMsg, null, null]);
         },
         onComplete: (finalEnvelope) => {
-          // Output 3: result
+          // Output 3: result (resultado final del agent)
           // Extraer el mensaje del modelo si existe
           const modelMessage = finalEnvelope.model?.lastResponse?.message || 
                                finalEnvelope.model?.lastResponse?.input?.message ||
+                               finalEnvelope.model?.lastResponse?.payload?.message ||
                                null;
           
           const resultMsg = {
             ...msg,
             // Si hay un mensaje del modelo, usarlo como payload principal
             // Si no, usar el envelope completo
-            payload: modelMessage || finalEnvelope,
+            payload: modelMessage || finalEnvelope.model?.lastResponse || finalEnvelope,
             // Preservar el envelope completo en una propiedad separada
             envelope: finalEnvelope,
             agentResult: {
               completed: finalEnvelope.state.completed,
               iterations: finalEnvelope.state.iteration,
               traceId: finalEnvelope.observability.traceId,
-              message: modelMessage
+              message: modelMessage,
+              finalAction: finalEnvelope.state.lastAction
             }
           };
-          send([null, null, null, resultMsg]);
+          send([null, null, null, resultMsg, null]);
           
           // Cleanup
           node.activeExecutions.delete(executionId);
@@ -199,6 +257,25 @@ function AgentCoreNode(RED, config) {
         },
         onError: (error) => {
           node.error(`[agent-core] Execution error: ${error.message}`, msg);
+          
+          // Enviar error a output 3 (result) y output 4 (model_response)
+          const errorMsg = {
+            ...msg,
+            payload: {
+              error: {
+                code: 'EXECUTION_ERROR',
+                message: error.message
+              },
+              envelope: envelope
+            },
+            agentResult: {
+              completed: false,
+              iterations: envelope.state.iteration,
+              traceId: envelope.observability.traceId,
+              error: error.message
+            }
+          };
+          send([null, null, null, errorMsg, errorMsg]);
           node.activeExecutions.delete(executionId);
           
           if (done) {

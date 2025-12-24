@@ -1,0 +1,7 @@
+{
+  "apiKey": "tu-api-key-de-azure-openai",
+  "endpoint": "https://tu-recurso.openai.azure.com",
+  "deployment": "gpt-4",
+  "apiVersion": "2024-02-15-preview"
+}
+

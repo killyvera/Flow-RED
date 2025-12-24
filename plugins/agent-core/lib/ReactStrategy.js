@@ -188,6 +188,8 @@ Output format:
 }`;
 
         // Send to model (output 0) - formato esperado por Azure OpenAI Model
+        // IMPORTANTE: El mensaje debe incluir _agentCore para que el modelo pueda
+        // incluir el traceId en su respuesta
         const modelMsg = {
           payload: {
             systemPrompt: systemPrompt,
@@ -199,7 +201,10 @@ Tool history:
 ${JSON.stringify(envelope.tools.history, null, 2)}`
               : `User message: ${typeof envelope.input === 'string' ? envelope.input : JSON.stringify(envelope.input, null, 2)}`,
             tools: this.allowedTools.map(tool => ({ name: tool })),
-            traceId: envelope.observability.traceId
+            traceId: envelope.observability.traceId,
+            envelope: {
+              iteration: envelope.state.iteration
+            }
           },
           _agentCore: {
             type: 'model_request',

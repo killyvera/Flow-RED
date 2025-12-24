@@ -110,8 +110,7 @@ export function mapNodeInputToSnapshot(
       return 'unserializable'
     }
   }
-  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'observabilityMapper.ts:mapNodeInputToSnapshot',message:'Payload de input recibido',data:{nodeId:event.nodeId,nodeType:event.data.nodeType,frameId:event.frameId,inputPayloadPreview:safeStringify(inputPayloadPreview),inputPayloadType,inputPayloadSize,inputPayloadTruncated,hasInput:!!event.data.input,timestamp:event.data.input?.timestamp},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
+  // Debugging code removed - was causing connection errors to 127.0.0.1:7243
   
   const payloadPreview = inputPayloadPreview
     ? createPayloadPreview(inputPayloadPreview)
@@ -164,7 +163,7 @@ export function mapNodeOutputToSnapshot(
     previewValue: safeStringify(o.payload?.preview),
     timestamp: o.timestamp,
   }))
-  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'observabilityMapper.ts:mapNodeOutputToSnapshot',message:'Payload de output recibido',data:{nodeId:event.nodeId,nodeType:event.data.nodeType,frameId:event.frameId,outputsCount,outputPayloadPreview:safeStringify(outputPayloadPreview),outputPayloadType,outputPayloadSize,outputPayloadTruncated,allOutputsPayloads,semantics:event.data.semantics},timestamp:Date.now(),sessionId:'debug-session',runId:'output-debug',hypothesisId:'H1'})}).catch(()=>{});
+  // Debugging code removed - was causing connection errors to 127.0.0.1:7243
   // #endregion
   
   const payloadPreview = outputPayloadPreview

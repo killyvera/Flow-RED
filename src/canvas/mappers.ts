@@ -668,10 +668,7 @@ export function transformReactFlowToNodeRed(
     // Esto previene que los nodos de un tab normal se traten como "nodos internos de subflow"
   }
 
-  // #region agent log
-  // H2: Verificar edges antes de reconstruir wires
-  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed:init',message:'Inicio de transformación',data:{flowId,nodesCount:nodes.length,edgesCount:edges.length,nodeIds:nodes.map(n=>n.id),edgeSample:edges.slice(0,5).map(e=>({id:e.id,source:e.source,target:e.target,sourceHandle:e.sourceHandle,targetHandle:e.targetHandle}))},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
+  // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
   // Agrupar edges por nodo fuente para reconstruir wires
   const edgesBySource = new Map<string, Map<number, string[]>>()
@@ -963,6 +960,40 @@ export function transformReactFlowToNodeRed(
       delete updatedNodeData.apiKey
     }
     
+    // Para nodos Azure OpenAI, asegurar que endpoint, deployment, apiVersion y credentialId estén presentes
+    if (isAzureOpenAINode) {
+      // Si updatedNodeData tiene endpoint o deployment, asegurar que se preserven
+      // Si no están en updatedNodeData pero están en originalNodeRedNode, preservarlos
+      if (!updatedNodeData.endpoint && originalNodeRedNode.endpoint) {
+        updatedNodeData.endpoint = originalNodeRedNode.endpoint
+      }
+      if (!updatedNodeData.deployment && originalNodeRedNode.deployment) {
+        updatedNodeData.deployment = originalNodeRedNode.deployment
+      }
+      if (!updatedNodeData.apiVersion && originalNodeRedNode.apiVersion) {
+        updatedNodeData.apiVersion = originalNodeRedNode.apiVersion
+      }
+      // Preservar credentialId si existe (para sistema de credenciales centralizado)
+      if (updatedNodeData.credentialId || originalNodeRedNode.credentialId) {
+        updatedNodeData.credentialId = updatedNodeData.credentialId || originalNodeRedNode.credentialId
+      }
+      
+      // Log para debugging (solo en desarrollo)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[mappers] Azure OpenAI Node:', {
+          nodeId: node.id,
+          hasEndpoint: !!updatedNodeData.endpoint,
+          endpoint: updatedNodeData.endpoint,
+          hasDeployment: !!updatedNodeData.deployment,
+          deployment: updatedNodeData.deployment,
+          hasApiVersion: !!updatedNodeData.apiVersion,
+          apiVersion: updatedNodeData.apiVersion,
+          updatedNodeDataKeys: Object.keys(updatedNodeData),
+          originalNodeRedNodeKeys: Object.keys(originalNodeRedNode),
+        })
+      }
+    }
+    
     const nodeRedNode: NodeRedNode = {
       // Primero, copiar TODAS las propiedades del nodo original
       ...originalNodeRedNode,
@@ -993,10 +1024,7 @@ export function transformReactFlowToNodeRed(
     const criticalProps = ['func', 'props', 'payloadType', 'payload', 'topic', 'repeat', 'crontab', 'once', 'onceDelay', 'outputs', 'noerr', 'initialize', 'finalize', 'libs']
     const missingCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] === undefined)
     const changedCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] !== undefined && JSON.stringify(originalNodeRedNode[p]) !== JSON.stringify(nodeRedNode[p]))
-    if (missingCritical.length > 0 || changedCritical.length > 0 || node.data.nodeRedType === 'function' || node.data.nodeRedType === 'inject') {
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformNode',message:'Verificación de propiedades críticas',data:{nodeId:preservedId,nodeType:node.data.nodeRedType,missingCritical,changedCritical,originalProps:Object.keys(originalNodeRedNode).filter(k=>criticalProps.includes(k)),transformedProps:Object.keys(nodeRedNode).filter(k=>criticalProps.includes(k)),originalFunc:originalNodeRedNode.func?.substring?.(0,50),transformedFunc:nodeRedNode.func?.substring?.(0,50),originalWires:originalNodeRedNode.wires,transformedWires:nodeRedNode.wires,hasNodeRedNode:!!node.data.nodeRedNode},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H4'})}).catch(()=>{});
-    }
-    // #endregion
+    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     // CRÍTICO: Para nodos inject, asegurar que todas las propiedades necesarias estén presentes
     // Si el nodo original tenía estas propiedades, preservarlas exactamente como estaban
@@ -1278,8 +1306,7 @@ export function transformReactFlowToNodeRed(
   const functionNodes = orderedFinalNodes.filter(n => n.type === 'function')
   const injectNodes = orderedFinalNodes.filter(n => n.type === 'inject')
   const nodesWithoutWires = orderedFinalNodes.filter(n => n.type !== 'tab' && n.type !== 'subflow' && n.type !== 'group' && !n.wires)
-  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:transformReactFlowToNodeRed:final',message:'Resultado final de transformación',data:{flowId,totalNodes:orderedFinalNodes.length,functionNodes:functionNodes.map(n=>({id:n.id,hasFunc:!!n.func,funcLength:n.func?.length||0,outputs:n.outputs,wires:n.wires})),injectNodes:injectNodes.map(n=>({id:n.id,hasProps:!!n.props,payloadType:n.payloadType,payload:typeof n.payload,wires:n.wires})),nodesWithoutWires:nodesWithoutWires.map(n=>({id:n.id,type:n.type})),subflowsProcessed:processedSubflows.size,internalNodesInArray:internalNodesToAdd.length},timestamp:Date.now(),sessionId:'debug-session',runId:'save-debug',hypothesisId:'H1,H2,H3,H4,H5'})}).catch(()=>{});
-  // #endregion
+  // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
   return orderedFinalNodes
 }
