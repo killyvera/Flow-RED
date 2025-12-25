@@ -220,16 +220,18 @@ export function mapNodeRedWiresToReactFlowEdges(
       const sourceHandle = isBidirectionalSource ? 'output-0' : `output-${outputPortIndex}`
       
       // Verificar si es una conexión que debe ocultarse:
-      // 1. Agent Core output-0 → modelo Azure OpenAI (oculto)
-      // 2. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
-      // El edge Chat node output-0 → Agent Core input es VISIBLE (como el modelo → Agent Core)
-      const isAgentCoreToModel = sourceNode?.data?.nodeRedType === 'agent-core' && 
-                                  outputPortIndex === 0 && 
-                                  targetNode?.data?.nodeRedType === 'model.azure.openai'
+      // 1. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
+      // 2. Model output-0 → Agent Core input (oculto - respuesta del modelo al Agent Core)
+      // NOTA: Agent Core output-0 → Model input es VISIBLE (solo esta conexión debe verse)
+      // El edge Chat node output-0 → Agent Core input es VISIBLE
+      // IMPORTANTE: Solo debe haber UNA conexión visible entre Agent Core y Model (desde Agent Core output-0)
       const isAgentCoreToChat = sourceNode?.data?.nodeRedType === 'agent-core' && 
                                 outputPortIndex === 4 && 
                                 targetNode?.data?.nodeRedType === 'chat-node'
-      const shouldHide = isAgentCoreToModel || isAgentCoreToChat
+      const isModelToAgentCore = sourceNode?.data?.nodeRedType === 'model.azure.openai' && 
+                                  outputPortIndex === 0 && 
+                                  targetNode?.data?.nodeRedType === 'agent-core'
+      const shouldHide = isAgentCoreToChat || isModelToAgentCore
       
       const edge: ReactFlowEdge = {
         id: edgeId,

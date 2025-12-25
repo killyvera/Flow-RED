@@ -32,6 +32,10 @@ const AnimatedEdge = memo(function AnimatedEdge({
   const animatedEdgeId = useCanvasStore((state) => state.animatedEdgeId)
   const explainMode = useCanvasStore((state) => state.explainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
+  const edges = useCanvasStore((state) => state.edges)
+  const nodes = useCanvasStore((state) => state.nodes)
+  const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
+  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
   
   // Si el edge está oculto (hidden o opacity 0), no renderizar nada
   const isHidden = (rest as any).hidden || style.opacity === 0
@@ -39,35 +43,52 @@ const AnimatedEdge = memo(function AnimatedEdge({
     return null
   }
   
+  // Obtener el edge completo para identificar nodos conectados
+  const edge = edges.find(e => e.id === id)
+  const sourceNode = edge ? nodes.find(n => n.id === edge.source) : null
+  const targetNode = edge ? nodes.find(n => n.id === edge.target) : null
+  
+  // Verificar si conecta modelo o agent-core (para animación direccional)
+  const sourceType = (sourceNode?.data as any)?.nodeRedType || (sourceNode?.data as any)?.nodeRedNode?.type
+  const targetType = (targetNode?.data as any)?.nodeRedType || (targetNode?.data as any)?.nodeRedNode?.type
+  const sourceNodeRedId = (sourceNode?.data as any)?.nodeRedNode?.id
+  const targetNodeRedId = (targetNode?.data as any)?.nodeRedNode?.id
+  const isModelEdge = sourceType === 'model.azure.openai' || targetType === 'model.azure.openai'
+  const isAgentCoreEdge = sourceType === 'agent-core' || targetType === 'agent-core'
+  const isModelOrAgentCoreEdge = (isModelEdge || isAgentCoreEdge) && !isHidden
+  
+  // Determinar dirección de la animación según el flujo real:
+  // El edge visible va del modelo al agent-core (modelo output)
+  // - Si el modelo está "running": recibió input → animación hacia el modelo (1;0) - invertida
+  // - Si el modelo está "idle": envió output → animación desde el modelo (0;1) - normal
+  let animationDirection = "0;1" // Default: dirección normal
+  if (isModelOrAgentCoreEdge) {
+    const modelNodeRedId = sourceType === 'model.azure.openai' ? sourceNodeRedId : 
+                           targetType === 'model.azure.openai' ? targetNodeRedId : null
+    if (modelNodeRedId) {
+      const modelState = nodeRuntimeStates.get(modelNodeRedId)
+      const modelSnapshots = nodeSnapshots.get(modelNodeRedId) || []
+      const latestSnapshot = modelSnapshots[modelSnapshots.length - 1]
+      
+      // Si el modelo está "running", recibió input → animación hacia el modelo (invertida)
+      // Si el modelo está "idle" o no hay estado, envió output → animación desde el modelo (normal)
+      if (modelState === 'running' || (latestSnapshot && latestSnapshot.status === 'running')) {
+        animationDirection = "1;0" // Hacia el modelo (invertida)
+      } else {
+        animationDirection = "0;1" // Desde el modelo (normal)
+      }
+    }
+  }
+  
   // Separar estados: verde persistente vs punto animado
   const isGreen = activeEdges.has(id) && !perfMode // Verde persistente
   const isAnimated = animatedEdgeId === id && !perfMode // Punto animado (solo uno)
-  
+
   const [isHovered, setIsHovered] = useState(false)
-  const [shouldShowAnimation, setShouldShowAnimation] = useState(false)
   
-  // Detectar si el flujo es muy rápido (menos de 1ms) y solo mostrar animación si no lo es
-  // El efecto debe depender de isAnimated, no de isGreen
-  React.useEffect(() => {
-    if (isAnimated) {
-      // Si el edge es el animado, esperar un pequeño delay para ver si el flujo es rápido
-      // Si después de 1ms el edge sigue siendo el animado, mostrar la animación
-      const timeoutId = setTimeout(() => {
-        // Verificar que el edge siga siendo el animado después del delay
-        const stillAnimated = useCanvasStore.getState().animatedEdgeId === id
-        if (stillAnimated) {
-          setShouldShowAnimation(true)
-        }
-      }, 1) // 1ms de delay para detectar flujos rápidos
-      
-      return () => {
-        clearTimeout(timeoutId)
-        setShouldShowAnimation(false)
-      }
-    } else {
-      setShouldShowAnimation(false)
-    }
-  }, [isAnimated, id])
+  // Duración de la animación del punto (500ms para ser visible)
+  // El edge se limpia automáticamente cuando el siguiente edge se activa
+  const animationDuration = 500
 
   const [edgePath] = getSmoothStepPath({
     sourceX,
@@ -83,6 +104,7 @@ const AnimatedEdge = memo(function AnimatedEdge({
   const labelY = (sourceY + targetY) / 2
 
   // Crear markerEnd dinámico que cambia a verde cuando está activo
+  // Siempre usar tamaño grande (12x12) para consistencia
   const getMarkerType = (): MarkerType => {
     if (typeof markerEnd === 'string') return 'arrowclosed' as MarkerType
     if (markerEnd && typeof markerEnd === 'object' && 'type' in markerEnd) {
@@ -91,15 +113,13 @@ const AnimatedEdge = memo(function AnimatedEdge({
     return 'arrowclosed' as MarkerType
   }
   
-  const activeMarkerEnd: any = isGreen
-    ? {
-        type: getMarkerType(),
-        color: '#22c55e', // Verde cuando está activo
-        width: 20,
-        height: 20,
-        id: `marker-${id}-active`, // ID único para forzar actualización
-      }
-    : markerEnd
+  const activeMarkerEnd: any = {
+    type: getMarkerType(),
+    color: isGreen ? '#22c55e' : ((style.stroke as string) || 'var(--color-edge-default)'),
+    width: 12,
+    height: 12,
+    id: `marker-${id}-${isGreen ? 'active' : 'default'}`,
+  }
 
   return (
     <>
@@ -122,28 +142,16 @@ const AnimatedEdge = memo(function AnimatedEdge({
         />
       </g>
       
-      {/* Punto animado solo si es el edge actualmente animado y el flujo no es muy rápido (más de 1ms) */}
-      {isAnimated && shouldShowAnimation && (
-        <circle r="8" fill="#22c55e" className="edge-moving-dot" opacity="1">
+      {/* Punto animado solo si es el edge actualmente animado */}
+      {isAnimated && (
+        <circle r="6" fill="#22c55e" className="edge-moving-dot" opacity="0.9">
           <animateMotion
-            dur="1.5s"
+            dur={`${animationDuration}ms`}
             repeatCount="indefinite"
             path={edgePath}
             keyPoints="0;1"
             keyTimes="0;1"
             calcMode="linear"
-          />
-          <animate
-            attributeName="opacity"
-            values="0.7;1;0.7"
-            dur="1.5s"
-            repeatCount="indefinite"
-          />
-          <animate
-            attributeName="r"
-            values="6;8;6"
-            dur="1.5s"
-            repeatCount="indefinite"
           />
         </circle>
       )}
@@ -186,30 +194,56 @@ const BidirectionalEdge = memo(function BidirectionalEdge({
   const animatedEdgeId = useCanvasStore((state) => state.animatedEdgeId)
   const explainMode = useCanvasStore((state) => state.explainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
+  const edges = useCanvasStore((state) => state.edges)
+  const nodes = useCanvasStore((state) => state.nodes)
+  const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
+  const nodeSnapshots = useCanvasStore((state) => state.nodeSnapshots)
+  
+  // Obtener el edge completo para identificar nodos conectados
+  const edge = edges.find(e => e.id === id)
+  const sourceNode = edge ? nodes.find(n => n.id === edge.source) : null
+  const targetNode = edge ? nodes.find(n => n.id === edge.target) : null
+  
+  // Verificar si conecta modelo o agent-core (para animación direccional)
+  const sourceType = (sourceNode?.data as any)?.nodeRedType || (sourceNode?.data as any)?.nodeRedNode?.type
+  const targetType = (targetNode?.data as any)?.nodeRedType || (targetNode?.data as any)?.nodeRedNode?.type
+  const sourceNodeRedId = (sourceNode?.data as any)?.nodeRedNode?.id
+  const targetNodeRedId = (targetNode?.data as any)?.nodeRedNode?.id
+  const isModelEdge = sourceType === 'model.azure.openai' || targetType === 'model.azure.openai'
+  const isAgentCoreEdge = sourceType === 'agent-core' || targetType === 'agent-core'
+  const isModelOrAgentCoreEdge = (isModelEdge || isAgentCoreEdge)
+  
+  // Determinar dirección de la animación según el flujo real:
+  // El edge visible va del modelo al agent-core (modelo output)
+  // - Si el modelo está "running": recibió input → animación hacia el modelo (1;0) - invertida
+  // - Si el modelo está "idle": envió output → animación desde el modelo (0;1) - normal
+  let animationDirection = "0;1" // Default: dirección normal
+  if (isModelOrAgentCoreEdge) {
+    const modelNodeRedId = sourceType === 'model.azure.openai' ? sourceNodeRedId : 
+                           targetType === 'model.azure.openai' ? targetNodeRedId : null
+    if (modelNodeRedId) {
+      const modelState = nodeRuntimeStates.get(modelNodeRedId)
+      const modelSnapshots = nodeSnapshots.get(modelNodeRedId) || []
+      const latestSnapshot = modelSnapshots[modelSnapshots.length - 1]
+      
+      // Si el modelo está "running", recibió input → animación hacia el modelo (invertida)
+      // Si el modelo está "idle" o no hay estado, envió output → animación desde el modelo (normal)
+      if (modelState === 'running' || (latestSnapshot && latestSnapshot.status === 'running')) {
+        animationDirection = "1;0" // Hacia el modelo (invertida)
+      } else {
+        animationDirection = "0;1" // Desde el modelo (normal)
+      }
+    }
+  }
   
   const isGreen = activeEdges.has(id) && !perfMode
   const isAnimated = animatedEdgeId === id && !perfMode
   
   const [isHovered, setIsHovered] = useState(false)
-  const [shouldShowAnimation, setShouldShowAnimation] = useState(false)
   
-  React.useEffect(() => {
-    if (isAnimated) {
-      const timeoutId = setTimeout(() => {
-        const stillAnimated = useCanvasStore.getState().animatedEdgeId === id
-        if (stillAnimated) {
-          setShouldShowAnimation(true)
-        }
-      }, 1)
-      
-      return () => {
-        clearTimeout(timeoutId)
-        setShouldShowAnimation(false)
-      }
-    } else {
-      setShouldShowAnimation(false)
-    }
-  }, [isAnimated, id])
+  // Duración de la animación del punto (500ms para ser visible)
+  // El edge se limpia automáticamente cuando el siguiente edge se activa
+  const animationDuration = 500
 
   const [edgePath] = getSmoothStepPath({
     sourceX,
@@ -231,52 +265,41 @@ const BidirectionalEdge = memo(function BidirectionalEdge({
     return 'arrowclosed' as MarkerType
   }
   
-  const activeMarkerEnd: any = isGreen
-    ? {
-        type: getMarkerType(),
-        color: '#22c55e',
-        width: 20,
-        height: 20,
-        id: `marker-${id}-active`,
-      }
-    : markerEnd
+  // Siempre usar tamaño grande (12x12) para consistencia
+  const activeMarkerEnd: any = {
+    type: getMarkerType(),
+    color: isGreen ? '#22c55e' : ((style.stroke as string) || 'var(--color-edge-default)'),
+    width: 12,
+    height: 12,
+    id: `marker-${id}-${isGreen ? 'active' : 'default'}`,
+  }
 
-  // Crear marcador para el inicio (bidireccional)
+  // Crear marcador para el inicio (bidireccional) - mismo tamaño
+  // Solo mostrar markerStart si el source es el modelo (para el edge visible Model → Agent Core)
   const markerStartId = `arrow-start-${id}`
-  const activeMarkerStart: any = isGreen
-    ? {
-        type: getMarkerType(),
-        color: '#22c55e',
-        width: 20,
-        height: 20,
-        id: markerStartId,
-      }
-    : {
-        type: getMarkerType(),
-        color: style.stroke as string || 'var(--color-edge-default)',
-        width: 20,
-        height: 20,
-        id: markerStartId,
-      }
+  const isModelSource = sourceType === 'model.azure.openai'
+  const shouldShowMarkerStart = isModelSource && isModelOrAgentCoreEdge
 
   return (
     <>
-      <defs>
-        <marker
-          id={markerStartId}
-          markerWidth="20"
-          markerHeight="20"
-          refX="10"
-          refY="5"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <path
-            d="M 0 0 L 10 5 L 0 10 z"
-            fill={isGreen ? '#22c55e' : (style.stroke as string) || 'var(--color-edge-default)'}
-          />
-        </marker>
-      </defs>
+      {shouldShowMarkerStart && (
+        <defs>
+          <marker
+            id={markerStartId}
+            markerWidth="12"
+            markerHeight="12"
+            refX="10"
+            refY="6"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <path
+              d="M 0 0 L 10 6 L 0 12 z"
+              fill={isGreen ? '#22c55e' : (style.stroke as string) || 'var(--color-edge-default)'}
+            />
+          </marker>
+        </defs>
+      )}
       
       <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
         <BaseEdge
@@ -291,33 +314,22 @@ const BidirectionalEdge = memo(function BidirectionalEdge({
             fill: 'none',
             transition: perfMode ? 'none' : 'stroke-width 0.2s ease-out, stroke 0.2s ease-out',
             filter: perfMode || !isGreen ? 'none' : 'drop-shadow(0 0 6px rgba(34, 197, 94, 0.5))',
-            markerStart: `url(#${markerStartId})`,
+            markerStart: shouldShowMarkerStart ? `url(#${markerStartId})` : undefined,
           }}
           markerEnd={activeMarkerEnd}
         />
       </g>
       
-      {isAnimated && shouldShowAnimation && (
-        <circle r="8" fill="#22c55e" className="edge-moving-dot" opacity="1">
+      {/* Punto animado solo si es el edge actualmente animado */}
+      {isAnimated && (
+        <circle r="6" fill="#22c55e" className="edge-moving-dot" opacity="0.9">
           <animateMotion
-            dur="1.5s"
+            dur={`${animationDuration}ms`}
             repeatCount="indefinite"
             path={edgePath}
-            keyPoints="0;1"
+            keyPoints={isModelOrAgentCoreEdge ? animationDirection : "0;1"}
             keyTimes="0;1"
             calcMode="linear"
-          />
-          <animate
-            attributeName="opacity"
-            values="0.7;1;0.7"
-            dur="1.5s"
-            repeatCount="indefinite"
-          />
-          <animate
-            attributeName="r"
-            values="6;8;6"
-            dur="1.5s"
-            repeatCount="indefinite"
           />
         </circle>
       )}

@@ -13,6 +13,7 @@ import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
 import type { BaseNodeProps } from './types'
 import { Brain, Wrench, Database } from 'lucide-react'
+import { useCanvasStore } from '@/state/canvasStore'
 
 /**
  * AgentCoreNode Component
@@ -21,9 +22,14 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const nodeData = (data.data || data) as any
   // Usar label del nodo o nombre del nodeRedNode o nombre por defecto
   const label = nodeData.label || nodeData.nodeRedNode?.name || 'Agent Core'
-  const isExecuting = nodeData.isExecuting || false
   const currentIteration = nodeData.currentIteration || 0
   const maxIterations = nodeData.maxIterations || 5
+  
+  // Obtener estado de ejecución desde el store
+  const nodeRedNodeId = nodeData.nodeRedNode?.id
+  const nodeRuntimeStates = useCanvasStore((state) => state.nodeRuntimeStates)
+  const runtimeState = nodeRedNodeId ? nodeRuntimeStates.get(nodeRedNodeId) : null
+  const isExecuting = runtimeState === 'running'
 
   return (
     <div
@@ -31,7 +37,6 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
         relative bg-node-default border border-node-border rounded-lg shadow-node
         transition-all duration-200
         ${selected ? 'ring-2 ring-accent-primary' : ''}
-        ${isExecuting ? 'animate-pulse' : ''}
       `}
       style={{
         minWidth: '180px',

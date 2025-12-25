@@ -67,6 +67,8 @@ export interface CanvasState {
   activeEdges: Set<string>
   /** Edge actualmente animado (punto animado) - solo uno a la vez */
   animatedEdgeId: string | null
+  /** Tiempos de activación de edges (edgeId -> timestamp en ms) */
+  edgeActivationTimes: Map<string, number>
   /** Logs de ejecución */
   executionLogs: ExecutionLogEntry[]
   /** Máximo número de logs a mantener */
@@ -105,6 +107,9 @@ export interface CanvasState {
   setActiveEdge: (edgeId: string, active: boolean) => void
   clearActiveEdges: () => void
   setAnimatedEdge: (edgeId: string | null) => void
+  setEdgeActivationTime: (edgeId: string, timestamp: number) => void
+  clearEdgeActivationTime: (edgeId: string) => void
+  clearAllEdgeActivationTimes: () => void
   addExecutionLog: (entry: Omit<ExecutionLogEntry, 'id' | 'timestamp'>) => void
   clearExecutionLogs: () => void
   setSelectedNodeId: (id: string | null) => void
@@ -187,7 +192,7 @@ function sanitizeOrphanGroupParents(nodes: ReactFlowNode[]): ReactFlowNode[] {
 const initialState: Omit<CanvasState, 
   'setNodes' | 'setEdges' | 'setGroups' | 'setCollapsedGroupIds' | 'toggleGroupCollapsed' |
   'setNodeRuntimeState' | 'clearNodeRuntimeState' | 'clearAllRuntimeStates' | 'setWsConnected' |
-  'setActiveEdge' | 'clearActiveEdges' | 'setAnimatedEdge' | 'addExecutionLog' | 'clearExecutionLogs' |
+  'setActiveEdge' | 'clearActiveEdges' | 'setAnimatedEdge' | 'setEdgeActivationTime' | 'clearEdgeActivationTime' | 'clearAllEdgeActivationTimes' | 'addExecutionLog' | 'clearExecutionLogs' |
   'setSelectedNodeId' | 'setSelectedEdgeId' | 'setEditMode' | 'toggleEditMode' |
   'setLoading' | 'setError' | 'setNodeRedNodes' | 'setFlows' | 'setActiveFlowId' |
   'startFrame' | 'endFrame' | 'addNodeSnapshot' | 'setExecutionFramesEnabled' | 'clearFrames' |
@@ -210,6 +215,7 @@ const initialState: Omit<CanvasState,
   wsConnected: false,
   activeEdges: new Set<string>(),
   animatedEdgeId: null,
+  edgeActivationTimes: new Map<string, number>(),
   executionLogs: [],
   maxLogs: 1000,
   currentFrame: null,
@@ -275,6 +281,17 @@ export const useCanvasStore = create<CanvasState>((set) => ({
           },
   clearActiveEdges: () => set({ activeEdges: new Set(), animatedEdgeId: null }),
   setAnimatedEdge: (edgeId) => set({ animatedEdgeId: edgeId }),
+  setEdgeActivationTime: (edgeId, timestamp) => set((state) => {
+    const newTimes = new Map(state.edgeActivationTimes)
+    newTimes.set(edgeId, timestamp)
+    return { edgeActivationTimes: newTimes }
+  }),
+  clearEdgeActivationTime: (edgeId) => set((state) => {
+    const newTimes = new Map(state.edgeActivationTimes)
+    newTimes.delete(edgeId)
+    return { edgeActivationTimes: newTimes }
+  }),
+  clearAllEdgeActivationTimes: () => set({ edgeActivationTimes: new Map() }),
   addExecutionLog: (entry) => {
     // console.log('📝 [canvasStore] Agregando log:', entry)
     set((state) => {

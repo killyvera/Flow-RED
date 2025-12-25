@@ -41,6 +41,8 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
   const setActiveEdge = useCanvasStore((state) => state.setActiveEdge)
   const clearActiveEdges = useCanvasStore((state) => state.clearActiveEdges)
   const setAnimatedEdge = useCanvasStore((state) => state.setAnimatedEdge)
+  const setEdgeActivationTime = useCanvasStore((state) => state.setEdgeActivationTime)
+  const clearAllEdgeActivationTimes = useCanvasStore((state) => state.clearAllEdgeActivationTimes)
   const setWsEventQueueSize = useCanvasStore((state) => state.setWsEventQueueSize)
   const edges = useCanvasStore((state) => state.edges)
   const nodes = useCanvasStore((state) => state.nodes)
@@ -124,9 +126,21 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       // ✅ Verde persistente (marcar como verde)
       setActiveEdge(edge.edgeId, true)
       edgeActivationTimes.current.set(edge.edgeId, activationTime)
+      // También guardar en el store para acceso desde componentes
+      setEdgeActivationTime(edge.edgeId, activationTime)
       
       // ✅ SOLO UNO con punto animado (el último procesado en este tick)
       setAnimatedEdge(edge.edgeId)
+      
+      // Limpiar el edge verde y el punto animado después de 1 segundo
+      const edgeIdToClear = edge.edgeId
+      setTimeout(() => {
+        setActiveEdge(edgeIdToClear, false)
+        // Si este edge sigue siendo el animado, limpiarlo también
+        if (useCanvasStore.getState().animatedEdgeId === edgeIdToClear) {
+          setAnimatedEdge(null)
+        }
+      }, 1000)
     }
     
     isProcessingEdgeQueue.current = false
@@ -922,6 +936,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
             // Los edges se quedan verdes durante la ejecución, pero se limpian al finalizar
             clearActiveEdges() // Esto también limpia animatedEdgeId
             edgeActivationTimes.current.clear()
+            clearAllEdgeActivationTimes() // Limpiar también del store
             globalEdgeQueue.current = []
             queuedEdgeIds.current.clear()
             isProcessingEdgeQueue.current = false
@@ -1013,7 +1028,7 @@ export function useNodeRedWebSocket(enabled: boolean = true) {
       }
       wsLogger('Hook desmontado, limpiando suscripción')
     }
-  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setAnimatedEdge, setWsEventQueueSize, edges, nodes, nodeRedNodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
+  }, [enabled, useObservability, setNodeRuntimeState, setWsConnected, wsConnected, addExecutionLog, setActiveEdge, clearActiveEdges, setAnimatedEdge, setEdgeActivationTime, clearAllEdgeActivationTimes, setWsEventQueueSize, edges, nodes, nodeRedNodes, currentFrame, executionFramesEnabled, startFrame, endFrame, addNodeSnapshot])
 
   // Limpiar estados cuando se deshabilita
   useEffect(() => {

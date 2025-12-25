@@ -676,16 +676,18 @@ export function CanvasPage() {
         const targetNodeTypeForAuto = (targetNodeForAuto?.data as any)?.nodeRedNode?.type || (targetNodeForAuto?.data as any)?.nodeRedType
         
         // Ocultar edges específicos:
-        // 1. Agent Core output-0 → modelo Azure OpenAI (oculto)
-        // 2. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
-        // El edge Chat node output-0 → Agent Core input es VISIBLE (como Model output-0 → Agent Core)
-        const isAgentCoreToModelAuto = sourceNodeTypeForAuto === 'agent-core' && 
-                                        connection.sourceHandle === 'output-0' && 
-                                        targetNodeTypeForAuto === 'model.azure.openai'
+        // 1. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
+        // 2. Model output-0 → Agent Core input (oculto - respuesta del modelo al Agent Core)
+        // NOTA: Agent Core output-0 → Model input es VISIBLE (solo esta conexión debe verse)
+        // El edge Chat node output-0 → Agent Core input es VISIBLE
+        // IMPORTANTE: Solo debe haber UNA conexión visible entre Agent Core y Model (desde Agent Core output-0)
         const isAgentCoreToChatAuto = sourceNodeTypeForAuto === 'agent-core' && 
                                       connection.sourceHandle === 'output-4' && 
                                       targetNodeTypeForAuto === 'chat-node'
-        const shouldHide = isAgentCoreToModelAuto || isAgentCoreToChatAuto
+        const isModelToAgentCoreAuto = sourceNodeTypeForAuto === 'model.azure.openai' && 
+                                       connection.sourceHandle === 'output-0' && 
+                                       targetNodeTypeForAuto === 'agent-core'
+        const shouldHide = isAgentCoreToChatAuto || isModelToAgentCoreAuto
         
         const newEdge = {
           ...connection,
@@ -731,20 +733,22 @@ export function CanvasPage() {
     }
     
     // Verificar si es una conexión que debe ocultarse:
-    // 1. Agent Core output-0 → modelo Azure OpenAI (oculto)
-    // 2. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
-    // El edge Chat node output-0 → Agent Core input es VISIBLE (como Model output-0 → Agent Core)
+    // 1. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
+    // 2. Model output-0 → Agent Core input (oculto - respuesta del modelo al Agent Core)
+    // NOTA: Agent Core output-0 → Model input es VISIBLE (solo esta conexión debe verse desde el handler del recuadro rojo)
+    // El edge Chat node output-0 → Agent Core input es VISIBLE
+    // IMPORTANTE: Solo debe haber UNA conexión visible entre Agent Core y Model (desde Agent Core output-0)
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     const sourceNodeType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
     const targetNodeType = (targetNode?.data as any)?.nodeRedNode?.type || (targetNode?.data as any)?.nodeRedType
-    const isAgentCoreToModel = sourceNodeType === 'agent-core' && 
-                                connection.sourceHandle === 'output-0' && 
-                                targetNodeType === 'model.azure.openai'
     const isAgentCoreToChat = sourceNodeType === 'agent-core' && 
                               connection.sourceHandle === 'output-4' && 
                               targetNodeType === 'chat-node'
-    const shouldHide = isAgentCoreToModel || isAgentCoreToChat
+    const isModelToAgentCore = sourceNodeType === 'model.azure.openai' && 
+                               connection.sourceHandle === 'output-0' && 
+                               targetNodeType === 'agent-core'
+    const shouldHide = isAgentCoreToChat || isModelToAgentCore
     
     const newEdge = {
       ...connection,
