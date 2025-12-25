@@ -26,11 +26,18 @@ const AnimatedEdge = memo(function AnimatedEdge({
   targetPosition,
   style = {},
   markerEnd,
+  ...rest
 }: EdgeProps) {
   const activeEdges = useCanvasStore((state) => state.activeEdges)
   const animatedEdgeId = useCanvasStore((state) => state.animatedEdgeId)
   const explainMode = useCanvasStore((state) => state.explainMode)
   const perfMode = useCanvasStore((state) => state.perfMode)
+  
+  // Si el edge está oculto (hidden o opacity 0), no renderizar nada
+  const isHidden = (rest as any).hidden || style.opacity === 0
+  if (isHidden) {
+    return null
+  }
   
   // Separar estados: verde persistente vs punto animado
   const isGreen = activeEdges.has(id) && !perfMode // Verde persistente

@@ -570,6 +570,116 @@ export function CanvasPage() {
     })
   }, [isEditMode, setEdges, onEdgesChange, setEdgesLocal])
 
+  // Estado para auto-conexión desde Agent Core
+  const [pendingAutoConnect, setPendingAutoConnect] = React.useState<{
+    sourceNodeId: string
+    sourceHandle: string
+  } | null>(null)
+
+  // Manejar inicio de conexión (arrastre desde handle)
+  const onConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, { nodeId, handleId, handleType }: any) => {
+    if (!isEditMode) return
+    
+    // Si se arrastra desde Agent Core output-0, activar modo auto-conexión
+    if (handleType === 'source' && nodeId && handleId === 'output-0') {
+      const sourceNode = nodes.find(n => n.id === nodeId)
+      const nodeRedType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
+      
+      if (nodeRedType === 'agent-core') {
+        setPendingAutoConnect({ sourceNodeId: nodeId, sourceHandle: handleId })
+      }
+    }
+  }, [isEditMode, nodes])
+
+  // Manejar fin de conexión (soltar handle)
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    if (!isEditMode || !pendingAutoConnect) {
+      setPendingAutoConnect(null)
+      return
+    }
+
+    // Buscar nodo Azure OpenAI Model cerca del punto donde se soltó
+    const point = 'touches' in event ? event.touches[0] : event
+    const reactFlowInstance = reactFlowInstanceRef.current
+    if (!reactFlowInstance) {
+      setPendingAutoConnect(null)
+      return
+    }
+
+    // Convertir coordenadas de pantalla a coordenadas del flow
+    const flowPosition = reactFlowInstance.screenToFlowPosition({
+      x: point.clientX,
+      y: point.clientY,
+    })
+
+    // Buscar nodo Azure OpenAI Model más cercano (dentro de 100px)
+    const azureModelNodes = nodes.filter(n => {
+      const nodeRedType = (n.data as any)?.nodeRedNode?.type || (n.data as any)?.nodeRedType
+      return nodeRedType === 'model.azure.openai'
+    })
+
+    let closestNode: typeof nodes[0] | null = null
+    let minDistance = 100 // Distancia máxima en píxeles del flow
+
+    azureModelNodes.forEach(node => {
+      const distance = Math.sqrt(
+        Math.pow(node.position.x - flowPosition.x, 2) + 
+        Math.pow(node.position.y - flowPosition.y, 2)
+      )
+      if (distance < minDistance) {
+        minDistance = distance
+        closestNode = node
+      }
+    })
+
+    // Si hay un nodo Azure OpenAI Model cerca, auto-conectar
+    if (closestNode) {
+      const connection: Connection = {
+        source: pendingAutoConnect.sourceNodeId,
+        sourceHandle: pendingAutoConnect.sourceHandle,
+        target: closestNode.id,
+        targetHandle: 'input', // El handle de entrada oculto del modelo
+      }
+
+      // Validar la conexión
+      const validation = validateConnectionComplete(connection, nodes, edges, false)
+      if (validation.isValid) {
+        // Verificar si es una conexión de Agent Core output-0 a modelo Azure OpenAI
+        const sourceNodeForAuto = nodes.find(n => n.id === connection.source)
+        const targetNodeForAuto = nodes.find(n => n.id === connection.target)
+        const sourceNodeTypeForAuto = (sourceNodeForAuto?.data as any)?.nodeRedNode?.type || (sourceNodeForAuto?.data as any)?.nodeRedType
+        const targetNodeTypeForAuto = (targetNodeForAuto?.data as any)?.nodeRedNode?.type || (targetNodeForAuto?.data as any)?.nodeRedType
+        const isAgentCoreToModelAuto = sourceNodeTypeForAuto === 'agent-core' && 
+                                        connection.sourceHandle === 'output-0' && 
+                                        targetNodeTypeForAuto === 'model.azure.openai'
+        
+        const newEdge = {
+          ...connection,
+          id: `${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}`,
+          type: 'smoothstep',
+          style: {
+            strokeWidth: 2,
+            stroke: 'var(--color-edge-default)',
+            // Ocultar solo edges de Agent Core output-0 a modelo Azure OpenAI
+            opacity: isAgentCoreToModelAuto ? 0 : 1,
+          },
+          markerEnd: {
+            type: 'arrowclosed',
+            color: 'var(--color-edge-default)',
+          },
+          // Marcar como oculto solo si es conexión Agent Core -> Model
+          hidden: isAgentCoreToModelAuto,
+        }
+
+        const updatedEdges = addEdge(newEdge, edges)
+        setEdgesLocal(updatedEdges)
+        setEdges(updatedEdges)
+      }
+    }
+
+    setPendingAutoConnect(null)
+  }, [isEditMode, pendingAutoConnect, nodes, edges, setEdgesLocal, setEdges, reactFlowInstanceRef])
+
   // Manejar creación de conexiones
   const onConnect = useCallback((connection: Connection) => {
     if (!isEditMode) return // No permitir conexiones en modo lectura
@@ -586,6 +696,15 @@ export function CanvasPage() {
       return
     }
     
+    // Verificar si es una conexión de Agent Core output-0 a modelo Azure OpenAI
+    const sourceNode = nodes.find(n => n.id === connection.source)
+    const targetNode = nodes.find(n => n.id === connection.target)
+    const sourceNodeType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
+    const targetNodeType = (targetNode?.data as any)?.nodeRedNode?.type || (targetNode?.data as any)?.nodeRedType
+    const isAgentCoreToModel = sourceNodeType === 'agent-core' && 
+                                connection.sourceHandle === 'output-0' && 
+                                targetNodeType === 'model.azure.openai'
+    
     const newEdge = {
       ...connection,
       id: `${connection.source}-${connection.sourceHandle || '0'}-${connection.target}-${connection.targetHandle || 'input'}`,
@@ -593,11 +712,15 @@ export function CanvasPage() {
       style: {
         strokeWidth: 2,
         stroke: 'var(--color-edge-default)',
+        // Ocultar solo edges de Agent Core output-0 a modelo Azure OpenAI
+        opacity: isAgentCoreToModel ? 0 : 1,
       },
       markerEnd: {
         type: 'arrowclosed',
         color: 'var(--color-edge-default)',
       },
+      // Marcar como oculto solo si es conexión Agent Core -> Model
+      hidden: isAgentCoreToModel,
     }
     
     const updatedEdges = addEdge(newEdge, edges)
@@ -3920,6 +4043,8 @@ export function CanvasPage() {
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
             onNodeClick={(_e, node) => {
               setSelectedNode(node)
               // Los nodos inject ya no se ejecutan al hacer clic
