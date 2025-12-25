@@ -105,6 +105,7 @@ module.exports = function(RED) {
 
       // Crear mensaje para enviar al Agent Core
       // IMPORTANTE: NO incluir _agentCore aquí - el Agent Core debe procesarlo como un nuevo input
+      // IMPORTANTE: Incluir _msgid para que el plugin de observability pueda correlacionar eventos
       const msg = {
         payload: message,
         chatEvent: 'message_sent',
@@ -113,7 +114,9 @@ module.exports = function(RED) {
           type: 'user',
           content: message,
           timestamp: Date.now(),
-        }
+        },
+        // Generar _msgid para que el plugin de observability pueda correlacionar eventos
+        _msgid: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         // NO incluir _agentCore - esto es un mensaje nuevo del usuario, no una respuesta del modelo
       };
 

@@ -289,13 +289,26 @@ class FrameManager {
      */
     recordOutput(nodeId, nodeType, flowId, msg) {
         try {
-            const msgId = msg?._msgid;
+            // IMPORTANTE: Si msg es un array, necesitamos extraer el _msgid del array
+            // No podemos usar msg?._msgid directamente porque msg puede ser un array
+            let msgId = msg?._msgid;
+            if (!msgId && Array.isArray(msg)) {
+                // Buscar _msgid en cualquier elemento del array
+                for (const item of msg) {
+                    if (item && item._msgid) {
+                        msgId = item._msgid;
+                        break;
+                    }
+                }
+            }
             
             console.log('[observability] recordOutput:', {
                 nodeId,
                 nodeType,
                 hasMsgId: !!msgId,
                 msgId,
+                isArray: Array.isArray(msg),
+                arrayLength: Array.isArray(msg) ? msg.length : 0,
                 activeFrames: this.frames.filter(f => f.isActive()).length
             });
             
@@ -353,6 +366,22 @@ class FrameManager {
             const ioEvents = normalizeSend(msg, this.config.limits);
             
             console.log('[observability] recordOutput: normalized', ioEvents.length, 'output events');
+            if (ioEvents.length > 0) {
+                console.log('[observability] recordOutput: output ports:', ioEvents.map(e => e.port));
+                ioEvents.forEach((event, idx) => {
+                    console.log(`[observability] recordOutput: output[${idx}] port: ${event.port}, hasPayload: ${!!event.payload}`);
+                });
+            } else {
+                console.warn('[observability] recordOutput: ⚠️ normalizeSend retornó 0 eventos para array de longitud:', Array.isArray(msg) ? msg.length : 'N/A');
+                if (Array.isArray(msg)) {
+                    console.log('[observability] recordOutput: Array contents:', msg.map((item, idx) => ({
+                        index: idx,
+                        isNull: item === null || item === undefined,
+                        hasMsgId: item?._msgid ? item._msgid : 'NO',
+                        type: typeof item
+                    })));
+                }
+            }
             
             // Record outputs
             frame.recordOutput(nodeId, nodeType, ioEvents);

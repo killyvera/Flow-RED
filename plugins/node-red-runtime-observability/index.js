@@ -326,12 +326,23 @@ function extractMsgId(msg) {
     
     // Handle arrays: [msg] or [[msg1, msg2], null, [msg3]]
     if (Array.isArray(msg)) {
-        for (const item of msg) {
+        // Log detallado para debugging
+        const nonNullItems = msg.filter(item => item !== null && item !== undefined);
+        console.log('[observability] extractMsgId: buscando _msgid en array, length:', msg.length, 'non-null items:', nonNullItems.length);
+        
+        for (let i = 0; i < msg.length; i++) {
+            const item = msg[i];
             // Skip null/undefined items
-            if (!item) continue;
+            if (!item) {
+                console.log(`[observability] extractMsgId: item[${i}] es null/undefined, saltando`);
+                continue;
+            }
+            
+            console.log(`[observability] extractMsgId: item[${i}] tipo:`, typeof item, 'has _msgid:', !!item._msgid, 'keys:', item._msgid ? 'tiene _msgid' : Object.keys(item).slice(0, 10).join(', '));
             
             // Direct msgId on array item
             if (item._msgid) {
+                console.log(`[observability] extractMsgId: ✅ encontrado _msgid en item[${i}]:`, item._msgid);
                 return { msgId: item._msgid, found: true };
             }
             
@@ -339,12 +350,13 @@ function extractMsgId(msg) {
             if (Array.isArray(item)) {
                 for (const subItem of item) {
                     if (subItem && subItem._msgid) {
+                        console.log('[observability] extractMsgId: ✅ encontrado _msgid en sub-item:', subItem._msgid);
                         return { msgId: subItem._msgid, found: true };
                     }
                 }
             }
         }
-        console.log('[observability] extractMsgId: no _msgid found in array, length:', msg.length);
+        console.log('[observability] extractMsgId: ❌ no _msgid found in array, length:', msg.length, 'checked', nonNullItems.length, 'non-null items');
         return { msgId: undefined, found: false };
     }
     

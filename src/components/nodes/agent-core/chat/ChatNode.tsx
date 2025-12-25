@@ -35,15 +35,9 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
   // Usar estado en lugar de ref para que el useEffect se re-ejecute cuando cambie
   const [agentCoreNodeRedId, setAgentCoreNodeRedId] = useState<string | null>(null)
   const nodes = useCanvasStore((state) => state.nodes)
+  const agentCoreNodeRedIdRef = useRef<string | null>(null) // Ref para comparar sin causar re-renders
   
   useEffect(() => {
-    console.log('[ChatNode] 🔍 Buscando Agent Core...', {
-      chatNodeId: id,
-      chatNodeRedId: nodeId,
-      edgesCount: edges.length,
-      nodesCount: nodes.length,
-    })
-    
     // Buscar Agent Core automáticamente:
     // 1. Primero intentar por edge (si hay conexión visual)
     const outgoingEdge = edges.find(edge => edge.source === id)
@@ -53,11 +47,16 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
       if (targetNodeType === 'agent-core') {
         // Usar el ID de Node-RED del Agent Core
         const targetNodeRedId = (targetNode?.data as any)?.nodeRedNode?.id || outgoingEdge.target
-        console.log('[ChatNode] Agent Core conectado por edge:', {
-          reactFlowId: outgoingEdge.target,
-          nodeRedId: targetNodeRedId,
-        })
-        setAgentCoreNodeRedId(targetNodeRedId)
+        // Solo actualizar si cambió para evitar re-renders innecesarios
+        if (agentCoreNodeRedIdRef.current !== targetNodeRedId) {
+          console.log('[ChatNode] ✅ Agent Core conectado por edge:', {
+            reactFlowId: outgoingEdge.target,
+            nodeRedId: targetNodeRedId,
+            previousId: agentCoreNodeRedIdRef.current,
+          })
+          agentCoreNodeRedIdRef.current = targetNodeRedId
+          setAgentCoreNodeRedId(targetNodeRedId)
+        }
         return
       }
     }
@@ -75,19 +74,32 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
       if (agentCoreNode) {
         // Usar el ID de Node-RED del Agent Core
         const agentCoreNodeRedIdValue = (agentCoreNode.data as any)?.nodeRedNode?.id || agentCoreNode.id
-        console.log('[ChatNode] Agent Core encontrado automáticamente en el mismo flow:', {
-          reactFlowId: agentCoreNode.id,
-          nodeRedId: agentCoreNodeRedIdValue,
-        })
-        setAgentCoreNodeRedId(agentCoreNodeRedIdValue)
+        // Solo actualizar si cambió para evitar re-renders innecesarios
+        if (agentCoreNodeRedIdRef.current !== agentCoreNodeRedIdValue) {
+          console.log('[ChatNode] ✅ Agent Core encontrado automáticamente en el mismo flow:', {
+            reactFlowId: agentCoreNode.id,
+            nodeRedId: agentCoreNodeRedIdValue,
+            previousId: agentCoreNodeRedIdRef.current,
+          })
+          agentCoreNodeRedIdRef.current = agentCoreNodeRedIdValue
+          setAgentCoreNodeRedId(agentCoreNodeRedIdValue)
+        }
       } else {
-        console.warn('[ChatNode] No se encontró Agent Core en el mismo flow')
-        setAgentCoreNodeRedId(null)
+        // Solo actualizar si cambió
+        if (agentCoreNodeRedIdRef.current !== null) {
+          console.warn('[ChatNode] ⚠️ No se encontró Agent Core en el mismo flow')
+          agentCoreNodeRedIdRef.current = null
+          setAgentCoreNodeRedId(null)
+        }
       }
     } else {
-      setAgentCoreNodeRedId(null)
+      // Solo actualizar si cambió
+      if (agentCoreNodeRedIdRef.current !== null) {
+        agentCoreNodeRedIdRef.current = null
+        setAgentCoreNodeRedId(null)
+      }
     }
-  }, [edges, id, nodes, nodeRedNode])
+  }, [edges, id, nodes, nodeRedNode]) // Remover agentCoreNodeRedId de dependencias para evitar loops
 
   // Escuchar mensajes del Agent Core a través del observability WebSocket
   useEffect(() => {
@@ -122,25 +134,21 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
     // Suscribirse a eventos de observability para detectar respuestas del modelo
     // IMPORTANTE: Capturar el valor actual de agentCoreNodeRedId en el closure
     const currentAgentCoreId = agentCoreNodeRedId
-    console.log('[ChatNode] 🔔 Creando suscripción con Agent Core ID:', currentAgentCoreId)
+    console.log('[ChatNode] 🔔 Creando suscripción con Agent Core ID:', currentAgentCoreId, {
+      timestamp: new Date().toISOString(),
+      currentState: agentCoreNodeRedId,
+    })
     
     const unsubscribe = client.onEvent((event) => {
-      // Log TODOS los eventos para debugging (no solo node:output)
-      console.log('[ChatNode] 🔔 Handler ejecutado, evento recibido:', {
-        event: event.event,
-        nodeId: event.nodeId,
-        agentCoreNodeRedId: currentAgentCoreId,
-        matches: event.nodeId === currentAgentCoreId,
-        timestamp: new Date().toISOString(),
-      })
-      
-      // Log todos los eventos node:output para debugging
+      // Log TODOS los eventos node:output para debugging (reducir spam de otros eventos)
       if (event.event === 'node:output') {
-        console.log('[ChatNode] 📥 Evento node:output recibido:', {
-          eventNodeId: event.nodeId,
+        console.log('[ChatNode] 🔔 Handler ejecutado - node:output:', {
+          event: event.event,
+          nodeId: event.nodeId,
           agentCoreNodeRedId: currentAgentCoreId,
           matches: event.nodeId === currentAgentCoreId,
           currentState: agentCoreNodeRedId, // Estado actual (puede haber cambiado)
+          timestamp: new Date().toISOString(),
         })
       }
       
@@ -151,34 +159,94 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
       if (event.event === 'node:output' && event.nodeId === currentAgentCoreId) {
         const eventData = event.data as any
         
-        console.log('[ChatNode] 📥 Evento node:output del Agent Core (MATCH):', {
+        // Log detallado expandido
+        const logData = {
           hasData: !!eventData,
           hasOutputs: Array.isArray(eventData?.outputs),
           outputsCount: eventData?.outputs?.length,
           outputPorts: eventData?.outputs?.map((o: any) => o.port),
-          fullEventData: JSON.stringify(eventData, null, 2).substring(0, 1000),
-        })
+          allOutputs: eventData?.outputs?.map((o: any) => ({
+            port: o.port,
+            hasPayload: !!o.payload,
+            sampled: o.sampled,
+            payloadKeys: o.payload ? Object.keys(o.payload) : [],
+            payloadType: typeof o.payload,
+            payloadPreview: o.payload?.preview ? JSON.stringify(o.payload.preview).substring(0, 500) : (o.payload ? JSON.stringify(o.payload).substring(0, 500) : null),
+            fullPayload: o.payload ? JSON.stringify(o.payload, null, 2).substring(0, 2000) : null,
+          })),
+          sampled: eventData?.sampled,
+          fullEventData: JSON.stringify(eventData, null, 2).substring(0, 3000),
+        }
+        console.log('[ChatNode] 📥 Evento node:output del Agent Core (MATCH):', logData)
+        // También loggear el objeto completo expandido
+        console.log('[ChatNode] 📥 Evento completo (expandido):', eventData)
         
         // El evento tiene un array de outputs, necesitamos buscar el output 4 (port === 4)
         // que es donde el Agent Core envía las respuestas del modelo
+        // También podemos buscar en output 3 (result) que contiene el resultado final
         if (eventData && Array.isArray(eventData.outputs)) {
-          // Buscar el output con port === 4 (model_response output)
-          const output4 = eventData.outputs.find((output: any) => output.port === 4)
-          
-          console.log('[ChatNode] Output 4 encontrado:', {
-            hasOutput4: !!output4,
-            hasPayload: !!output4?.payload,
-            payloadType: typeof output4?.payload,
-            payloadKeys: output4?.payload ? Object.keys(output4.payload) : [],
+          console.log('[ChatNode] 🔍 Buscando outputs disponibles:', {
+            totalOutputs: eventData.outputs.length,
+            ports: eventData.outputs.map((o: any) => o.port),
+            allOutputs: eventData.outputs.map((o: any) => ({
+              port: o.port,
+              hasPayload: !!o.payload,
+              hasPreview: !!o.payload?.preview,
+              previewKeys: o.payload?.preview ? Object.keys(o.payload.preview).slice(0, 10) : [],
+            })),
           })
           
-          if (output4 && output4.payload) {
+          // Prioridad 1: Buscar el output con port === 4 (model_response output)
+          let outputToUse = eventData.outputs.find((output: any) => output.port === 4)
+          
+          // Prioridad 2: Si no hay output 4, buscar en output 3 (result) que contiene el resultado final
+          if (!outputToUse) {
+            console.log('[ChatNode] ⚠️ No se encontró output 4, buscando en output 3 (result)...')
+            outputToUse = eventData.outputs.find((output: any) => output.port === 3)
+            if (outputToUse) {
+              console.log('[ChatNode] ✅ Encontrado output 3 (result)')
+            }
+          }
+          
+          // Prioridad 3: Si no hay output 3 o 4, buscar en cualquier output que tenga un mensaje
+          if (!outputToUse) {
+            console.log('[ChatNode] ⚠️ No se encontró output 3 o 4, buscando en otros outputs...')
+            // Buscar cualquier output que tenga un payload con mensaje
+            outputToUse = eventData.outputs.find((output: any) => {
+              if (!output || !output.payload) return false
+              const payload = output.payload.preview || output.payload
+              return payload && (
+                payload.message || 
+                payload.agentResult?.message || 
+                payload.payload?.message ||
+                (payload.agentResult && payload.agentResult.completed === true) // Resultado final completado
+              )
+            })
+            if (outputToUse) {
+              console.log('[ChatNode] ✅ Encontrado output alternativo en puerto:', outputToUse.port)
+            }
+          }
+          
+          const outputLog = {
+            hasOutput: !!outputToUse,
+            port: outputToUse?.port,
+            hasPayload: !!outputToUse?.payload,
+            payloadType: typeof outputToUse?.payload,
+            payloadKeys: outputToUse?.payload ? Object.keys(outputToUse.payload) : [],
+            fullOutput: outputToUse ? JSON.stringify(outputToUse, null, 2).substring(0, 2000) : null,
+          }
+          console.log('[ChatNode] Output encontrado:', outputLog)
+          // También loggear el objeto completo expandido
+          console.log('[ChatNode] Output completo (expandido):', outputToUse)
+          
+          if (outputToUse && outputToUse.payload) {
             // El payload del observability viene en payload.preview
             // Estructura: { payload: { preview: { ...mensaje real... }, type, size, truncated } }
-            let payload = output4.payload.preview || output4.payload
+            let payload = outputToUse.payload.preview || outputToUse.payload
             
             console.log('[ChatNode] Payload extraído:', {
-              hasPreview: !!output4.payload.preview,
+              port: outputToUse.port,
+              hasPreview: !!outputToUse.payload.preview,
               hasPayload: !!payload,
               hasAgentCore: !!payload?._agentCore,
               agentCoreType: payload?._agentCore?.type,
@@ -310,10 +378,21 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
             }
           } else {
             // Debug: Log si no hay output 4
-            console.log('[ChatNode] Evento del Agent Core pero no hay output 4:', {
+            console.log('[ChatNode] ⚠️ Evento del Agent Core pero no hay output válido:', {
               outputsCount: eventData.outputs?.length,
               outputPorts: eventData.outputs?.map((o: any) => o.port),
+              allOutputs: eventData.outputs?.map((o: any) => ({
+                port: o.port,
+                hasPayload: !!o.payload,
+                sampled: o.sampled,
+              })),
             })
+            
+            // Si el evento tiene outputs pero están vacíos (filtrados por sampling),
+            // intentar usar el evento completo como fallback
+            if (eventData.outputs && eventData.outputs.length > 0 && eventData.outputs.every((o: any) => !o.payload || o.sampled === false)) {
+              console.log('[ChatNode] ⚠️ Todos los outputs fueron filtrados por sampling, el evento llegó pero sin datos')
+            }
           }
         }
       }

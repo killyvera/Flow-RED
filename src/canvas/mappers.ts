@@ -690,6 +690,9 @@ export function transformReactFlowToNodeRed(
   const edgesBySource = new Map<string, Map<number, string[]>>()
 
   edges.forEach((edge) => {
+    // CRÍTICO: Incluir edges ocultos (hidden: true) porque representan wires reales en Node-RED
+    // Los edges ocultos como Agent Core output-4 → Chat deben preservarse en los wires
+    // incluso si no son visibles en React Flow
     const sourceId = edge.source
     // Extraer índice del puerto de salida desde sourceHandle (ej: "output-0" -> 0)
     const outputPortIndex = edge.sourceHandle
@@ -705,7 +708,14 @@ export function transformReactFlowToNodeRed(
       sourceEdges.set(outputPortIndex, [])
     }
 
+    // IMPORTANTE: Incluir el target incluso si el edge está oculto
+    // Los edges ocultos representan conexiones reales en Node-RED que deben preservarse
     sourceEdges.get(outputPortIndex)!.push(edge.target)
+    
+    // Log para debugging de edges ocultos
+    if (edge.hidden) {
+      console.log(`[transformReactFlowToNodeRed] Edge oculto encontrado: ${sourceId} output-${outputPortIndex} → ${edge.target}`)
+    }
   })
 
   // Separar nodos normales de nodos internos de subflows
@@ -901,14 +911,38 @@ export function transformReactFlowToNodeRed(
           console.warn(`[transformReactFlowToNodeRed] Filtrando wires inválidos del nodo ${node.id} puerto ${i}:`, invalidTargets)
         }
         wires[i] = validTargets
+        if (validTargets.length > 0) {
+          console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} puerto ${i}: ${validTargets.length} wires desde edges`)
+        }
       }
+    }
+    
+    // Log para debugging: mostrar wires reconstruidos desde edges
+    if (wires.length > 0) {
+      console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} wires reconstruidos desde edges:`, wires.map((w, i) => `puerto ${i}: [${w.join(', ')}]`).join(', '))
     }
     
     // CRÍTICO: Si el nodo original tenía wires preservados, también validarlos
     // Esto es necesario porque algunos nodos pueden tener wires que no están en los edges de React Flow
-    // (por ejemplo, si se eliminó un nodo pero el originalNodeRedNode todavía tiene los wires)
-    if (originalNodeRedNode.wires && Array.isArray(originalNodeRedNode.wires)) {
-      const originalWires = originalNodeRedNode.wires as string[][]
+    // (por ejemplo, edges ocultos que no se renderizan pero deben preservarse en los wires)
+    // IMPORTANTE: También verificar en node.data.nodeRedNode.wires por si los wires están ahí
+    // Y también buscar en allNodeRedNodes si está disponible (para obtener los wires más recientes de Node-RED)
+    let originalWiresSource = originalNodeRedNode.wires || (node.data.nodeRedNode && (node.data.nodeRedNode as any).wires)
+    
+    // Si no encontramos wires en originalNodeRedNode, buscar en allNodeRedNodes (wires más recientes de Node-RED)
+    if (!originalWiresSource && allNodeRedNodes) {
+      const nodeRedNodeFromAll = allNodeRedNodes.find(n => n.id === node.id)
+      if (nodeRedNodeFromAll && nodeRedNodeFromAll.wires) {
+        originalWiresSource = nodeRedNodeFromAll.wires
+        console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} wires encontrados en allNodeRedNodes`)
+      }
+    }
+    
+    if (originalWiresSource && Array.isArray(originalWiresSource)) {
+      const originalWires = originalWiresSource as string[][]
+      console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} tiene ${originalWires.length} puertos de wires originales:`, 
+        originalWires.map((w, i) => `puerto ${i}: [${w.join(', ')}]`).join(', '))
+      
       // Validar y limpiar wires originales
       originalWires.forEach((portWires, portIndex) => {
         if (Array.isArray(portWires)) {
@@ -921,14 +955,90 @@ export function transformReactFlowToNodeRed(
           if (invalidOriginalWires.length > 0) {
             console.warn(`[transformReactFlowToNodeRed] Filtrando wires originales inválidos del nodo ${node.id} puerto ${portIndex}:`, invalidOriginalWires)
           }
-          // Si hay wires válidos del original que no están en los wires reconstruidos, agregarlos
+          // CRÍTICO: Preservar wires originales incluso si no hay edges en React Flow
+          // Esto es especialmente importante para edges ocultos (como Agent Core output-4 → Chat)
           if (validOriginalWires.length > 0) {
             if (!wires[portIndex]) {
               wires[portIndex] = []
             }
             // Combinar wires de edges y wires originales válidos, eliminando duplicados
+            // IMPORTANTE: Si hay wires originales pero no edges, preservar los wires originales
             const combinedWires = [...new Set([...wires[portIndex], ...validOriginalWires])]
             wires[portIndex] = combinedWires
+            console.log(`[transformReactFlowToNodeRed] Preservando wires originales del nodo ${node.id} puerto ${portIndex}:`, {
+              originalWires: validOriginalWires,
+              edgesWires: wires[portIndex].filter(w => !validOriginalWires.includes(w)),
+              combined: combinedWires
+            })
+          }
+        }
+      })
+      
+      // CRÍTICO: Asegurar que todos los puertos del original estén presentes en wires
+      // Incluso si no hay edges en React Flow para esos puertos
+      originalWires.forEach((portWires, portIndex) => {
+        if (Array.isArray(portWires) && portWires.length > 0) {
+          const validOriginalWires = portWires.filter(targetId => 
+            typeof targetId === 'string' && validNodeIds.has(targetId)
+          )
+          if (validOriginalWires.length > 0 && (!wires[portIndex] || wires[portIndex].length === 0)) {
+            // Si hay wires originales válidos pero no hay wires de edges, usar los originales
+            wires[portIndex] = validOriginalWires
+            console.log(`[transformReactFlowToNodeRed] Restaurando wires originales del nodo ${node.id} puerto ${portIndex} (sin edges en React Flow):`, validOriginalWires)
+          }
+        }
+      })
+    } else {
+      console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} NO tiene wires originales preservados`)
+    }
+    
+    // CRÍTICO: Crear automáticamente wires ocultos basándose en conexiones lógicas
+    // Esto es necesario porque cuando el usuario conecta manualmente, solo crea el edge visible
+    // Pero los wires ocultos (Agent Core output-4 → Chat, Agent Core output-0 → Model) deben crearse automáticamente
+    const nodeRedType = node.data.nodeRedType || originalNodeRedNode.type
+    if (nodeRedType === 'agent-core') {
+      // Buscar Chat nodes conectados al Agent Core (Chat output-0 → Agent Core input)
+      const chatNodesConnected = edges
+        .filter(edge => 
+          edge.target === node.id && 
+          edge.sourceHandle === 'output-0' &&
+          (nodes.find(n => n.id === edge.source)?.data?.nodeRedType === 'chat-node')
+        )
+        .map(edge => edge.source)
+      
+      // Si hay Chat nodes conectados, crear wire Agent Core output-4 → Chat input
+      chatNodesConnected.forEach(chatNodeId => {
+        const chatNodeRedId = (nodes.find(n => n.id === chatNodeId)?.data as any)?.nodeRedNode?.id || chatNodeId
+        if (validNodeIds.has(chatNodeRedId)) {
+          if (!wires[4]) {
+            wires[4] = []
+          }
+          if (!wires[4].includes(chatNodeRedId)) {
+            wires[4].push(chatNodeRedId)
+            console.log(`[transformReactFlowToNodeRed] ✅ Creando automáticamente wire Agent Core output-4 → Chat ${chatNodeRedId}`)
+          }
+        }
+      })
+      
+      // Buscar Model nodes conectados al Agent Core (Model output-0 → Agent Core input)
+      const modelNodesConnected = edges
+        .filter(edge => 
+          edge.target === node.id && 
+          edge.sourceHandle === 'output-0' &&
+          (nodes.find(n => n.id === edge.source)?.data?.nodeRedType === 'model.azure.openai')
+        )
+        .map(edge => edge.source)
+      
+      // Si hay Model nodes conectados, crear wire Agent Core output-0 → Model input
+      modelNodesConnected.forEach(modelNodeId => {
+        const modelNodeRedId = (nodes.find(n => n.id === modelNodeId)?.data as any)?.nodeRedNode?.id || modelNodeId
+        if (validNodeIds.has(modelNodeRedId)) {
+          if (!wires[0]) {
+            wires[0] = []
+          }
+          if (!wires[0].includes(modelNodeRedId)) {
+            wires[0].push(modelNodeRedId)
+            console.log(`[transformReactFlowToNodeRed] ✅ Creando automáticamente wire Agent Core output-0 → Model ${modelNodeRedId}`)
           }
         }
       })

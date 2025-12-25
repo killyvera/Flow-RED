@@ -154,9 +154,22 @@ export class ObservabilityWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          // Log para debugging (solo algunos eventos para no saturar)
-          if (data.event === 'node:output' || data.event === 'node:input') {
-            console.log('[Observability] 📥 Mensaje WebSocket recibido (raw):', {
+          // Log TODOS los eventos node:output para debugging
+          if (data.event === 'node:output') {
+            console.log('[Observability] 📥 Mensaje WebSocket recibido (raw) - node:output:', {
+              event: data.event,
+              nodeId: data.nodeId,
+              nodeType: data.data?.nodeType,
+              hasData: !!data.data,
+              hasOutputs: Array.isArray(data.data?.outputs),
+              outputsCount: data.data?.outputs?.length,
+              outputPorts: data.data?.outputs?.map((o: any) => o.port),
+              handlersCount: this.eventHandlers.size,
+            })
+          }
+          // También log node:input para debugging
+          if (data.event === 'node:input') {
+            console.log('[Observability] 📥 Mensaje WebSocket recibido (raw) - node:input:', {
               event: data.event,
               nodeId: data.nodeId,
               hasData: !!data.data,

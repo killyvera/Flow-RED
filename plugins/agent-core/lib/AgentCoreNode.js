@@ -61,6 +61,13 @@ function AgentCoreNode(RED, config) {
    */
   node.on('input', function(msg, send, done) {
     try {
+      // Log _msgid para debugging del plugin de observability
+      if (!msg._msgid) {
+        node.warn('[agent-core] ⚠️ Mensaje recibido sin _msgid, esto puede causar problemas con observability')
+      } else if (node.debug) {
+        node.log(`[agent-core] Mensaje recibido con _msgid: ${msg._msgid}`)
+      }
+      
       if (node.debug) {
         node.log('[agent-core] Received input message');
         node.log('[agent-core] Message keys: ' + Object.keys(msg).join(', '));
@@ -119,7 +126,9 @@ function AgentCoreNode(RED, config) {
               iterations: execution.envelope.state.iteration,
               traceId: execution.envelope.observability.traceId,
               error: error
-            }
+            },
+            // Asegurar que _msgid esté presente para el plugin de observability
+            _msgid: msg._msgid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           };
           // Output 3: result (error también va al resultado)
           // Output 4: model_response (también enviar el error como respuesta del modelo)
@@ -145,8 +154,21 @@ function AgentCoreNode(RED, config) {
 
         // IMPORTANTE: Enviar la respuesta del modelo al output 4 (model_response)
         // Esto permite conectar la respuesta del modelo directamente a debug/webhook/http nodes
+        
+        // Asegurar que _msgid esté presente - usar el del mensaje original o generar uno nuevo
+        // IMPORTANTE: El plugin de observability necesita _msgid para correlacionar eventos
+        // Si el mensaje original no tiene _msgid, usar el traceId como fallback
+        const msgId = msg._msgid || execution.envelope.observability.traceId || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        
+        if (node.debug) {
+          node.log(`[agent-core] Creando modelResponseMsg con _msgid: ${msgId} (original: ${msg._msgid || 'no tiene'})`)
+        }
+        
+        // Crear el mensaje asegurando que _msgid esté presente
+        // IMPORTANTE: Colocar _msgid ANTES del spread para que no se sobrescriba
         const modelResponseMsg = {
-          ...msg,
+          _msgid: msgId, // Colocar primero para asegurar que esté presente
+          ...msg, // Spread después para preservar otras propiedades
           payload: validated,
           envelope: execution.envelope,
           agentResult: {
@@ -158,8 +180,27 @@ function AgentCoreNode(RED, config) {
             message: validated.message || validated.input?.message || null
           }
         };
+        
+        // Verificar que _msgid esté presente antes de enviar
+        if (!modelResponseMsg._msgid) {
+          node.warn('[agent-core] ⚠️ modelResponseMsg no tiene _msgid después de crearlo, esto puede causar problemas con observability')
+        } else {
+          node.warn(`[agent-core] ✅ modelResponseMsg tiene _msgid: ${modelResponseMsg._msgid}`)
+        }
+        
+        // Log detallado del array antes de enviar
+        const sendArray = [null, null, null, null, modelResponseMsg]
+        node.warn(`[agent-core] 📤 Enviando array con ${sendArray.length} elementos, output 4 tiene _msgid: ${sendArray[4]?._msgid || 'NO'}`)
+        if (sendArray[4] && !sendArray[4]._msgid) {
+          node.warn('[agent-core] ⚠️ ⚠️ ⚠️ CRÍTICO: El elemento en índice 4 NO tiene _msgid:', Object.keys(sendArray[4]).slice(0, 10))
+        } else if (sendArray[4] && sendArray[4]._msgid) {
+          node.warn(`[agent-core] ✅✅✅ CONFIRMADO: El elemento en índice 4 SÍ tiene _msgid: ${sendArray[4]._msgid}`)
+        }
+        
         // Output 4: model_response (nueva salida para respuestas del modelo)
-        send([null, null, null, null, modelResponseMsg]);
+        node.warn(`[agent-core] 🚀 Llamando send() con array de ${sendArray.length} elementos`)
+        send(sendArray);
+        node.warn(`[agent-core] ✅ send() completado para output 4`)
 
         // Continue REACT loop
         node.reactStrategy.continueLoop(execution.envelope, {
@@ -196,7 +237,9 @@ function AgentCoreNode(RED, config) {
                 traceId: finalEnvelope.observability.traceId,
                 message: modelMessage,
                 finalAction: finalEnvelope.state.lastAction
-              }
+              },
+              // Asegurar que _msgid esté presente para el plugin de observability
+              _msgid: msg._msgid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
             };
             send([null, null, null, resultMsg, null]);
             node.activeExecutions.delete(traceId);
@@ -264,7 +307,9 @@ function AgentCoreNode(RED, config) {
               traceId: finalEnvelope.observability.traceId,
               message: modelMessage,
               finalAction: finalEnvelope.state.lastAction
-            }
+            },
+            // Asegurar que _msgid esté presente para el plugin de observability
+            _msgid: msg._msgid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           };
           send([null, null, null, resultMsg, null]);
           
@@ -293,7 +338,9 @@ function AgentCoreNode(RED, config) {
               iterations: envelope.state.iteration,
               traceId: envelope.observability.traceId,
               error: error.message
-            }
+            },
+            // Asegurar que _msgid esté presente para el plugin de observability
+            _msgid: msg._msgid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           };
           send([null, null, null, errorMsg, errorMsg]);
           node.activeExecutions.delete(executionId);
