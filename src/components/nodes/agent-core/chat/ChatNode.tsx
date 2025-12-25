@@ -30,42 +30,133 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const observabilityClientRef = useRef<ReturnType<typeof getObservabilityWebSocketClient> | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
-  // Encontrar el Agent Core conectado (debe estar conectado al output del chat)
-  const agentCoreNodeId = useRef<string | null>(null)
+  // Encontrar el Agent Core conectado (buscar automáticamente en el mismo flow)
+  // IMPORTANTE: Usar el ID de Node-RED, no el ID de React Flow
+  // Usar estado en lugar de ref para que el useEffect se re-ejecute cuando cambie
+  const [agentCoreNodeRedId, setAgentCoreNodeRedId] = useState<string | null>(null)
+  const nodes = useCanvasStore((state) => state.nodes)
   
   useEffect(() => {
-    // Buscar edge que conecta este nodo (chat) al Agent Core
+    console.log('[ChatNode] 🔍 Buscando Agent Core...', {
+      chatNodeId: id,
+      chatNodeRedId: nodeId,
+      edgesCount: edges.length,
+      nodesCount: nodes.length,
+    })
+    
+    // Buscar Agent Core automáticamente:
+    // 1. Primero intentar por edge (si hay conexión visual)
     const outgoingEdge = edges.find(edge => edge.source === id)
     if (outgoingEdge) {
-      agentCoreNodeId.current = outgoingEdge.target
-      console.log('[ChatNode] Agent Core conectado:', agentCoreNodeId.current)
+      const targetNode = nodes.find(n => n.id === outgoingEdge.target)
+      const targetNodeType = (targetNode?.data as any)?.nodeRedNode?.type || (targetNode?.data as any)?.nodeRedType
+      if (targetNodeType === 'agent-core') {
+        // Usar el ID de Node-RED del Agent Core
+        const targetNodeRedId = (targetNode?.data as any)?.nodeRedNode?.id || outgoingEdge.target
+        console.log('[ChatNode] Agent Core conectado por edge:', {
+          reactFlowId: outgoingEdge.target,
+          nodeRedId: targetNodeRedId,
+        })
+        setAgentCoreNodeRedId(targetNodeRedId)
+        return
+      }
     }
-  }, [edges, id])
+    
+    // 2. Si no hay edge, buscar cualquier Agent Core en el mismo flow
+    const chatNodeFlowId = (nodeRedNode as any)?.z
+    if (chatNodeFlowId) {
+      const agentCoreNode = nodes.find(n => {
+        const nodeRedNodeData = (n.data as any)?.nodeRedNode
+        const nodeType = nodeRedNodeData?.type || (n.data as any)?.nodeRedType
+        const nodeFlowId = nodeRedNodeData?.z
+        return nodeType === 'agent-core' && nodeFlowId === chatNodeFlowId
+      })
+      
+      if (agentCoreNode) {
+        // Usar el ID de Node-RED del Agent Core
+        const agentCoreNodeRedIdValue = (agentCoreNode.data as any)?.nodeRedNode?.id || agentCoreNode.id
+        console.log('[ChatNode] Agent Core encontrado automáticamente en el mismo flow:', {
+          reactFlowId: agentCoreNode.id,
+          nodeRedId: agentCoreNodeRedIdValue,
+        })
+        setAgentCoreNodeRedId(agentCoreNodeRedIdValue)
+      } else {
+        console.warn('[ChatNode] No se encontró Agent Core en el mismo flow')
+        setAgentCoreNodeRedId(null)
+      }
+    } else {
+      setAgentCoreNodeRedId(null)
+    }
+  }, [edges, id, nodes, nodeRedNode])
 
   // Escuchar mensajes del Agent Core a través del observability WebSocket
   useEffect(() => {
-    if (!agentCoreNodeId.current) return
+    if (!agentCoreNodeRedId) {
+      console.log('[ChatNode] No hay Agent Core ID, no suscribiendo a eventos')
+      // Limpiar suscripción anterior si existe
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current()
+        unsubscribeRef.current = null
+      }
+      return
+    }
 
     const client = getObservabilityWebSocketClient()
     observabilityClientRef.current = client
 
     // Conectar el cliente si no está conectado
     if (!client.isConnected()) {
+      console.log('[ChatNode] Conectando cliente WebSocket...')
       client.connect()
     }
 
+    console.log('[ChatNode] ✅ Suscribiéndose a eventos del Agent Core:', agentCoreNodeRedId)
+
+    // Limpiar suscripción anterior si existe
+    if (unsubscribeRef.current) {
+      console.log('[ChatNode] Limpiando suscripción anterior...')
+      unsubscribeRef.current()
+      unsubscribeRef.current = null
+    }
+
     // Suscribirse a eventos de observability para detectar respuestas del modelo
+    // IMPORTANTE: Capturar el valor actual de agentCoreNodeRedId en el closure
+    const currentAgentCoreId = agentCoreNodeRedId
+    console.log('[ChatNode] 🔔 Creando suscripción con Agent Core ID:', currentAgentCoreId)
+    
     const unsubscribe = client.onEvent((event) => {
+      // Log TODOS los eventos para debugging (no solo node:output)
+      console.log('[ChatNode] 🔔 Handler ejecutado, evento recibido:', {
+        event: event.event,
+        nodeId: event.nodeId,
+        agentCoreNodeRedId: currentAgentCoreId,
+        matches: event.nodeId === currentAgentCoreId,
+        timestamp: new Date().toISOString(),
+      })
+      
+      // Log todos los eventos node:output para debugging
+      if (event.event === 'node:output') {
+        console.log('[ChatNode] 📥 Evento node:output recibido:', {
+          eventNodeId: event.nodeId,
+          agentCoreNodeRedId: currentAgentCoreId,
+          matches: event.nodeId === currentAgentCoreId,
+          currentState: agentCoreNodeRedId, // Estado actual (puede haber cambiado)
+        })
+      }
+      
       // Buscar eventos de output del Agent Core
       // El evento de observability tiene estructura: { event: 'node:output', nodeId: ..., data: { outputs: [...] } }
-      if (event.event === 'node:output' && event.nodeId === agentCoreNodeId.current) {
+      // IMPORTANTE: event.nodeId es el ID de Node-RED, no el ID de React Flow
+      // Usar el valor capturado en el closure, no el estado actual
+      if (event.event === 'node:output' && event.nodeId === currentAgentCoreId) {
         const eventData = event.data as any
         
-        console.log('[ChatNode] 📥 Evento node:output del Agent Core:', {
+        console.log('[ChatNode] 📥 Evento node:output del Agent Core (MATCH):', {
           hasData: !!eventData,
           hasOutputs: Array.isArray(eventData?.outputs),
           outputsCount: eventData?.outputs?.length,
           outputPorts: eventData?.outputs?.map((o: any) => o.port),
+          fullEventData: JSON.stringify(eventData, null, 2).substring(0, 1000),
         })
         
         // El evento tiene un array de outputs, necesitamos buscar el output 4 (port === 4)
@@ -82,94 +173,140 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           
           if (output4 && output4.payload) {
-            // El payload del observability puede estar estructurado de diferentes maneras:
-            // 1. payload.preview (preview truncado)
-            // 2. payload directamente (objeto completo)
-            // 3. payload puede ser un string
-            let payload = output4.payload
-            
-            // Si hay preview, intentar usarlo primero, pero puede estar truncado
-            // Necesitamos el payload completo, no el preview
-            if (payload.preview && typeof payload.preview === 'object') {
-              // El preview puede tener la estructura completa
-              payload = payload.preview
-            }
+            // El payload del observability viene en payload.preview
+            // Estructura: { payload: { preview: { ...mensaje real... }, type, size, truncated } }
+            let payload = output4.payload.preview || output4.payload
             
             console.log('[ChatNode] Payload extraído:', {
+              hasPreview: !!output4.payload.preview,
+              hasPayload: !!payload,
               hasAgentCore: !!payload?._agentCore,
               agentCoreType: payload?._agentCore?.type,
-              hasPayload: !!payload?.payload,
+              hasPayloadField: !!payload?.payload,
               hasAgentResult: !!payload?.agentResult,
               payloadKeys: payload ? Object.keys(payload) : [],
             })
             
             // Verificar si tiene _agentCore metadata (viene del Agent Core)
-            if (payload && payload._agentCore && payload._agentCore.type === 'model_response') {
-              console.log('[ChatNode] ✅ Detectada respuesta del modelo en output 4')
-              
-              let modelMessage = null
-              
-              // Intentar extraer el mensaje de diferentes lugares
-              // El payload puede estar en payload.payload (el mensaje real del Agent Core)
-              if (payload.payload) {
-                const msgPayload = payload.payload
-                console.log('[ChatNode] msgPayload:', {
-                  type: typeof msgPayload,
-                  isString: typeof msgPayload === 'string',
-                  hasMessage: !!msgPayload?.message,
-                  hasContent: !!msgPayload?.content,
-                  hasAction: !!msgPayload?.action,
-                  keys: typeof msgPayload === 'object' ? Object.keys(msgPayload) : [],
-                })
-                
-                if (typeof msgPayload === 'string') {
-                  modelMessage = msgPayload
-                } else if (msgPayload.message) {
-                  modelMessage = msgPayload.message
-                } else if (msgPayload.content) {
-                  modelMessage = msgPayload.content
-                } else if (msgPayload.action === 'final' && msgPayload.message) {
-                  modelMessage = msgPayload.message
-                } else {
-                  // Si es un objeto con action: 'final', intentar extraer message
-                  modelMessage = JSON.stringify(msgPayload, null, 2)
-                }
-              } else if (payload.agentResult && payload.agentResult.message) {
-                modelMessage = payload.agentResult.message
-              } else if (typeof payload === 'string') {
-                modelMessage = payload
-              }
-
-              console.log('[ChatNode] Mensaje extraído:', {
-                hasMessage: !!modelMessage,
-                messageLength: modelMessage?.length,
-                messagePreview: modelMessage?.substring(0, 100),
+            // O si tiene agentResult (estructura alternativa)
+            const hasAgentCore = payload && payload._agentCore && payload._agentCore.type === 'model_response'
+            const hasAgentResult = payload && payload.agentResult && payload.agentResult.message
+            
+            console.log('[ChatNode] Verificando estructura del payload:', {
+              hasAgentCore,
+              hasAgentResult,
+              agentCoreType: payload?._agentCore?.type,
+              hasPayloadField: !!payload?.payload,
+              hasAgentResultField: !!payload?.agentResult,
+              payloadKeys: payload ? Object.keys(payload) : [],
+            })
+            
+            // Intentar extraer el mensaje de cualquier estructura posible
+            let modelMessage = null
+            
+            // Prioridad 1: agentResult.message (estructura directa del Agent Core)
+            if (payload.agentResult && payload.agentResult.message) {
+              modelMessage = payload.agentResult.message
+              console.log('[ChatNode] ✅ Mensaje extraído de agentResult.message:', modelMessage.substring(0, 100))
+            }
+            // Prioridad 2: payload.payload.message (estructura anidada)
+            else if (payload.payload) {
+              const msgPayload = payload.payload
+              console.log('[ChatNode] msgPayload:', {
+                type: typeof msgPayload,
+                isString: typeof msgPayload === 'string',
+                hasMessage: !!msgPayload?.message,
+                hasContent: !!msgPayload?.content,
+                hasAction: !!msgPayload?.action,
+                keys: typeof msgPayload === 'object' ? Object.keys(msgPayload) : [],
               })
-
-              if (modelMessage) {
-                const agentMessage: ChatMessageData = {
-                  id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  type: 'agent',
-                  content: modelMessage,
-                  timestamp: Date.now(),
-                  traceId: payload._agentCore.traceId,
-                  iteration: payload._agentCore.iteration,
-                }
-                
-                console.log('[ChatNode] ✅ Agregando mensaje del agente al chat')
-                setMessages((prev) => [...prev, agentMessage])
-                setIsWaiting(false)
-              } else {
-                console.warn('[ChatNode] ⚠️ No se pudo extraer el mensaje del payload:', {
-                  payload: payload,
-                  payloadString: JSON.stringify(payload, null, 2).substring(0, 500),
-                })
+              
+              if (typeof msgPayload === 'string') {
+                modelMessage = msgPayload
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.payload (string)')
+              } else if (msgPayload.message) {
+                modelMessage = msgPayload.message
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.payload.message')
+              } else if (msgPayload.content) {
+                modelMessage = msgPayload.content
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.payload.content')
+              } else if (msgPayload.action === 'final' && msgPayload.message) {
+                modelMessage = msgPayload.message
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.payload (action=final)')
+              } else if (msgPayload.action === 'final' && msgPayload.input?.message) {
+                modelMessage = msgPayload.input.message
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.payload.input.message')
               }
+            }
+            // Prioridad 3: payload directamente si es string
+            else if (typeof payload === 'string') {
+              modelMessage = payload
+              console.log('[ChatNode] ✅ Mensaje extraído de payload (string directo)')
+            }
+            // Prioridad 4: Buscar en cualquier campo que pueda contener el mensaje
+            else if (payload && typeof payload === 'object') {
+              // Intentar encontrar cualquier campo que contenga texto
+              for (const key of Object.keys(payload)) {
+                const value = payload[key]
+                if (typeof value === 'string' && value.length > 10) {
+                  modelMessage = value
+                  console.log(`[ChatNode] ✅ Mensaje extraído de payload.${key}`)
+                  break
+                } else if (value && typeof value === 'object' && value.message && typeof value.message === 'string') {
+                  modelMessage = value.message
+                  console.log(`[ChatNode] ✅ Mensaje extraído de payload.${key}.message`)
+                  break
+                }
+              }
+            }
+
+            console.log('[ChatNode] Resultado de extracción:', {
+              hasMessage: !!modelMessage,
+              messageLength: modelMessage?.length,
+              messagePreview: modelMessage?.substring(0, 100),
+            })
+
+            if (modelMessage) {
+              const agentMessage: ChatMessageData = {
+                id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'agent',
+                content: modelMessage,
+                timestamp: Date.now(),
+                traceId: payload._agentCore?.traceId || payload.agentResult?.traceId || undefined,
+                iteration: payload._agentCore?.iteration || payload.agentResult?.iteration || undefined,
+              }
+              
+              console.log('[ChatNode] ✅ Agregando mensaje del agente al chat:', {
+                messageId: agentMessage.id,
+                contentLength: agentMessage.content.length,
+              })
+              
+              // Actualizar estado de forma segura
+              setMessages((prev) => {
+                // Evitar duplicados verificando si ya existe un mensaje con el mismo contenido reciente
+                const recentMessage = prev.find(m => 
+                  m.type === 'agent' && 
+                  m.content === modelMessage && 
+                  Date.now() - m.timestamp < 1000 // Dentro del último segundo
+                )
+                if (recentMessage) {
+                  console.log('[ChatNode] Mensaje duplicado detectado, ignorando')
+                  return prev
+                }
+                console.log('[ChatNode] ✅ Actualizando mensajes, nuevo total:', prev.length + 1)
+                return [...prev, agentMessage]
+              })
+              
+              console.log('[ChatNode] ✅ Cambiando isWaiting a false')
+              setIsWaiting(false)
             } else {
-              console.log('[ChatNode] Output 4 no tiene _agentCore.type === "model_response":', {
-                hasAgentCore: !!payload?._agentCore,
-                agentCoreType: payload?._agentCore?.type,
+              console.warn('[ChatNode] ⚠️ No se pudo extraer el mensaje del payload:', {
+                payload: payload,
+                payloadString: JSON.stringify(payload, null, 2).substring(0, 1000),
               })
+              // Aún así, quitar el estado de "pensando" si pasó mucho tiempo
+              console.log('[ChatNode] Cambiando isWaiting a false (sin mensaje)')
+              setIsWaiting(false)
             }
           } else {
             // Debug: Log si no hay output 4
@@ -185,13 +322,22 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
     unsubscribeRef.current = unsubscribe
 
     return () => {
-      unsubscribe()
+      console.log('[ChatNode] Limpiando suscripción de eventos (cleanup)')
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current()
+        unsubscribeRef.current = null
+      }
     }
-  }, [agentCoreNodeId.current])
+  }, [agentCoreNodeRedId]) // Ahora depende del estado, no del ref
 
   const handleSendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isWaiting || !agentCoreNodeId.current) return
+      if (!content.trim() || isWaiting || !agentCoreNodeRedId) {
+        if (!agentCoreNodeRedId) {
+          console.warn('[ChatNode] No hay Agent Core conectado, no se puede enviar mensaje')
+        }
+        return
+      }
 
       // Crear mensaje de usuario
       const userMessage: ChatMessageData = {
@@ -209,17 +355,8 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
 
       try {
         // Enviar mensaje al Agent Core usando la API de Node-RED
-        // El mensaje se envía al input del Agent Core a través del chat node
-        // Buscar el edge que conecta el chat al Agent Core
-        const edgeToAgentCore = edges.find(edge => edge.source === id && edge.target === agentCoreNodeId.current)
-        
-        if (!edgeToAgentCore) {
-          throw new Error('No hay conexión al Agent Core. Conecta el output del chat al input del Agent Core.')
-        }
-
-        // Enviar mensaje al nodo chat-node en Node-RED
-        // El backend del chat-node lo reenviará al Agent Core
-        // Usar nodeId (ID de Node-RED) en lugar de id (ID de React Flow)
+        // El backend del chat-node buscará automáticamente el Agent Core conectado
+        // No requiere edge físico - busca automáticamente en el mismo flow
         console.log(`[ChatNode] Enviando mensaje al nodo ${nodeId}...`)
         const response = await nodeRedRequest(`/chat-node/${nodeId}/send`, {
           method: 'POST',
@@ -259,7 +396,7 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
         setMessages((prev) => [...prev, errorChatMessage])
       }
     },
-    [isWaiting, nodeId, id, edges, agentCoreNodeId]
+    [isWaiting, nodeId, id, edges, agentCoreNodeRedId]
   )
 
   return (
@@ -278,12 +415,12 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
         height: '400px',
       }}
     >
-      {/* Input Handle (Izquierda) - Recibe respuestas del Agent Core */}
+      {/* Input Handle (Izquierda) - OCULTO - Recibe respuestas del Agent Core output-4 */}
       <Handle
         type="target"
         position={Position.Left}
         id="input"
-        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+        className="!w-0 !h-0 !opacity-0 !pointer-events-none"
         style={{
           left: -5,
           top: '50%',
@@ -291,7 +428,8 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
         }}
       />
 
-      {/* Output Handle (Derecha) - Envía mensajes al Agent Core */}
+      {/* Output Handle (Derecha) - VISIBLE - Envía mensajes al Agent Core input */}
+      {/* Similar al modelo Azure OpenAI: handle visible para conectar al Agent Core */}
       <Handle
         type="source"
         position={Position.Right}

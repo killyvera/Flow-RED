@@ -117,10 +117,59 @@ module.exports = function(RED) {
         // NO incluir _agentCore - esto es un mensaje nuevo del usuario, no una respuesta del modelo
       };
 
-      // Enviar al output del nodo (que debe estar conectado al Agent Core)
-      chatNode.send(msg);
+      // Buscar Agent Core conectado automáticamente
+      // 1. Primero intentar usar los wires del nodo (si hay conexión física)
+      let agentCoreNode = null;
+      if (chatNode.wires && chatNode.wires[0] && chatNode.wires[0].length > 0) {
+        // Hay wires conectados, buscar el primer nodo conectado
+        const connectedNodeId = chatNode.wires[0][0];
+        const connectedNode = RED.nodes.getNode(connectedNodeId);
+        if (connectedNode && connectedNode.type === 'agent-core') {
+          agentCoreNode = connectedNode;
+          RED.log.info(`[chat-node] ✅ Agent Core encontrado por wires: ${connectedNodeId}`);
+        }
+      }
 
-      res.json({ success: true, message: 'Message sent to Agent Core' });
+      // 2. Si no hay wires, buscar Agent Core en el mismo flow
+      if (!agentCoreNode) {
+        const flowId = chatNode.z; // ID del flow al que pertenece el chat node
+        const allNodes = RED.nodes.getAllNodes();
+        agentCoreNode = allNodes.find(n => n.type === 'agent-core' && n.z === flowId);
+        
+        if (agentCoreNode) {
+          RED.log.info(`[chat-node] ✅ Agent Core encontrado automáticamente en el mismo flow: ${agentCoreNode.id}`);
+        } else {
+          RED.log.warn(`[chat-node] ⚠️ No se encontró Agent Core en el flow ${flowId}`);
+        }
+      }
+
+      if (!agentCoreNode) {
+        return res.status(500).json({ 
+          error: 'Agent Core not found',
+          message: 'No se encontró un nodo Agent Core conectado o en el mismo flow. Asegúrate de tener un Agent Core en el flow.'
+        });
+      }
+
+      // Enviar mensaje directamente al Agent Core
+      // El Agent Core procesará este mensaje como un nuevo input
+      // En Node-RED, usar receive() si está disponible, sino emitir 'input' con send y done
+      if (typeof agentCoreNode.receive === 'function') {
+        agentCoreNode.receive(msg);
+      } else {
+        // Fallback: usar el sistema de send del Agent Core directamente
+        // Crear funciones send y done para el Agent Core
+        const send = function(msgs) {
+          // El Agent Core enviará sus outputs normalmente
+        };
+        const done = function(err) {
+          if (err) {
+            RED.log.error(`[chat-node] Error en Agent Core: ${err.message}`);
+          }
+        };
+        agentCoreNode.emit('input', msg, send, done);
+      }
+
+      res.json({ success: true, message: 'Message sent to Agent Core', agentCoreId: agentCoreNode.id });
     });
 
     // Limpiar historial

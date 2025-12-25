@@ -570,24 +570,27 @@ export function CanvasPage() {
     })
   }, [isEditMode, setEdges, onEdgesChange, setEdgesLocal])
 
-  // Estado para auto-conexión desde Agent Core
+  // Estado para auto-conexión desde Agent Core o Chat
   const [pendingAutoConnect, setPendingAutoConnect] = React.useState<{
     sourceNodeId: string
     sourceHandle: string
+    targetType?: 'model' | 'agent-core'
   } | null>(null)
 
   // Manejar inicio de conexión (arrastre desde handle)
   const onConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, { nodeId, handleId, handleType }: any) => {
     if (!isEditMode) return
     
-    // Si se arrastra desde Agent Core output-0, activar modo auto-conexión
-    if (handleType === 'source' && nodeId && handleId === 'output-0') {
-      const sourceNode = nodes.find(n => n.id === nodeId)
-      const nodeRedType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
-      
-      if (nodeRedType === 'agent-core') {
-        setPendingAutoConnect({ sourceNodeId: nodeId, sourceHandle: handleId })
-      }
+    const sourceNode = nodes.find(n => n.id === nodeId)
+    const nodeRedType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
+    
+    // Si se arrastra desde Agent Core output-0, activar modo auto-conexión al modelo
+    if (handleType === 'source' && nodeId && handleId === 'output-0' && nodeRedType === 'agent-core') {
+      setPendingAutoConnect({ sourceNodeId: nodeId, sourceHandle: handleId, targetType: 'model' })
+    }
+    // Si se arrastra desde chat node output-0, activar modo auto-conexión al Agent Core
+    else if (handleType === 'source' && nodeId && handleId === 'output-0' && nodeRedType === 'chat-node') {
+      setPendingAutoConnect({ sourceNodeId: nodeId, sourceHandle: handleId, targetType: 'agent-core' })
     }
   }, [isEditMode, nodes])
 
@@ -598,7 +601,6 @@ export function CanvasPage() {
       return
     }
 
-    // Buscar nodo Azure OpenAI Model cerca del punto donde se soltó
     const point = 'touches' in event ? event.touches[0] : event
     const reactFlowInstance = reactFlowInstanceRef.current
     if (!reactFlowInstance) {
@@ -612,46 +614,78 @@ export function CanvasPage() {
       y: point.clientY,
     })
 
-    // Buscar nodo Azure OpenAI Model más cercano (dentro de 100px)
-    const azureModelNodes = nodes.filter(n => {
-      const nodeRedType = (n.data as any)?.nodeRedNode?.type || (n.data as any)?.nodeRedType
-      return nodeRedType === 'model.azure.openai'
-    })
-
     let closestNode: typeof nodes[0] | null = null
     let minDistance = 100 // Distancia máxima en píxeles del flow
+    let targetHandle = 'input'
 
-    azureModelNodes.forEach(node => {
-      const distance = Math.sqrt(
-        Math.pow(node.position.x - flowPosition.x, 2) + 
-        Math.pow(node.position.y - flowPosition.y, 2)
-      )
-      if (distance < minDistance) {
-        minDistance = distance
-        closestNode = node
-      }
-    })
+    // Buscar nodo objetivo según el tipo de auto-conexión
+    if (pendingAutoConnect.targetType === 'model') {
+      // Buscar nodo Azure OpenAI Model más cercano
+      const azureModelNodes = nodes.filter(n => {
+        const nodeRedType = (n.data as any)?.nodeRedNode?.type || (n.data as any)?.nodeRedType
+        return nodeRedType === 'model.azure.openai'
+      })
 
-    // Si hay un nodo Azure OpenAI Model cerca, auto-conectar
+      azureModelNodes.forEach(node => {
+        const distance = Math.sqrt(
+          Math.pow(node.position.x - flowPosition.x, 2) + 
+          Math.pow(node.position.y - flowPosition.y, 2)
+        )
+        if (distance < minDistance) {
+          minDistance = distance
+          closestNode = node
+        }
+      })
+      targetHandle = 'input'
+    } else if (pendingAutoConnect.targetType === 'agent-core') {
+      // Buscar nodo Agent Core más cercano
+      const agentCoreNodes = nodes.filter(n => {
+        const nodeRedType = (n.data as any)?.nodeRedNode?.type || (n.data as any)?.nodeRedType
+        return nodeRedType === 'agent-core'
+      })
+
+      agentCoreNodes.forEach(node => {
+        const distance = Math.sqrt(
+          Math.pow(node.position.x - flowPosition.x, 2) + 
+          Math.pow(node.position.y - flowPosition.y, 2)
+        )
+        if (distance < minDistance) {
+          minDistance = distance
+          closestNode = node
+        }
+      })
+      targetHandle = 'input'
+    }
+
+    // Si hay un nodo objetivo cerca, auto-conectar
     if (closestNode) {
       const connection: Connection = {
         source: pendingAutoConnect.sourceNodeId,
         sourceHandle: pendingAutoConnect.sourceHandle,
         target: closestNode.id,
-        targetHandle: 'input', // El handle de entrada oculto del modelo
+        targetHandle: targetHandle,
       }
 
       // Validar la conexión
       const validation = validateConnectionComplete(connection, nodes, edges, false)
       if (validation.isValid) {
-        // Verificar si es una conexión de Agent Core output-0 a modelo Azure OpenAI
+        // Verificar si es una conexión que debe ocultarse
         const sourceNodeForAuto = nodes.find(n => n.id === connection.source)
         const targetNodeForAuto = nodes.find(n => n.id === connection.target)
         const sourceNodeTypeForAuto = (sourceNodeForAuto?.data as any)?.nodeRedNode?.type || (sourceNodeForAuto?.data as any)?.nodeRedType
         const targetNodeTypeForAuto = (targetNodeForAuto?.data as any)?.nodeRedNode?.type || (targetNodeForAuto?.data as any)?.nodeRedType
+        
+        // Ocultar edges específicos:
+        // 1. Agent Core output-0 → modelo Azure OpenAI (oculto)
+        // 2. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
+        // El edge Chat node output-0 → Agent Core input es VISIBLE (como Model output-0 → Agent Core)
         const isAgentCoreToModelAuto = sourceNodeTypeForAuto === 'agent-core' && 
                                         connection.sourceHandle === 'output-0' && 
                                         targetNodeTypeForAuto === 'model.azure.openai'
+        const isAgentCoreToChatAuto = sourceNodeTypeForAuto === 'agent-core' && 
+                                      connection.sourceHandle === 'output-4' && 
+                                      targetNodeTypeForAuto === 'chat-node'
+        const shouldHide = isAgentCoreToModelAuto || isAgentCoreToChatAuto
         
         const newEdge = {
           ...connection,
@@ -660,15 +694,15 @@ export function CanvasPage() {
           style: {
             strokeWidth: 2,
             stroke: 'var(--color-edge-default)',
-            // Ocultar solo edges de Agent Core output-0 a modelo Azure OpenAI
-            opacity: isAgentCoreToModelAuto ? 0 : 1,
+            // Ocultar edges específicos
+            opacity: shouldHide ? 0 : 1,
           },
           markerEnd: {
             type: 'arrowclosed',
             color: 'var(--color-edge-default)',
           },
-          // Marcar como oculto solo si es conexión Agent Core -> Model
-          hidden: isAgentCoreToModelAuto,
+          // Marcar como oculto
+          hidden: shouldHide,
         }
 
         const updatedEdges = addEdge(newEdge, edges)
@@ -696,7 +730,10 @@ export function CanvasPage() {
       return
     }
     
-    // Verificar si es una conexión de Agent Core output-0 a modelo Azure OpenAI
+    // Verificar si es una conexión que debe ocultarse:
+    // 1. Agent Core output-0 → modelo Azure OpenAI (oculto)
+    // 2. Agent Core output-4 → Chat node input (oculto - respuesta del modelo)
+    // El edge Chat node output-0 → Agent Core input es VISIBLE (como Model output-0 → Agent Core)
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     const sourceNodeType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
@@ -704,6 +741,10 @@ export function CanvasPage() {
     const isAgentCoreToModel = sourceNodeType === 'agent-core' && 
                                 connection.sourceHandle === 'output-0' && 
                                 targetNodeType === 'model.azure.openai'
+    const isAgentCoreToChat = sourceNodeType === 'agent-core' && 
+                              connection.sourceHandle === 'output-4' && 
+                              targetNodeType === 'chat-node'
+    const shouldHide = isAgentCoreToModel || isAgentCoreToChat
     
     const newEdge = {
       ...connection,
@@ -712,15 +753,15 @@ export function CanvasPage() {
       style: {
         strokeWidth: 2,
         stroke: 'var(--color-edge-default)',
-        // Ocultar solo edges de Agent Core output-0 a modelo Azure OpenAI
-        opacity: isAgentCoreToModel ? 0 : 1,
+        // Ocultar edges específicos
+        opacity: shouldHide ? 0 : 1,
       },
       markerEnd: {
         type: 'arrowclosed',
         color: 'var(--color-edge-default)',
       },
-      // Marcar como oculto solo si es conexión Agent Core -> Model
-      hidden: isAgentCoreToModel,
+      // Marcar como oculto
+      hidden: shouldHide,
     }
     
     const updatedEdges = addEdge(newEdge, edges)

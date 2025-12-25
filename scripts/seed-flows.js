@@ -2125,13 +2125,96 @@ const flow13Nodes = [
   }
 ]
 
-// Conectar el output "model" del agent-core al input del azure-openai-model
-// Esto se hace ajustando los wires del agent-core
-// El agent-core tiene 4 outputs: [model, tool, memory, result]
-// Necesitamos conectar el output 0 (model) al azure-openai-model
-// Pero en Node-RED, los wires se definen en el nodo fuente, así que necesitamos
-// ajustar la estructura. En realidad, el agent-core debería tener el modelo conectado
-// a su input, no al output. Déjame corregir esto.
+// Flow 14: Chat con Agent Core y Azure OpenAI - Ejemplo funcional completo
+const flow14 = {
+  id: 'flow14',
+  type: 'tab',
+  label: 'Chat con IA',
+  disabled: false,
+  info: 'Flow completo con Chat node conectado a Agent Core y Azure OpenAI. Permite conversar con el asistente IA.',
+  env: []
+}
+
+const flow14Nodes = [
+  // Chat Node - Envía mensajes al Agent Core y recibe respuestas
+  {
+    id: 'chat-node-1',
+    type: 'chat-node',
+    z: 'flow14',
+    name: 'Chat',
+    maxHistory: 100,
+    x: 100,
+    y: 200,
+    // Output 0 conectado al Agent Core input (oculto visualmente pero funcional)
+    // El chat node buscará automáticamente el Agent Core en el mismo flow
+    wires: [['agent-core-chat']]
+  },
+  // Agent Core - Procesa mensajes y coordina con el modelo
+  {
+    id: 'agent-core-chat',
+    type: 'agent-core',
+    z: 'flow14',
+    name: 'Asistente IA',
+    strategy: 'react',
+    maxIterations: 5,
+    allowedTools: [],
+    stopConditions: [],
+    modelPromptTemplate: '',
+    debug: false,
+    x: 100 + HORIZONTAL_SPACING * 2,
+    y: 200,
+    // Outputs: [model, tool, memory, result, model_response]
+    // Output 0 (model) → Azure OpenAI Model (oculto visualmente)
+    // Output 3 (result) → Debug (opcional, para ver resultados finales)
+    // Output 4 (model_response) → Chat Node (oculto visualmente, para respuestas en tiempo real)
+    wires: [['azure-openai-chat'], [], [], ['debug-chat-result'], ['chat-node-1']]
+  },
+  // Azure OpenAI Model - Procesa prompts y retorna respuestas
+  {
+    id: 'azure-openai-chat',
+    type: 'model.azure.openai',
+    z: 'flow14',
+    name: 'Azure OpenAI',
+    endpoint: '',
+    deployment: '',
+    apiVersion: '2024-02-15-preview',
+    apiKey: '',
+    temperature: 0,
+    maxTokens: 800,
+    timeoutMs: 15000,
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 150,
+    // El modelo retorna al Agent Core (loop interno)
+    wires: [['agent-core-chat']]
+  },
+  // Debug opcional - Para ver resultados finales del Agent Core
+  {
+    id: 'debug-chat-result',
+    type: 'debug',
+    z: 'flow14',
+    name: 'Resultado Final',
+    active: true,
+    tosidebar: true,
+    console: false,
+    tostatus: false,
+    complete: 'payload',
+    targetType: 'msg',
+    statusVal: '',
+    statusType: 'auto',
+    x: 100 + HORIZONTAL_SPACING * 4,
+    y: 200,
+    wires: []
+  }
+]
+
+// Notas sobre las conexiones:
+// 1. Chat output-0 → Agent Core input: Oculto visualmente, pero funcional
+//    El chat node también busca automáticamente el Agent Core en el mismo flow
+// 2. Agent Core output-0 → Model input: Oculto visualmente, pero funcional
+// 3. Model output-0 → Agent Core input: Visible y animado
+// 4. Agent Core output-4 → Chat input: Oculto visualmente, pero funcional
+//    El chat node escucha el output-4 del Agent Core a través del observability WebSocket
+// 5. Agent Core output-3 → Debug: Visible, para ver resultados finales
 
 const allFlows = [
   flow1,
@@ -2160,7 +2243,9 @@ const allFlows = [
   flow12,
   ...flow12Nodes,
   flow13,
-  ...flow13Nodes
+  ...flow13Nodes,
+  flow14,
+  ...flow14Nodes
 ]
 
 async function seedFlows() {
@@ -2232,7 +2317,7 @@ async function seedFlows() {
       
       // Mantener config nodes y otros nodos especiales que no pertenezcan a nuestros flows
       // TEMPORALMENTE COMENTADO: subflow1.id
-      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id, flow13.id])
+      const ourFlowIds = new Set([flow1.id, flow2.id, flow3.id, flow4.id, flow5.id, flow6.id, flow7.id, flow8.id, flow9.id, flow10.id, flow11.id, flow12.id, flow13.id, flow14.id])
       
       // CRÍTICO: Eliminar TODOS los subflows existentes para evitar conflictos
       // Solo mantendremos nuestro subflow nuevo
@@ -2325,6 +2410,7 @@ async function seedFlows() {
     console.log(`   - Flow 11: Subflows Demo (${flow11Nodes.length} nodos + 1 subflow) - Subflows reutilizables`)
     console.log(`   - Flow 12: Link Nodes Demo (${flow12Nodes.length} nodos) - Link in/out/call`)
     console.log(`   - Flow 13: Asistente IA Básico (${flow13Nodes.length} nodos) - Agent Core + Azure OpenAI`)
+    console.log(`   - Flow 14: Chat con IA (${flow14Nodes.length} nodos) - Chat + Agent Core + Azure OpenAI`)
     if (existingFlows.length > 0) {
       console.log(`   🔄 Reemplazando flows existentes con versiones limpias`)
     }
@@ -2525,6 +2611,15 @@ async function seedFlows() {
     console.log('   - Haz clic en el nodo "Saludo" (inject) para probar el asistente')
     console.log('   - La respuesta aparecerá en el nodo "Respuesta IA" (debug)')
     console.log('   - El Agent Core orquesta el flujo REACT: Reason → Act → Repeat')
+    console.log('\n💬 NUEVO: Chat con IA (Flow 14) - Chat node conectado a Agent Core y Azure OpenAI')
+    console.log('   - Flow completo con Chat node para conversar con el asistente IA')
+    console.log('   - Configura el endpoint y deployment de Azure OpenAI en el nodo "Azure OpenAI"')
+    console.log('   - Configura la API key en la tab de Connection o usa la variable de entorno AZURE_OPENAI_API_KEY')
+    console.log('   - Abre el nodo "Chat" para ver la interfaz de chat')
+    console.log('   - Escribe mensajes en el chat y recibe respuestas del asistente IA en tiempo real')
+    console.log('   - Las conexiones se manejan automáticamente (no requieren edges físicos)')
+    console.log('   - El chat busca automáticamente el Agent Core en el mismo flow')
+    console.log('   - El Agent Core envía respuestas al chat a través del output-4 (model_response)')
   } catch (error) {
     console.error('❌ Error al crear flows:', error.message)
     if (error.message.includes('fetch')) {

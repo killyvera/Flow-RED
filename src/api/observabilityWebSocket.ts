@@ -142,6 +142,9 @@ export class ObservabilityWebSocketClient {
 
       this.ws.onopen = () => {
         wsLogger('[Observability] ✅ WebSocket conectado')
+        console.log('[Observability] ✅ WebSocket conectado, URL:', this.url, {
+          handlersCount: this.eventHandlers.size,
+        })
         this.connectionState = 'connected'
         this.reconnectAttempts = 0
         this.reconnectDelay = 2000
@@ -151,6 +154,15 @@ export class ObservabilityWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          // Log para debugging (solo algunos eventos para no saturar)
+          if (data.event === 'node:output' || data.event === 'node:input') {
+            console.log('[Observability] 📥 Mensaje WebSocket recibido (raw):', {
+              event: data.event,
+              nodeId: data.nodeId,
+              hasData: !!data.data,
+              handlersCount: this.eventHandlers.size,
+            })
+          }
           this.handleMessage(data)
         } catch (error) {
           wsLogger('[Observability] Error al parsear mensaje:', error)
@@ -220,8 +232,13 @@ export class ObservabilityWebSocketClient {
    */
   onEvent(handler: ObservabilityEventHandler): () => void {
     this.eventHandlers.add(handler)
+    console.log('[Observability] ✅ Handler agregado, total handlers:', this.eventHandlers.size, {
+      isConnected: this.isConnected(),
+      connectionState: this.connectionState,
+    })
     return () => {
       this.eventHandlers.delete(handler)
+      console.log('[Observability] 🗑️ Handler eliminado, total handlers:', this.eventHandlers.size)
     }
   }
 
@@ -283,8 +300,6 @@ export class ObservabilityWebSocketClient {
    * Maneja mensajes recibidos
    */
   private handleMessage(data: any): void {
-    // Debugging code removed - was causing connection errors to 127.0.0.1:7243
-    
     // El plugin envía eventos en formato ObservabilityEvent
     const event: ObservabilityEvent = {
       event: data.event || 'unknown',
@@ -296,13 +311,33 @@ export class ObservabilityWebSocketClient {
       connections: data.connections,
     }
 
+    // Log para debugging (solo eventos importantes)
+    if (event.event === 'node:output' || event.event === 'node:input') {
+      console.log('[Observability] 📨 Evento recibido:', {
+        event: event.event,
+        nodeId: event.nodeId,
+        handlersCount: this.eventHandlers.size,
+        hasData: !!event.data,
+      })
+    }
+
     // Notificar a todos los handlers
+    if (this.eventHandlers.size === 0) {
+      console.warn('[Observability] ⚠️ Evento recibido pero no hay handlers suscritos:', {
+        event: event.event,
+        nodeId: event.nodeId,
+      })
+    }
+
     this.eventHandlers.forEach((handler) => {
       try {
         handler(event)
       } catch (error) {
         wsLogger('[Observability] Error en handler de evento:', error)
-        console.error('❌ [Observability] Error en handler:', error)
+        console.error('❌ [Observability] Error en handler:', error, {
+          event: event.event,
+          nodeId: event.nodeId,
+        })
       }
     })
   }

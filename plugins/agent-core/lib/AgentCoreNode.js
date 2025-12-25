@@ -77,7 +77,27 @@ function AgentCoreNode(RED, config) {
         const execution = node.activeExecutions.get(traceId);
         
         if (!execution) {
-          node.error(`[agent-core] Received model response for unknown traceId: ${traceId}`, msg);
+          // La ejecución ya se completó o no existe
+          // Esto puede suceder si:
+          // 1. La ejecución se completó antes de que llegara esta respuesta (mensaje duplicado/tardío)
+          // 2. El mensaje viene de una ejecución anterior que ya terminó
+          // 3. Hay un loop en las conexiones que está reenviando mensajes
+          
+          // Verificar si el mensaje tiene chatEvent para evitar procesarlo como respuesta del modelo
+          if (msg.chatEvent === 'message_sent') {
+            // Este es un mensaje nuevo del chat, no una respuesta del modelo
+            // Continuar con el flujo normal de nuevo input
+            if (node.debug) {
+              node.log('[agent-core] Ignoring model_response with chatEvent (likely duplicate/loop)');
+            }
+          } else {
+            // Es una respuesta del modelo que llegó tarde o duplicada
+            // Log pero no error (para no saturar los logs)
+            if (node.debug) {
+              node.log(`[agent-core] Received model response for unknown traceId: ${traceId} (execution already completed or not found)`);
+              node.log(`[agent-core] Active executions: ${Array.from(node.activeExecutions.keys()).join(', ')}`);
+            }
+          }
           if (done) done();
           return;
         }

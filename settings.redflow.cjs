@@ -389,10 +389,12 @@ module.exports = {
         },
         
         // Sampling configuration
+        // IMPORTANTE: Para el chat node necesitamos capturar todos los eventos
+        // Usar modo 'probabilistic' con probability 1.0 (100%) para capturar todos los eventos
         sampling: {
-            enabled: true,
-            rate: 0.1,  // 10% of messages
-            maxSamplesPerNode: 100
+            mode: "probabilistic",  // Modo probabilístico para capturar todos los eventos
+            probability: 1.0,  // 100% de probabilidad (capturar todos los eventos)
+            maxPerNode: 1000  // Límite máximo por nodo (muy alto para permitir muchos mensajes en el chat)
         },
         
         // Message capture limits

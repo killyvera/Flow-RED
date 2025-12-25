@@ -191,6 +191,19 @@ export const AgentCoreNode = memo(({ data, selected, id }: BaseNodeProps) => {
         }}
       />
 
+      {/* Output 4: Model Response (derecha, arriba) - Para conectar al chat node */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output-4"
+        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+        style={{
+          right: -5,
+          top: '30%',
+          transform: 'translateY(-50%)',
+        }}
+      />
+
       {/* Label debajo del nodo */}
       <div className="absolute top-full left-0 right-0 mt-1 text-center">
         <span className="text-[10px] text-text-secondary font-medium">
