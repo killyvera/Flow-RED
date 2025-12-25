@@ -10,7 +10,8 @@
     "version": ">=3.0.0",
     "nodes": {
       "agent-core": "agent-core.js",
-      "model.azure.openai": "models/azure-openai-model/azure-openai-model.js"
+      "model.azure.openai": "models/azure-openai-model/azure-openai-model.js",
+      "chat-node": "chat/chat-node.js"
     }
   },
   "keywords": [

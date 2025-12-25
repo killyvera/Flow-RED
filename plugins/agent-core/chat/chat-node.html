@@ -1,0 +1,26 @@
+<!--
+  Chat Node - Template HTML para Node-RED
+  NOTA: La UI real se maneja en React (src/components/nodes/agent-core/chat/)
+-->
+
+<script type="text/html" data-template-name="chat-node">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Nombre</label>
+    <input type="text" id="node-input-name" placeholder="Chat">
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxHistory"><i class="fa fa-history"></i> Máximo de mensajes en historial</label>
+    <input type="number" id="node-input-maxHistory" placeholder="100" min="10" max="1000">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="chat-node">
+  <p>Nodo de Chat para interactuar con Agent Core.</p>
+  <p><strong>Conexiones:</strong></p>
+  <ul>
+    <li><strong>Input:</strong> Conecta desde Agent Core (output 4 - model_response) para recibir respuestas</li>
+    <li><strong>Output:</strong> Conecta hacia Agent Core (input) para enviar mensajes</li>
+  </ul>
+  <p><strong>Nota:</strong> La interfaz de chat se muestra en el canvas de Redflow (React), no en el editor de Node-RED.</p>
+</script>
+

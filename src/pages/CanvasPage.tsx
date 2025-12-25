@@ -67,6 +67,7 @@ import { GroupNode } from '@/canvas/nodes/GroupNode'
 import { SubflowNode } from '@/canvas/nodes/SubflowNode'
 import { AgentCoreNode } from '@/canvas/nodes/AgentCoreNode'
 import { AzureOpenAIModelNode } from '@/canvas/nodes/AzureOpenAIModelNode'
+import { ChatNode } from '@/components/nodes/agent-core/chat/ChatNode'
 import { SearchModal } from '@/components/SearchModal'
 import { SubflowBreadcrumb } from '@/components/SubflowBreadcrumb'
 import { isSubflowInstance, extractSubflowIdFromType } from '@/utils/subflowUtils'
@@ -81,6 +82,7 @@ const baseNodeTypes = {
   subflow: SubflowNode,
   'agent-core': AgentCoreNode,
   'model.azure.openai': AzureOpenAIModelNode,
+  'chat-node': ChatNode,
 }
 
 /**
