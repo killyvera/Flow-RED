@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 import { X, Loader2, Info, Settings, ChevronDown, ChevronUp, Database, Play, Code } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'
 import { getRuntimeStateColor } from '@/utils/runtimeStatusMapper'

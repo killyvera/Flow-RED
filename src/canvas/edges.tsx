@@ -5,8 +5,8 @@
  */
 
 import React, { memo, useState } from 'react'
-import type { Edge, EdgeProps, MarkerType } from 'reactflow'
-import { BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from 'reactflow'
+import type { Edge, EdgeProps, MarkerType } from '@xyflow/react'
+import { BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react'
 import { useCanvasStore } from '@/state/canvasStore'
 
 /**

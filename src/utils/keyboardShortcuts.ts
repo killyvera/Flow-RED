@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useCallback } from 'react'
-import type { Node, Edge } from 'reactflow'
+import type { Node, Edge } from '@xyflow/react'
 import { copyToClipboard, pasteFromClipboard, hasClipboardData } from './clipboard'
 
 export interface KeyboardShortcutsHandlers {

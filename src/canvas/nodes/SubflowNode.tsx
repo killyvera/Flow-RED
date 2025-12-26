@@ -6,7 +6,7 @@
  */
 
 import { memo } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position } from '@xyflow/react'
 import { Workflow, ChevronRight, Info } from 'lucide-react'
 import { getNodeHeaderColor } from '@/utils/nodeColors'
 import { getSubflowInputs, getSubflowOutputs, extractSubflowIdFromType } from '@/utils/subflowUtils'

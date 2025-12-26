@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { X, Search, ArrowRight } from 'lucide-react'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 
 export interface SearchResult {
   node: Node

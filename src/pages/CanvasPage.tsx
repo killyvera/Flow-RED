@@ -11,22 +11,19 @@
  */
 
 import React, { useCallback, useEffect, useMemo } from 'react'
-import type { Node, MarkerType } from 'reactflow'
-import ReactFlow, {
+import type { Node, MarkerType, Edge, Connection, OnNodesChange, OnEdgesChange, OnConnectStart } from '@xyflow/react'
+import {
+  ReactFlow,
   Controls,
   MiniMap,
-  Connection,
   addEdge,
   useNodesState,
   useEdgesState,
-  OnNodesChange,
-  OnEdgesChange,
   applyNodeChanges,
   applyEdgeChanges,
   ConnectionMode,
-} from 'reactflow'
-import type { Edge } from 'reactflow'
-import 'reactflow/dist/style.css'
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
 
 import { ContextMenu } from '@/components/ContextMenu'
 import { ExecutionLog } from '@/components/ExecutionLog'
@@ -328,8 +325,11 @@ export function CanvasPage() {
   const perfMonitorRef = React.useRef(import.meta.env.DEV ? getPerformanceMonitor() : null)
   
   // Efecto para aplicar actualizaciones pendientes al store después del render
-  // Usar useLayoutEffect para ejecutar antes del paint, pero después del render
+  // CRÍTICO: No ejecutar durante el arrastre para evitar delay
   React.useLayoutEffect(() => {
+    // Si estamos arrastrando, no actualizar el store (evitar delay)
+    if (isDraggingRef.current) return
+    
     // Medir tiempo de render (solo en dev mode)
     if (perfMonitorRef.current) {
       perfMonitorRef.current.startRender()
@@ -337,17 +337,17 @@ export function CanvasPage() {
     if (pendingStoreUpdateRef.current.nodes) {
       const nodesToUpdate = pendingStoreUpdateRef.current.nodes
       pendingStoreUpdateRef.current.nodes = null
-      // Usar setTimeout para asegurar que se ejecute después del render completo
-      setTimeout(() => {
+      // Usar requestAnimationFrame para actualización más fluida
+      requestAnimationFrame(() => {
         setNodes(nodesToUpdate)
-      }, 0)
+      })
     }
     if (pendingStoreUpdateRef.current.edges) {
       const edgesToUpdate = pendingStoreUpdateRef.current.edges
       pendingStoreUpdateRef.current.edges = null
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         setEdges(edgesToUpdate)
-      }, 0)
+      })
     }
   })
   
@@ -402,7 +402,11 @@ export function CanvasPage() {
 
   // Sincronizar nodos del store con estado local cuando cambian
   // IMPORTANTE: Evitar loops ignorando cambios que solo afectan a los handlers inyectados
+  // CRÍTICO: No sobrescribir cambios locales durante el arrastre
   useEffect(() => {
+    // Si estamos arrastrando, no sincronizar desde el store (evitar delay)
+    if (isDraggingRef.current) return
+    
     setNodesLocal(prevNodes => {
       // Si el número de nodos es diferente, actualizar
       if (prevNodes.length !== storeNodes.length) return storeNodes
@@ -532,20 +536,42 @@ export function CanvasPage() {
     }
   }, [activeFlowId, storeNodes, storeEdges]) // Depender de storeNodes/storeEdges para detectar cuando se cargan
 
+  // Ref para rastrear si estamos arrastrando nodos
+  const isDraggingRef = React.useRef(false)
+  
   // Sincronizar cambios locales con el store cuando se mueven nodos o se crean conexiones
+  // Según la documentación de React Flow: https://reactflow.dev/learn/manipulating-nodes-and-edges
+  // - React Flow maneja automáticamente el arrastre de múltiples nodos seleccionados
+  // - onNodesChange recibe cambios de tipo 'position' para TODOS los nodos afectados
+  // - applyNodeChanges es el método recomendado para aplicar cambios
+  // - No debemos actualizar manualmente las posiciones en onNodeDrag
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
     // Aplicar cambios inmediatamente para que los edges se actualicen en tiempo real
+    // React Flow ya incluye todos los nodos seleccionados en los cambios de posición
     onNodesChange(changes)
     
-    // Verificar si hay cambios persistentes antes de actualizar
-    const hasPersistentChanges = isEditMode && !isInitialRenderRef.current && 
-      changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')
+    // Verificar si hay cambios de posición (arrastre)
+    const hasPositionChanges = changes.some(c => c.type === 'position')
     
-    // Aplicar cambios localmente
+    // Si hay cambios de posición, marcar que estamos arrastrando
+    if (hasPositionChanges) {
+      isDraggingRef.current = true
+    }
+    
+    // Verificar si hay cambios persistentes antes de actualizar
+    // IMPORTANTE: No actualizar el store durante el arrastre, solo cuando se suelta
+    // Esto evita actualizaciones innecesarias que pueden causar delay
+    const hasPersistentChanges = isEditMode && !isInitialRenderRef.current && 
+      changes.some(c => (c.type === 'remove' || c.type === 'add') && !hasPositionChanges)
+    
+    // Aplicar cambios localmente usando applyNodeChanges (método recomendado por React Flow)
+    // React Flow ya incluye todos los nodos seleccionados en los cambios de posición,
+    // así que no necesitamos lógica adicional para múltiples nodos
     setNodesLocal((prevNodes) => {
       const updatedNodes = applyNodeChanges(changes, prevNodes)
       
       // Guardar en ref para actualizar el store después del render
+      // PERO: No actualizar durante el arrastre (solo cuando se suelta)
       if (hasPersistentChanges) {
         pendingStoreUpdateRef.current.nodes = updatedNodes
       }
@@ -578,7 +604,7 @@ export function CanvasPage() {
   } | null>(null)
 
   // Manejar inicio de conexión (arrastre desde handle)
-  const onConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, { nodeId, handleId, handleType }: any) => {
+  const onConnectStart: OnConnectStart = useCallback((_event, { nodeId, handleId, handleType }) => {
     if (!isEditMode) return
     
     const sourceNode = nodes.find(n => n.id === nodeId)
@@ -1797,7 +1823,7 @@ export function CanvasPage() {
           
           // Buscar nodos con credentialId y guardar sus credenciales en Node-RED
           for (const node of nodes) {
-            const nodeRedNode = node.data?.nodeRedNode
+            const nodeRedNode = node.data?.nodeRedNode as NodeRedNode | undefined
             if (nodeRedNode?.credentialId && node.id) {
               try {
                 const credentialData = await getCredentialData(nodeRedNode.credentialId)
@@ -2447,7 +2473,8 @@ export function CanvasPage() {
     // Desregistrar uso de credenciales centralizadas y eliminar configuraciones para los nodos que se eliminan
     const nodesToDelete = nodes.filter(n => nodeIdsToDelete.has(n.id))
     for (const node of nodesToDelete) {
-      const credentialId = node.data?.nodeRedNode?.credentialId
+      const nodeRedNode = node.data?.nodeRedNode as NodeRedNode | undefined
+      const credentialId = nodeRedNode?.credentialId
       if (credentialId && node.id) {
         try {
           const { unregisterCredentialUsage } = await import('@/utils/credentialManager')
@@ -2485,7 +2512,7 @@ export function CanvasPage() {
       .map(n => {
         if (deletedGroupIdsSet.size === 0) return n
 
-        const nodeRedNode = n.data?.nodeRedNode
+        const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
         const isOrphanedByParentId = typeof (n as any).parentId === 'string' && deletedGroupIdsSet.has((n as any).parentId)
         const isOrphanedByNodeRedG = nodeRedNode?.g && deletedGroupIdsSet.has(nodeRedNode.g)
 
@@ -2604,8 +2631,9 @@ export function CanvasPage() {
 
             return prevNodes.map(n => {
               if (n.id === nodeId) {
+                const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
                 const newNodeRedNode = {
-                  ...n.data.nodeRedNode,
+                  ...(nodeRedNode || {}),
                   g: latestGroup.id,
                 }
                 return {
@@ -2637,7 +2665,8 @@ export function CanvasPage() {
 
     const updatedNodes = nodes.map(n => {
       if (n.id === nodeId) {
-        const newNodeRedNode = { ...n.data.nodeRedNode }
+        const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
+        const newNodeRedNode = { ...(nodeRedNode || {}) }
         delete newNodeRedNode.g // Remover la propiedad g
         return {
           ...n,
@@ -2676,8 +2705,9 @@ export function CanvasPage() {
 
         return prevNodes.map(n => {
           if (n.id === nodeId) {
+            const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
             const newNodeRedNode = {
-              ...n.data.nodeRedNode,
+              ...(nodeRedNode || {}),
               g: groupId,
             }
             return {
@@ -2703,8 +2733,9 @@ export function CanvasPage() {
 
         const updatedNodes = prevNodes.map((n: Node) => {
           if (n.id === nodeId) {
+            const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
             const newNodeRedNode = {
-              ...n.data.nodeRedNode,
+              ...(nodeRedNode || {}),
               g: groupId,
             }
             return {
@@ -2856,7 +2887,7 @@ export function CanvasPage() {
     const updatedNodes = nodes
       .filter(n => n.id !== groupId)
       .map(n => {
-        const nodeRedNode = n.data?.nodeRedNode
+        const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
         const isChildByParentId = typeof (n as any).parentId === 'string' && (n as any).parentId === groupId
         const isChildByNodeRedG = nodeRedNode?.g === groupId
 
@@ -2908,18 +2939,19 @@ export function CanvasPage() {
 
     // Duplicar nodos dentro del grupo
     const nodesInGroup = nodes.filter(n => {
-      const nodeRedNode = n.data?.nodeRedNode
+      const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
       return nodeRedNode && nodeRedNode.g === groupId
     })
 
     const duplicatedNodes = nodesInGroup.map(n => {
       const newNodeId = `${n.id}-${Date.now()}`
+      const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
       const newNodeRedNode = {
-        ...n.data.nodeRedNode,
+        ...(nodeRedNode || {}),
         id: newNodeId,
         g: newGroupId,
-        x: (n.data.nodeRedNode.x || n.position.x) + offset,
-        y: (n.data.nodeRedNode.y || n.position.y) + offset,
+        x: (nodeRedNode?.x || n.position.x) + offset,
+        y: (nodeRedNode?.y || n.position.y) + offset,
       }
 
       return {
@@ -4143,8 +4175,9 @@ export function CanvasPage() {
               }
               
               // Si es un subflow, navegar a él
-              if (node.type === 'subflow' && isSubflowInstance(node.data?.nodeRedNode)) {
-                const subflowNode = node.data.nodeRedNode
+              const nodeRedNode = node.data?.nodeRedNode as NodeRedNode | undefined
+              if (node.type === 'subflow' && nodeRedNode && isSubflowInstance(nodeRedNode)) {
+                const subflowNode = nodeRedNode
                 const subflowId = extractSubflowIdFromType(subflowNode.type)
                 if (subflowId) {
                   // CRÍTICO: Guardar edges actuales antes de cambiar de flow
@@ -4243,7 +4276,38 @@ export function CanvasPage() {
                     ))
                   }, 0)
                 }
+                return
               }
+              
+              // Según la documentación de React Flow:
+              // - React Flow maneja automáticamente el arrastre de múltiples nodos seleccionados
+              // - onNodesChange recibe cambios de tipo 'position' para TODOS los nodos afectados
+              // - No debemos actualizar manualmente las posiciones aquí, ya que causa conflictos
+              // - El delay visual se debe a actualizaciones duplicadas o conflictos con el mecanismo interno
+              // - Al confiar completamente en onNodesChange, React Flow optimiza el renderizado automáticamente
+            }}
+            onNodeDragStop={(_event, _node) => {
+              // Cuando se termina el arrastre, actualizar el store con las posiciones finales
+              // CRÍTICO: Para múltiples nodos seleccionados, React Flow actualiza todos los nodos
+              // en handleNodesChange, así que solo necesitamos marcar que terminó el arrastre
+              // y actualizar el store con TODOS los nodos actuales (no solo el que se arrastró)
+              requestAnimationFrame(() => {
+                isDraggingRef.current = false
+                
+                // Actualizar el store con TODOS los nodos actuales (incluyendo las posiciones finales)
+                // Esto es importante para múltiples nodos seleccionados
+                if (isEditMode && !isInitialRenderRef.current) {
+                  // Obtener los nodos actuales del estado local (ya actualizados por handleNodesChange)
+                  setNodesLocal(prevNodes => {
+                    // Actualizar el store después del siguiente frame con TODOS los nodos
+                    requestAnimationFrame(() => {
+                      setNodes(prevNodes)
+                    })
+                    
+                    return prevNodes
+                  })
+                }
+              })
             }}
             onNodeContextMenu={(event, node) => {
               event.preventDefault()
@@ -4316,16 +4380,23 @@ export function CanvasPage() {
                 
                 // Agregar al breadcrumb solo si no existe
               const currentFlow = flows.find(f => f.id === activeFlowId)
-              const subflowNode = nodes.find(n => 
-                n.data?.nodeRedNode && 
-                isSubflowInstance(n.data.nodeRedNode) &&
-                extractSubflowIdFromType(n.data.nodeRedNode.type) === subflowId
-              )
+              const subflowNode = nodes.find(n => {
+                const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
+                return nodeRedNode && 
+                       isSubflowInstance(nodeRedNode) &&
+                       extractSubflowIdFromType(nodeRedNode.type) === subflowId
+              })
+                const subflowNodeRedNode = subflowNode?.data?.nodeRedNode as NodeRedNode | undefined
+                const labelValue = subflowNode?.data?.label
+                const nameValue = subflowNodeRedNode?.name
+                const subflowName: string = (typeof labelValue === 'string' ? labelValue : '') || 
+                                          (typeof nameValue === 'string' ? nameValue : '') || 
+                                          subflowId
                 return [...prev, {
                 flowId: activeFlowId || '',
                 flowName: currentFlow?.label || currentFlow?.name || 'Flow',
                 subflowId,
-                subflowName: subflowNode?.data?.label || subflowNode?.data?.nodeRedNode?.name || subflowId,
+                subflowName,
                 }]
               })
               // Navegar al subflow usando switchFlow
@@ -4344,9 +4415,10 @@ export function CanvasPage() {
             onToggleDisabled={(nodeId) => {
               const updatedNodes = nodes.map(n => {
                 if (n.id === nodeId) {
+                  const nodeRedNode = n.data?.nodeRedNode as NodeRedNode | undefined
                   const newNodeRedNode = {
-                    ...n.data.nodeRedNode,
-                    disabled: !n.data.nodeRedNode?.disabled,
+                    ...(nodeRedNode || {}),
+                    disabled: !nodeRedNode?.disabled,
                   }
                   return {
                     ...n,
@@ -4375,7 +4447,7 @@ export function CanvasPage() {
                   data: {
                     ...nodeToDuplicate.data,
                     nodeRedNode: {
-                      ...nodeToDuplicate.data.nodeRedNode,
+                      ...(nodeToDuplicate.data?.nodeRedNode as NodeRedNode | undefined || {}),
                       id: newId,
                     },
                   },
@@ -4446,7 +4518,7 @@ export function CanvasPage() {
             onDuplicateGroup={handleDuplicateGroup}
             onDeleteGroup={handleDeleteGroup}
             hasClipboard={hasClipboard}
-            nodeInGroup={contextMenu?.node ? !!contextMenu.node.data?.nodeRedNode?.g : false}
+            nodeInGroup={contextMenu?.node ? !!(contextMenu.node.data?.nodeRedNode as NodeRedNode | undefined)?.g : false}
           />
         )}
 

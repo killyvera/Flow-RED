@@ -10,8 +10,8 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
+import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from '@xyflow/react'
 import type { NodeRedGroup } from '@/api/types'
 import { useGroupCollapse } from './useGroupCollapse'
 
