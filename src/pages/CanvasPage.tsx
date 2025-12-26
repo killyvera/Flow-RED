@@ -1961,7 +1961,7 @@ export function CanvasPage() {
       // Guardar usando la API (la validación se hace dentro de saveFlow)
       // CRÍTICO: Normalizar wires de TODOS los nodos antes de guardar
       // Asegurar que ningún nodo tenga wires: null o undefined
-      const finalNormalizedNodes = allNodesToSave.map((node, index) => {
+      const finalNormalizedNodes = allNodesToSave.map((node) => {
         // #region agent log
         fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1830',message:'Normalizando nodo',data:{nodeId:node.id,nodeType:node.type,hasWires:node.wires!==undefined&&node.wires!==null,wiresType:typeof node.wires,wiresIsArray:Array.isArray(node.wires),wiresIsNull:node.wires===null,wiresIsUndefined:node.wires===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion

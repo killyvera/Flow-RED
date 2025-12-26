@@ -5,7 +5,7 @@
  * ingresar las credenciales directamente.
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   CredentialType,
   Credential,
@@ -95,11 +95,6 @@ export function CredentialSelector({
     onSelect(null, null)
   }
 
-  const handleCredentialCreated = () => {
-    loadCredentials()
-    setShowManager(false)
-  }
-
   return (
     <div className={className}>
       <div className="flex gap-2 items-center">
@@ -113,7 +108,7 @@ export function CredentialSelector({
             }
           }}
           disabled={loading}
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+          className="flex-1 px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="">-- Seleccionar credencial --</option>
           {credentials.map(cred => (
@@ -124,7 +119,7 @@ export function CredentialSelector({
         </select>
         <button
           onClick={() => setShowManager(true)}
-          className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 text-sm"
+          className="px-3 py-2 text-sm bg-bg-secondary text-text-primary border border-node-border rounded-md hover:bg-node-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
           title="Gestionar credenciales"
         >
           ⚙️
@@ -132,7 +127,7 @@ export function CredentialSelector({
       </div>
 
       {selected && (
-        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 text-xs text-text-secondary">
           Credencial seleccionada. Los datos están encriptados y se cargarán automáticamente.
         </div>
       )}
