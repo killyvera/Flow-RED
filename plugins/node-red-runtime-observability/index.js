@@ -233,6 +233,9 @@ function initPlugin(RED) {
         // ============================================================
         const originalSend = pluginState.originalSend;
         Node.prototype.send = function(msg, ...rest) {
+            // Log CRÍTICO al inicio para verificar que se ejecuta
+            console.log('[observability] 🔴 SEND INTERCEPTED', this.id, this.type);
+            
             try {
                 // Debug log - extract payload safely
                 let payloadPreview = undefined;
@@ -262,6 +265,9 @@ function initPlugin(RED) {
                 if (pluginState.manager && msg) {
                     const nodeType = this.type || 'unknown';
                     const flowId = this.z;
+                    
+                    console.log('[observability] 🔴 SEND - About to recordOutput', this.id, nodeType, 'hasMsg:', !!msg);
+                    
                     // Get msgId from first valid message (for correlation)
                     const { msgId, found } = extractMsgId(msg);
                     
@@ -275,6 +281,11 @@ function initPlugin(RED) {
                         // Pass msg anyway - manager will try to find/create a frame
                         pluginState.manager.recordOutput(this.id, nodeType, flowId, msg);
                     }
+                } else {
+                    console.log('[observability] 🔴 SEND - NOT recording (no manager or msg)', {
+                        hasManager: !!pluginState.manager,
+                        hasMsg: !!msg
+                    });
                 }
             } catch (err) {
                 // NEVER crash the runtime
