@@ -4,7 +4,7 @@
  * Define las interfaces y tipos para los custom nodes del editor visual.
  */
 
-import type { Node, NodeProps } from 'reactflow'
+import type { Node, NodeProps } from '@xyflow/react'
 import type { LucideIcon } from 'lucide-react'
 
 /**

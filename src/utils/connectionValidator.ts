@@ -11,7 +11,7 @@
  * - Opcional: prevenir conexiones circulares (puede ser complejo)
  */
 
-import type { Node, Edge, Connection } from 'reactflow'
+import type { Node, Edge, Connection } from '@xyflow/react'
 
 export interface ValidationResult {
   isValid: boolean

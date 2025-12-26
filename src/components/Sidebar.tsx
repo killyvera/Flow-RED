@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react'
-import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity, Folder, FolderOpen, Key, Sparkles } from 'lucide-react'
+import { Settings, ChevronRight, ChevronLeft, ArrowLeft, Moon, Sun, Plus, Upload, X, Wrench, HelpCircle, Gauge, Activity, Folder, FolderOpen, Key } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useFlowManager } from '@/context/FlowManagerContext'
 import { useCanvasStore } from '@/state/canvasStore'
@@ -17,7 +17,6 @@ import { ImportFlowModal } from './ImportFlowModal'
 import { exportFlow } from '@/api/client'
 import { getProjects, createProject, deleteProject, addFlowToProject, removeFlowFromProject, type Project } from '@/utils/projectStorage'
 import { CredentialManager } from '@/components/credentials/CredentialManager'
-import { createAgentCoreTestFlow } from '@/utils/testAgentCoreFlow'
 
 /**
  * Icono personalizado para "Mis flujos"
@@ -496,7 +495,7 @@ export function Sidebar({
             {!isCollapsed && (
               <div className="border-t border-canvas-grid p-4">
                 <div className="text-xs text-text-tertiary text-center">
-                  Versión 0.0.1
+                  Versión 0.1.2
                 </div>
               </div>
             )}
@@ -687,26 +686,6 @@ export function Sidebar({
 
                   {/* Separador */}
                   <div className="my-2 border-t border-node-border" />
-
-                  {/* Botón Test Agent Core Flow */}
-                  <button
-                    onClick={async () => {
-                      try {
-                        const result = await createAgentCoreTestFlow({ 
-                          autoExecute: false,
-                          task: 'Responde con un saludo amigable en español y explica brevemente qué es la inteligencia artificial'
-                        })
-                        alert(`✅ Flujo creado exitosamente!\n\nFlow ID: ${result.flowId}\n\nAbre Node-RED para ver el flujo "Hola Mundo Agéntico" y ejecútalo haciendo clic en el botón inject.`)
-                      } catch (error: any) {
-                        alert(`❌ Error: ${error.message}`)
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2 bg-accent-primary text-white hover:bg-accent-secondary focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
-                    title="Crear flujo de test con agent-core y Azure OpenAI"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span className="font-medium">Crear Test: Hola Mundo Agéntico</span>
-                  </button>
                 </div>
               </div>
             )}

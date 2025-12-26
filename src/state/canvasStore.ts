@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand'
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
+import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from '@xyflow/react'
 import type { NodeRedNode, NodeRedGroup } from '@/api/types'
 import type { ExecutionFrame, NodeExecutionSnapshot } from '@/types/executionFrames'
 

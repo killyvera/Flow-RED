@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 import { X } from 'lucide-react'
 import { ColorPicker } from './ColorPicker'
 import { TextField } from './fields'

@@ -17,16 +17,16 @@
 
 import { memo, useCallback, useEffect, useState, useRef } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { NodeProps } from 'reactflow'
-import { NodeResizeControl } from 'reactflow'
+import type { Node, NodeProps } from '@xyflow/react'
+import { NodeResizeControl } from '@xyflow/react'
 import { useGroupCollapse } from '@/canvas/groups/useGroupCollapse'
 import type { NodeRedGroup } from '@/api/types'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
 
 // Ref global para marcar si estamos redimensionando un grupo
 const isResizingGroupRef = { current: false }
 
-export interface GroupNodeData {
+export interface GroupNodeData extends Record<string, unknown> {
   /** Información del grupo de Node-RED */
   group: NodeRedGroup
   /** Número de nodos dentro del grupo */
@@ -37,7 +37,11 @@ export interface GroupNodeData {
   resizable?: boolean
 }
 
-export type GroupNodeProps = NodeProps<GroupNodeData>
+// Definir el tipo de nodo para el grupo
+export type GroupNode = Node<GroupNodeData>
+
+// Usar NodeProps con el tipo de nodo definido
+export type GroupNodeProps = NodeProps<GroupNode>
 
 /**
  * Componente GroupNode
@@ -452,7 +456,7 @@ export const GroupNode = memo((props: GroupNodeProps) => {
       </div>
     )
   }
-})
+}) as React.ComponentType<any>
 
 GroupNode.displayName = 'GroupNode'
 

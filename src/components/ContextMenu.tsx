@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 import { Edit, Copy, Scissors, Trash2, Power, PowerOff, Plus, Clipboard, FolderPlus, FolderMinus, Palette, Workflow, ArrowRight } from 'lucide-react'
 import { isSubflowInstance } from '@/utils/subflowUtils'
 import { isLinkIn, isLinkOut, findLinkOutTargets, findLinkInTargets } from '@/utils/linkUtils'

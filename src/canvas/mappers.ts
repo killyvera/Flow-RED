@@ -7,7 +7,7 @@
  * IMPORTANTE: No mutamos los datos originales de Node-RED.
  */
 
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge, MarkerType } from 'reactflow'
+import type { Node as ReactFlowNode, Edge as ReactFlowEdge, MarkerType } from '@xyflow/react'
 import type { NodeRedNode, NodeRedGroup, NodeRedSubflowDefinition } from '@/api/types'
 import { mapperLogger } from '@/utils/logger'
 import { getNodeType } from './nodes/nodeFactory'

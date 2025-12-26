@@ -10,7 +10,7 @@
  */
 
 import { memo } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position } from '@xyflow/react'
 import type { BaseNodeProps } from './types'
 import { Brain, Wrench, Database } from 'lucide-react'
 import { useCanvasStore } from '@/state/canvasStore'

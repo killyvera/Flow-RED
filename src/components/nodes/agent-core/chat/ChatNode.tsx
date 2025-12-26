@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { Handle, Position, NodeResizeControl, useReactFlow } from 'reactflow'
+import { Handle, Position } from '@xyflow/react'
 import type { BaseNodeProps } from '@/canvas/nodes/types'
 import { ChatWindow, ChatMessageData } from './ChatWindow'
 import { getObservabilityWebSocketClient } from '@/api/observabilityWebSocket'

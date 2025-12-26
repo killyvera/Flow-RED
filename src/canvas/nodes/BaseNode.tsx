@@ -10,7 +10,7 @@
  */
 
 import { memo, useState, useEffect, useMemo } from 'react'
-import { Handle, Position, useReactFlow } from 'reactflow'
+import { Handle, Position, useReactFlow } from '@xyflow/react'
 import type { BaseNodeProps, BaseNodeData } from './types'
 import { getNodeIcon } from '@/utils/nodeIcons'
 import { getNodeHeaderColor } from '@/utils/nodeColors'

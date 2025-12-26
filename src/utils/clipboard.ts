@@ -5,7 +5,7 @@
  * para permitir copiar/pegar entre sesiones.
  */
 
-import type { Node, Edge } from 'reactflow'
+import type { Node, Edge } from '@xyflow/react'
 
 const CLIPBOARD_KEY = 'node-red-editor-clipboard'
 

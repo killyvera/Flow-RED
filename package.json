@@ -28,12 +28,12 @@
     "@codemirror/state": "^6.5.3",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.39.5",
+    "@xyflow/react": "^12.10.0",
     "debug": "^4.4.3",
     "lucide-react": "^0.562.0",
     "node-red": "^5.0.0-beta.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "reactflow": "^11.10.4",
     "ws": "^8.0.0",
     "zustand": "^4.4.7"
   },
