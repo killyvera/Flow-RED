@@ -20,13 +20,24 @@ export function ChatWindow({
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll al final cuando hay nuevos mensajes
+  // IMPORTANTE: Usar block: 'nearest' para evitar que scrollIntoView afecte el canvas
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messagesEndRef.current) {
+      // Solo hacer scroll dentro del contenedor de mensajes, no afectar el canvas
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'nearest', // No forzar scroll si el elemento ya está visible
+        inline: 'nearest'
+      })
+    }
   }, [messages])
 
-  // Focus en input cuando se monta
+  // Focus en input cuando se monta (sin desplazar el canvas)
   useEffect(() => {
-    inputRef.current?.focus()
+    if (inputRef.current) {
+      // Usar preventScroll para evitar que el focus cause desplazamiento del canvas
+      inputRef.current.focus({ preventScroll: true })
+    }
   }, [])
 
   const handleSend = () => {
@@ -35,7 +46,10 @@ export function ChatWindow({
 
     onSendMessage(trimmed)
     setInputValue('')
-    inputRef.current?.focus()
+    // IMPORTANTE: Usar preventScroll para evitar que el focus cause desplazamiento del canvas
+    if (inputRef.current) {
+      inputRef.current.focus({ preventScroll: true })
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {

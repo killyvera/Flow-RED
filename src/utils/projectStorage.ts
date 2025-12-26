@@ -177,7 +177,47 @@ export async function getProject(projectId: string): Promise<Project | null> {
 }
 
 /**
+ * Actualiza el projectId en un flow en Node-RED
+ * Esta función se llama cuando se agrega o remueve un flujo de un proyecto
+ */
+async function updateFlowProjectId(flowId: string, projectId: string | null): Promise<void> {
+  try {
+    // Importar dinámicamente para evitar dependencias circulares
+    const { getFlows, saveFlow } = await import('@/api/client')
+    
+    // Obtener todos los flows
+    const allFlows = await getFlows('v2')
+    
+    // Encontrar el flow y todos sus nodos
+    const flowTab = allFlows.find(n => n.type === 'tab' && n.id === flowId)
+    if (!flowTab) {
+      console.warn(`⚠️ Flow ${flowId} no encontrado, no se puede actualizar projectId`)
+      return
+    }
+    
+    // Obtener todos los nodos del flow
+    const flowNodes = allFlows.filter(n => n.z === flowId || n.id === flowId)
+    
+    // Actualizar projectId en el tab
+    const updatedTab = { ...flowTab, projectId }
+    
+    // Construir el array de nodos con el tab actualizado
+    const otherNodes = allFlows.filter(n => n.z !== flowId && n.id !== flowId)
+    const updatedNodes = [updatedTab, ...flowNodes.filter(n => n.id !== flowId), ...otherNodes]
+    
+    // Guardar el flow con el nuevo projectId
+    await saveFlow(flowId, updatedNodes, undefined, projectId)
+    
+    console.log(`✅ projectId actualizado en flow ${flowId}: ${projectId || 'null'}`)
+  } catch (err) {
+    console.warn(`⚠️ Error al actualizar projectId en flow ${flowId}:`, err)
+    // No lanzar error, solo loggear advertencia
+  }
+}
+
+/**
  * Agrega un flujo a un proyecto
+ * También actualiza el projectId en el flow (si está disponible en Node-RED)
  */
 export async function addFlowToProject(projectId: string, flowId: string): Promise<void> {
   const project = await getProject(projectId)
@@ -188,11 +228,15 @@ export async function addFlowToProject(projectId: string, flowId: string): Promi
   if (!project.flowIds.includes(flowId)) {
     project.flowIds.push(flowId)
     await saveProject(project)
+    
+    // Actualizar projectId en el flow en Node-RED
+    await updateFlowProjectId(flowId, projectId)
   }
 }
 
 /**
  * Elimina un flujo de un proyecto
+ * También actualiza el projectId en el flow a null (si está disponible en Node-RED)
  */
 export async function removeFlowFromProject(projectId: string, flowId: string): Promise<void> {
   const project = await getProject(projectId)
@@ -202,6 +246,9 @@ export async function removeFlowFromProject(projectId: string, flowId: string): 
 
   project.flowIds = project.flowIds.filter(id => id !== flowId)
   await saveProject(project)
+  
+  // Actualizar projectId en el flow a null en Node-RED
+  await updateFlowProjectId(flowId, null)
 }
 
 /**
