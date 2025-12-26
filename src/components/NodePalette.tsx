@@ -91,9 +91,10 @@ export interface NodePaletteProps {
   onClose: () => void
   onNodeDragStart?: (nodeType: string, event: React.DragEvent) => void
   onNodeClick?: (nodeType: string) => void
+  onNodeDoubleClick?: (nodeType: string) => void
 }
 
-export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: NodePaletteProps) {
+export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick, onNodeDoubleClick }: NodePaletteProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [nodes, setNodes] = useState<Array<{
     id: string
@@ -775,6 +776,12 @@ export function NodePalette({ isOpen, onClose, onNodeDragStart, onNodeClick }: N
                                 onClick={() => {
                                   if (onNodeClick) {
                                     onNodeClick(node.type)
+                                  }
+                                }}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation()
+                                  if (onNodeDoubleClick) {
+                                    onNodeDoubleClick(node.type)
                                   }
                                 }}
                                 className="px-3 py-1.5 hover:bg-node-hover cursor-pointer transition-colors flex items-center gap-2"
