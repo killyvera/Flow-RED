@@ -614,7 +614,7 @@ export function CanvasPage() {
       y: point.clientY,
     })
 
-    let closestNode: typeof nodes[0] | null = null
+    let closestNode: Node | null = null
     let minDistance = 100 // Distancia máxima en píxeles del flow
     let targetHandle = 'input'
 
@@ -633,7 +633,7 @@ export function CanvasPage() {
         )
         if (distance < minDistance) {
           minDistance = distance
-          closestNode = node
+          closestNode = node as Node
         }
       })
       targetHandle = 'input'
@@ -651,7 +651,7 @@ export function CanvasPage() {
         )
         if (distance < minDistance) {
           minDistance = distance
-          closestNode = node
+          closestNode = node as Node
         }
       })
       targetHandle = 'input'
@@ -659,10 +659,13 @@ export function CanvasPage() {
 
     // Si hay un nodo objetivo cerca, auto-conectar
     if (closestNode) {
+      const targetNodeId = (closestNode as Node).id
+      if (!targetNodeId) return
+      
       const connection: Connection = {
         source: pendingAutoConnect.sourceNodeId,
         sourceHandle: pendingAutoConnect.sourceHandle,
-        target: closestNode.id,
+        target: targetNodeId,
         targetHandle: targetHandle,
       }
 
@@ -1766,12 +1769,6 @@ export function CanvasPage() {
       
       // #region agent log
       // Hipótesis A,B,C,D,E: Verificar payload final antes de enviar
-      const finalSubflowDefs = allNodesToSave.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z) as NodeRedSubflowDefinition[]
-      const finalInternalNodes = allNodesToSave.filter(n => n.z && finalSubflowDefs.some(sf => sf.id === n.z))
-      const tabsInPayload = allNodesToSave.filter(n => n.type === 'tab')
-      const tabIndex = allNodesToSave.findIndex(n => n.type === 'tab')
-      const firstInternalIndex = allNodesToSave.findIndex(n => finalInternalNodes.some(internal => internal.id === n.id))
-      const firstSubflowDefIndex = allNodesToSave.findIndex(n => finalSubflowDefs.some(sf => sf.id === n.id))
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Obtener projectId del flow actual (si existe)
@@ -1907,8 +1904,6 @@ export function CanvasPage() {
       
       // #region agent log
       // H1,H4: Verificar propiedades después de recargar desde Node-RED
-      const functionNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'function')
-      const injectNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'inject')
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Renderizar el flow activo con los datos actualizados desde Node-RED
