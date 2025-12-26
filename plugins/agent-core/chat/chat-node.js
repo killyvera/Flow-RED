@@ -207,18 +207,21 @@ module.exports = function(RED) {
         // Verificar si es una respuesta del modelo
         if (msg._agentCore && msg._agentCore.type === 'model_response') {
           // Extraer el mensaje del modelo
+          // IMPORTANTE: Priorizar agentResult.message porque contiene el mensaje completo sin truncar
           let modelMessage = null;
           
-          if (msg.payload) {
-            // Intentar extraer el mensaje de diferentes formatos
+          // Prioridad 1: agentResult.message (mensaje completo del Agent Core)
+          if (msg.agentResult && msg.agentResult.message) {
+            modelMessage = msg.agentResult.message;
+          }
+          // Prioridad 2: payload.message (puede estar truncado)
+          else if (msg.payload) {
             if (typeof msg.payload === 'string') {
               modelMessage = msg.payload;
             } else if (msg.payload.message) {
               modelMessage = msg.payload.message;
             } else if (msg.payload.content) {
               modelMessage = msg.payload.content;
-            } else if (msg.agentResult && msg.agentResult.message) {
-              modelMessage = msg.agentResult.message;
             } else {
               // Si no hay mensaje claro, usar el payload completo como string
               modelMessage = JSON.stringify(msg.payload, null, 2);

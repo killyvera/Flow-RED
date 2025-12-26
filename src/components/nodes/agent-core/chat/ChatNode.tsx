@@ -29,6 +29,9 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
   const edges = useCanvasStore((state) => state.edges)
   const observabilityClientRef = useRef<ReturnType<typeof getObservabilityWebSocketClient> | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  // Rastrear si ya procesamos el puerto 4 para un frame específico
+  // Esto evita que el puerto 3 sobrescriba el puerto 4
+  const processedPort4Frames = useRef<Set<string>>(new Set())
 
   // Encontrar el Agent Core conectado (buscar automáticamente en el mismo flow)
   // IMPORTANTE: Usar el ID de Node-RED, no el ID de React Flow
@@ -140,7 +143,8 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
     })
     
     const unsubscribe = client.onEvent((event) => {
-      // Log TODOS los eventos node:output para debugging (reducir spam de otros eventos)
+      // Log TODOS los eventos node:output para debugging
+      // IMPORTANTE: Loggear también eventos que NO sean node:output para ver qué está llegando
       if (event.event === 'node:output') {
         console.log('[ChatNode] 🔔 Handler ejecutado - node:output:', {
           event: event.event,
@@ -150,14 +154,75 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
           currentState: agentCoreNodeRedId, // Estado actual (puede haber cambiado)
           timestamp: new Date().toISOString(),
         })
+        
+        // Log adicional para verificar si el evento es del Agent Core
+        if (event.nodeId === currentAgentCoreId) {
+          console.log('[ChatNode] ✅ Evento MATCH - es del Agent Core configurado')
+        } else {
+          // Solo loggear si NO es un nodo de modelo (para reducir spam)
+          const nodeType = (event.data as any)?.nodeType
+          if (nodeType && !nodeType.includes('model') && !nodeType.includes('azure')) {
+            console.log('[ChatNode] ⚠️ Evento NO MATCH - nodeId diferente:', {
+              eventNodeId: event.nodeId,
+              expectedNodeId: currentAgentCoreId,
+              eventNodeType: nodeType
+            })
+          }
+        }
+      } else {
+        // Loggear otros eventos para debugging (solo en desarrollo)
+        if (import.meta.env.DEV && (event.event === 'node:input' || event.event === 'frame:end')) {
+          console.log('[ChatNode] 📨 Otro evento recibido:', {
+            event: event.event,
+            nodeId: event.nodeId,
+            matches: event.nodeId === currentAgentCoreId
+          })
+        }
       }
+      
+      // IMPORTANTE: El sistema de observability solo envía previews truncados para las tabs
+      // Para obtener el mensaje completo, debemos obtenerlo del backend del Chat Node
+      // que ya tiene el mensaje completo en messageHistory
+      // Usar el sistema de observability solo como trigger para detectar nuevos mensajes
       
       // Buscar eventos de output del Agent Core
       // El evento de observability tiene estructura: { event: 'node:output', nodeId: ..., data: { outputs: [...] } }
       // IMPORTANTE: event.nodeId es el ID de Node-RED, no el ID de React Flow
       // Usar el valor capturado en el closure, no el estado actual
+      // NOTA: El Agent Core puede enviar múltiples eventos (output 3 y output 4)
+      // Cuando detectamos un nuevo mensaje, obtener el mensaje completo del backend del Chat Node
       if (event.event === 'node:output' && event.nodeId === currentAgentCoreId) {
         const eventData = event.data as any
+        
+        // Log para ver qué puertos tiene este evento
+        const portsInEvent = eventData?.outputs?.map((o: any) => o.port) || []
+        const frameId = (event as any).frameId
+        console.log('[ChatNode] 📨 Evento del Agent Core recibido con puertos:', portsInEvent, 'frameId:', frameId)
+        
+        // Ignorar eventos con solo puerto 0 (model) - no son relevantes para el chat
+        if (portsInEvent.length === 1 && portsInEvent[0] === 0) {
+          console.log('[ChatNode] ⏭️ Ignorando evento con solo puerto 0 (model)')
+          return
+        }
+        
+        // Verificar si el evento fue filtrado por sampling
+        if (eventData?.sampled === false || (Array.isArray(eventData?.outputs) && eventData.outputs.length === 0)) {
+          console.warn('[ChatNode] ⚠️ Evento del Agent Core filtrado por sampling o sin outputs:', {
+            sampled: eventData?.sampled,
+            outputsCount: eventData?.outputs?.length,
+            hasOutputs: Array.isArray(eventData?.outputs)
+          })
+          // No procesar eventos filtrados por sampling
+          return
+        }
+        
+        // Verificar si este evento tiene puerto 3 y ya procesamos puerto 4 para este frame
+        const hasPort3 = portsInEvent.includes(3)
+        const hasPort4 = portsInEvent.includes(4)
+        if (hasPort3 && !hasPort4 && frameId && processedPort4Frames.current.has(frameId)) {
+          console.log('[ChatNode] ⏭️ Ignorando evento con puerto 3 porque ya procesamos puerto 4 para este frame:', frameId)
+          return
+        }
         
         // Log detallado expandido
         const logData = {
@@ -197,14 +262,29 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
           })
           
           // Prioridad 1: Buscar el output con port === 4 (model_response output)
+          // Este output tiene el objeto completo con agentResult
           let outputToUse = eventData.outputs.find((output: any) => output.port === 4)
           
-          // Prioridad 2: Si no hay output 4, buscar en output 3 (result) que contiene el resultado final
-          if (!outputToUse) {
-            console.log('[ChatNode] ⚠️ No se encontró output 4, buscando en output 3 (result)...')
+          if (outputToUse) {
+            console.log('[ChatNode] ✅ Encontrado output 4 (model_response) - tiene agentResult completo')
+            // Marcar que ya procesamos puerto 4 para este frame
+            if (frameId) {
+              processedPort4Frames.current.add(frameId)
+              // Limpiar frames antiguos (mantener solo los últimos 100)
+              if (processedPort4Frames.current.size > 100) {
+                const framesArray = Array.from(processedPort4Frames.current)
+                processedPort4Frames.current = new Set(framesArray.slice(-100))
+              }
+            }
+          } else {
+            // Prioridad 2: Si no hay output 4, buscar en output 3 (result) que contiene el resultado final
+            // ADVERTENCIA: output 3 puede no tener agentResult completo
+            console.log('[ChatNode] ⚠️ No se encontró output 4 en este evento, buscando en output 3 (result)...')
+            console.log('[ChatNode] ⚠️ Puertos disponibles en este evento:', eventData.outputs.map((o: any) => o.port))
             outputToUse = eventData.outputs.find((output: any) => output.port === 3)
             if (outputToUse) {
-              console.log('[ChatNode] ✅ Encontrado output 3 (result)')
+              console.log('[ChatNode] ⚠️ Encontrado output 3 (result) - puede no tener agentResult completo')
+              console.log('[ChatNode] ⚠️ Este evento solo tiene output 3, el output 4 debe estar en otro evento')
             }
           }
           
@@ -239,20 +319,44 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
           // También loggear el objeto completo expandido
           console.log('[ChatNode] Output completo (expandido):', outputToUse)
           
+          // Log CRÍTICO: Verificar el payload completo que llega
+          if (outputToUse && outputToUse.payload) {
+            console.log('[ChatNode] 🔴 PAYLOAD COMPLETO QUE LLEGA:', {
+              payloadKeys: Object.keys(outputToUse.payload),
+              hasPreview: !!outputToUse.payload.preview,
+              hasAgentResult: !!outputToUse.payload.agentResult,
+              hasFullMessage: !!outputToUse.payload.fullMessage,
+              hasCompletePayload: !!outputToUse.payload.completePayload,
+              payloadString: JSON.stringify(outputToUse.payload, null, 2).substring(0, 2000)
+            });
+          }
+          
           if (outputToUse && outputToUse.payload) {
             // El payload del observability viene en payload.preview
-            // Estructura: { payload: { preview: { ...mensaje real... }, type, size, truncated } }
+            // Estructura: { payload: { preview: { ...mensaje real... }, type, size, truncated, agentResult? } }
+            // IMPORTANTE: Para casos especiales, agentResult está en payload.agentResult (no en preview)
+            // Esto permite tener el mensaje completo además del preview truncado
             let payload = outputToUse.payload.preview || outputToUse.payload
+            const isTruncated = outputToUse.payload.truncated === true
+            
+            // Para casos especiales, agentResult puede estar en el nivel superior del payload
+            // (no solo en el preview) para tener el mensaje completo
+            const fullPayload = outputToUse.payload
+            const agentResultFromPayload = fullPayload.agentResult || payload?.agentResult
             
             console.log('[ChatNode] Payload extraído:', {
               port: outputToUse.port,
               hasPreview: !!outputToUse.payload.preview,
               hasPayload: !!payload,
+              isTruncated: isTruncated,
               hasAgentCore: !!payload?._agentCore,
               agentCoreType: payload?._agentCore?.type,
               hasPayloadField: !!payload?.payload,
-              hasAgentResult: !!payload?.agentResult,
+              hasAgentResult: !!agentResultFromPayload,
+              agentResultInPreview: !!payload?.agentResult,
+              agentResultInPayload: !!fullPayload.agentResult,
               payloadKeys: payload ? Object.keys(payload) : [],
+              fullPayloadKeys: fullPayload ? Object.keys(fullPayload) : [],
             })
             
             // Verificar si tiene _agentCore metadata (viene del Agent Core)
@@ -263,6 +367,7 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
             console.log('[ChatNode] Verificando estructura del payload:', {
               hasAgentCore,
               hasAgentResult,
+              isTruncated,
               agentCoreType: payload?._agentCore?.type,
               hasPayloadField: !!payload?.payload,
               hasAgentResultField: !!payload?.agentResult,
@@ -271,14 +376,117 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
             
             // Intentar extraer el mensaje de cualquier estructura posible
             let modelMessage = null
+            let messageSource = 'unknown'
             
-            // Prioridad 1: agentResult.message (estructura directa del Agent Core)
-            if (payload.agentResult && payload.agentResult.message) {
-              modelMessage = payload.agentResult.message
-              console.log('[ChatNode] ✅ Mensaje extraído de agentResult.message:', modelMessage.substring(0, 100))
+            // Prioridad 1: fullMessage (mensaje completo sin truncar, disponible en payload.fullMessage)
+            // Este es el campo más directo para obtener el mensaje completo del Agent Core puerto 4
+            if (outputToUse.payload.fullMessage && typeof outputToUse.payload.fullMessage === 'string') {
+              modelMessage = outputToUse.payload.fullMessage
+              messageSource = 'payload.fullMessage'
+              console.log('[ChatNode] ✅ Mensaje completo extraído de payload.fullMessage (no truncado):', {
+                length: modelMessage.length,
+                preview: modelMessage.substring(0, 100),
+                isTruncated: isTruncated,
+                source: messageSource
+              })
             }
-            // Prioridad 2: payload.payload.message (estructura anidada)
-            else if (payload.payload) {
+            
+            // Prioridad 2: agentResult.message (estructura directa del Agent Core)
+            // IMPORTANTE: Si el payload está truncado, SIEMPRE usar agentResult.message si existe
+            // porque contiene el mensaje completo sin truncar
+            // agentResult puede estar en payload.agentResult (nivel superior) o en preview.agentResult
+            if (!modelMessage) {
+              const agentResult = agentResultFromPayload || payload?.agentResult
+              if (agentResult && agentResult.message) {
+                modelMessage = agentResult.message
+                messageSource = agentResultFromPayload ? 'payload.agentResult' : 'preview.agentResult'
+                console.log('[ChatNode] ✅ Mensaje completo extraído de agentResult.message (no truncado):', {
+                  length: modelMessage.length,
+                  preview: modelMessage.substring(0, 100),
+                  isTruncated: isTruncated,
+                  agentResultKeys: Object.keys(agentResult || {}),
+                  source: messageSource
+                })
+              }
+            }
+            // Si el payload está truncado pero no encontramos agentResult, buscar más profundamente
+            // PERO si no lo encontramos, continuar con las siguientes condiciones
+            if (!modelMessage && isTruncated && typeof payload === 'object') {
+              // Buscar agentResult en cualquier nivel del objeto
+              const findAgentResult = (obj: any, depth = 0): string | null => {
+                if (depth > 3) return null // Evitar recursión infinita
+                if (!obj || typeof obj !== 'object') return null
+                
+                if (obj.agentResult && obj.agentResult.message) {
+                  return obj.agentResult.message
+                }
+                
+                // Buscar recursivamente
+                for (const key of Object.keys(obj)) {
+                  const result = findAgentResult(obj[key], depth + 1)
+                  if (result) return result
+                }
+                return null
+              }
+              
+              const foundMessage = findAgentResult(payload)
+              if (foundMessage) {
+                modelMessage = foundMessage
+                console.log('[ChatNode] ✅ Mensaje completo encontrado recursivamente en payload truncado')
+              }
+            }
+            // Prioridad 3: completePayload.message (mensaje completo del payload original)
+            // Este campo contiene el payload completo sin truncar para casos especiales
+            if (!modelMessage && outputToUse.payload.completePayload && outputToUse.payload.completePayload.message) {
+              modelMessage = outputToUse.payload.completePayload.message
+              messageSource = 'payload.completePayload.message'
+              console.log('[ChatNode] ✅ Mensaje completo extraído de payload.completePayload.message (no truncado):', {
+                length: modelMessage.length,
+                preview: modelMessage.substring(0, 100),
+                isTruncated: isTruncated,
+                source: messageSource
+              })
+            }
+            
+            // Prioridad 4: payload.message si el payload es un objeto con message (estructura validated)
+            // IMPORTANTE: Si el mensaje está truncado, buscar agentResult primero, sino usar el mensaje truncado
+            if (!modelMessage && payload && typeof payload === 'object' && payload.message && typeof payload.message === 'string') {
+              // El payload puede ser el objeto validated directamente con {action, message, tool, etc}
+              // Si está truncado, buscar agentResult en el output completo
+              if (isTruncated) {
+                // Buscar agentResult en el output completo (no solo en el preview)
+                const fullPayload = outputToUse?.payload
+                
+                // Buscar agentResult en el preview primero
+                if (payload.agentResult && payload.agentResult.message) {
+                  modelMessage = payload.agentResult.message
+                  console.log('[ChatNode] ✅ Mensaje completo encontrado en payload.agentResult.message (en preview):', {
+                    length: modelMessage.length
+                  })
+                }
+                // Si no está en el preview, buscar en el payload completo
+                else if (fullPayload && fullPayload.agentResult && fullPayload.agentResult.message) {
+                  modelMessage = fullPayload.agentResult.message
+                  console.log('[ChatNode] ✅ Mensaje completo encontrado en payload.agentResult.message (fuera del preview):', {
+                    length: modelMessage.length
+                  })
+                } else {
+                  // Usar el mensaje del payload aunque esté truncado como último recurso
+                  modelMessage = payload.message
+                  console.log('[ChatNode] ⚠️ Usando payload.message (truncado, agentResult no disponible):', {
+                    length: modelMessage.length,
+                    isTruncated: isTruncated,
+                    payloadKeys: Object.keys(payload),
+                    fullPayloadKeys: fullPayload ? Object.keys(fullPayload) : []
+                  })
+                }
+              } else {
+                modelMessage = payload.message
+                console.log('[ChatNode] ✅ Mensaje extraído de payload.message (no truncado)')
+              }
+            }
+            // Prioridad 5: payload.payload.message (estructura anidada)
+            if (!modelMessage && payload.payload) {
               const msgPayload = payload.payload
               console.log('[ChatNode] msgPayload:', {
                 type: typeof msgPayload,
@@ -306,13 +514,14 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
                 console.log('[ChatNode] ✅ Mensaje extraído de payload.payload.input.message')
               }
             }
-            // Prioridad 3: payload directamente si es string
-            else if (typeof payload === 'string') {
+            // Prioridad 6: payload directamente si es string
+            if (!modelMessage && typeof payload === 'string') {
               modelMessage = payload
+              messageSource = 'payload_direct_string'
               console.log('[ChatNode] ✅ Mensaje extraído de payload (string directo)')
             }
-            // Prioridad 4: Buscar en cualquier campo que pueda contener el mensaje
-            else if (payload && typeof payload === 'object') {
+            // Prioridad 7: Buscar en cualquier campo que pueda contener el mensaje
+            if (!modelMessage && payload && typeof payload === 'object') {
               // Intentar encontrar cualquier campo que contenga texto
               for (const key of Object.keys(payload)) {
                 const value = payload[key]
@@ -332,9 +541,88 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
               hasMessage: !!modelMessage,
               messageLength: modelMessage?.length,
               messagePreview: modelMessage?.substring(0, 100),
+              source: messageSource,
+              hasFullMessage: !!outputToUse.payload.fullMessage,
+              hasCompletePayload: !!outputToUse.payload.completePayload,
+              hasAgentResult: !!agentResultFromPayload || !!payload?.agentResult
             })
 
-            if (modelMessage) {
+            // IMPORTANTE: El sistema de observability solo envía previews truncados para las tabs
+            // Para obtener el mensaje completo, debemos obtenerlo del backend del Chat Node
+            // que ya tiene el mensaje completo en messageHistory (obtenido directamente del Agent Core)
+            // Usar el evento de observability solo como trigger para detectar nuevos mensajes
+            if (outputToUse && (outputToUse.port === 4 || outputToUse.port === 3)) {
+              console.log('[ChatNode] 🔔 Evento de observability detectado (puerto', outputToUse.port, ') - Obteniendo mensaje completo del backend del Chat Node')
+              
+              // Obtener el historial completo del backend del Chat Node
+              // El backend ya tiene el mensaje completo en messageHistory porque lo recibió directamente del Agent Core
+              nodeRedRequest(`/chat-node/${nodeId}/history`)
+                .then((response: any) => {
+                  if (response && response.history && Array.isArray(response.history)) {
+                    // Obtener el último mensaje del agente del historial
+                    const lastAgentMessage = response.history
+                      .filter((m: any) => m.type === 'agent')
+                      .slice(-1)[0]
+                    
+                    if (lastAgentMessage) {
+                      console.log('[ChatNode] ✅ Mensaje completo obtenido del backend:', {
+                        messageId: lastAgentMessage.id,
+                        contentLength: lastAgentMessage.content.length,
+                        preview: lastAgentMessage.content.substring(0, 100)
+                      })
+                      
+                      // Actualizar estado con el mensaje completo
+                      setMessages((prev) => {
+                        // Evitar duplicados verificando si ya existe un mensaje con el mismo ID
+                        const existingMessage = prev.find(m => m.id === lastAgentMessage.id)
+                        if (existingMessage) {
+                          console.log('[ChatNode] Mensaje ya existe en el estado, ignorando')
+                          return prev
+                        }
+                        console.log('[ChatNode] ✅ Agregando mensaje completo del backend, nuevo total:', prev.length + 1)
+                        return [...prev, lastAgentMessage]
+                      })
+                      
+                      setIsWaiting(false)
+                    } else {
+                      console.warn('[ChatNode] ⚠️ No se encontró mensaje del agente en el historial del backend')
+                      setIsWaiting(false)
+                    }
+                  } else {
+                    console.warn('[ChatNode] ⚠️ Respuesta del backend no tiene historial válido')
+                    setIsWaiting(false)
+                  }
+                })
+                .catch((error: any) => {
+                  console.error('[ChatNode] ❌ Error al obtener historial del backend:', error)
+                  // Fallback: usar el mensaje truncado si está disponible
+                  if (modelMessage) {
+                    console.log('[ChatNode] ⚠️ Usando mensaje truncado como fallback')
+                    const agentMessage: ChatMessageData = {
+                      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                      type: 'agent',
+                      content: modelMessage,
+                      timestamp: Date.now(),
+                      traceId: payload._agentCore?.traceId || payload.agentResult?.traceId || undefined,
+                      iteration: payload._agentCore?.iteration || payload.agentResult?.iteration || undefined,
+                    }
+                    setMessages((prev) => {
+                      const recentMessage = prev.find(m => 
+                        m.type === 'agent' && 
+                        m.content === modelMessage && 
+                        Date.now() - m.timestamp < 1000
+                      )
+                      if (recentMessage) {
+                        return prev
+                      }
+                      return [...prev, agentMessage]
+                    })
+                  }
+                  setIsWaiting(false)
+                })
+            } else if (modelMessage) {
+              // Fallback: si no es puerto 3 o 4, usar el mensaje extraído (puede estar truncado)
+              console.log('[ChatNode] ⚠️ Usando mensaje del preview (puede estar truncado)')
               const agentMessage: ChatMessageData = {
                 id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 type: 'agent',
@@ -344,36 +632,22 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
                 iteration: payload._agentCore?.iteration || payload.agentResult?.iteration || undefined,
               }
               
-              console.log('[ChatNode] ✅ Agregando mensaje del agente al chat:', {
-                messageId: agentMessage.id,
-                contentLength: agentMessage.content.length,
-              })
-              
-              // Actualizar estado de forma segura
               setMessages((prev) => {
-                // Evitar duplicados verificando si ya existe un mensaje con el mismo contenido reciente
                 const recentMessage = prev.find(m => 
                   m.type === 'agent' && 
                   m.content === modelMessage && 
-                  Date.now() - m.timestamp < 1000 // Dentro del último segundo
+                  Date.now() - m.timestamp < 1000
                 )
                 if (recentMessage) {
                   console.log('[ChatNode] Mensaje duplicado detectado, ignorando')
                   return prev
                 }
-                console.log('[ChatNode] ✅ Actualizando mensajes, nuevo total:', prev.length + 1)
                 return [...prev, agentMessage]
               })
               
-              console.log('[ChatNode] ✅ Cambiando isWaiting a false')
               setIsWaiting(false)
             } else {
-              console.warn('[ChatNode] ⚠️ No se pudo extraer el mensaje del payload:', {
-                payload: payload,
-                payloadString: JSON.stringify(payload, null, 2).substring(0, 1000),
-              })
-              // Aún así, quitar el estado de "pensando" si pasó mucho tiempo
-              console.log('[ChatNode] Cambiando isWaiting a false (sin mensaje)')
+              console.warn('[ChatNode] ⚠️ No se pudo extraer el mensaje del payload')
               setIsWaiting(false)
             }
           } else {

@@ -76,11 +76,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
             message.content
           )}
         </div>
-        {message.iteration !== undefined && !isUser && (
-          <div className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            Iteración {message.iteration}
-          </div>
-        )}
       </div>
     </div>
   )
