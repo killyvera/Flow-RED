@@ -577,7 +577,55 @@ export function CanvasPage() {
   const handleEdgesChange: OnEdgesChange = useCallback((changes) => {
     onEdgesChange(changes)
     setEdgesLocal((prevEdges) => {
-      const updatedEdges = applyEdgeChanges(changes, prevEdges)
+      let updatedEdges = applyEdgeChanges(changes, prevEdges)
+      
+      // CRÍTICO: Si se elimina una conexión bidireccional Model ↔ Agent Core,
+      // eliminar automáticamente la conexión inversa
+      const removedEdges = changes
+        .filter(c => c.type === 'remove')
+        .map(c => prevEdges.find(e => e.id === c.id))
+        .filter(Boolean) as Edge[]
+      
+      for (const removedEdge of removedEdges) {
+        const sourceNode = nodes.find(n => n.id === removedEdge.source)
+        const targetNode = nodes.find(n => n.id === removedEdge.target)
+        const sourceNodeType = (sourceNode?.data as any)?.nodeRedNode?.type || (sourceNode?.data as any)?.nodeRedType
+        const targetNodeType = (targetNode?.data as any)?.nodeRedNode?.type || (targetNode?.data as any)?.nodeRedType
+        
+        // Detectar si es una conexión Model ↔ Agent Core
+        const isAgentCoreToModel = sourceNodeType === 'agent-core' && 
+                                   removedEdge.sourceHandle === 'output-0' && 
+                                   targetNodeType === 'model.azure.openai'
+        const isModelToAgentCore = sourceNodeType === 'model.azure.openai' && 
+                                  removedEdge.sourceHandle === 'output-0' && 
+                                  targetNodeType === 'agent-core'
+        
+        if (isAgentCoreToModel || isModelToAgentCore) {
+          // Buscar y eliminar la conexión bidireccional
+          // La conexión inversa tiene el source y target intercambiados
+          const reverseSource = removedEdge.target
+          const reverseTarget = removedEdge.source
+          const reverseSourceHandle = 'output-0'
+          const reverseTargetHandle = 'input'
+          
+          // Buscar la conexión inversa por source, target y handles (no solo por ID)
+          const reverseEdge = updatedEdges.find(e => 
+            e.source === reverseSource && 
+            e.target === reverseTarget && 
+            e.sourceHandle === reverseSourceHandle && 
+            e.targetHandle === reverseTargetHandle
+          )
+          
+          if (reverseEdge) {
+            updatedEdges = updatedEdges.filter(e => e.id !== reverseEdge.id)
+            console.log(`[handleEdgesChange] ✅ Eliminando automáticamente conexión bidireccional: ${reverseEdge.id}`)
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:625',message:'Conexión bidireccional eliminada automáticamente',data:{removedEdgeId:removedEdge.id,reverseEdgeId:reverseEdge.id,isAgentCoreToModel,isModelToAgentCore},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+            // #endregion
+          }
+        }
+      }
+      
       // Actualizar store solo en modo edición y cambios persistentes
       // Guardar en ref para actualizar después del render
       if (isEditMode && !isInitialRenderRef.current) {
@@ -588,7 +636,7 @@ export function CanvasPage() {
       }
       return updatedEdges
     })
-  }, [isEditMode, setEdges, onEdgesChange, setEdgesLocal])
+  }, [isEditMode, nodes, setEdges, onEdgesChange, setEdgesLocal])
 
   // Estado para auto-conexión desde Agent Core o Chat
   const [pendingAutoConnect, setPendingAutoConnect] = React.useState<{
@@ -773,6 +821,16 @@ export function CanvasPage() {
                                targetNodeType === 'agent-core'
     const shouldHide = isAgentCoreToChat || isModelToAgentCore
     
+    // CRÍTICO: Detectar conexiones bidireccionales Model ↔ Agent Core
+    // Cuando se conecta Agent Core output-0 → Model input, crear automáticamente Model output-0 → Agent Core input (oculto)
+    // Cuando se conecta Model output-0 → Agent Core input, crear automáticamente Agent Core output-0 → Model input (visible)
+    const isAgentCoreToModel = sourceNodeType === 'agent-core' && 
+                               connection.sourceHandle === 'output-0' && 
+                               targetNodeType === 'model.azure.openai'
+    const isModelToAgentCoreVisible = sourceNodeType === 'model.azure.openai' && 
+                                     connection.sourceHandle === 'output-0' && 
+                                     targetNodeType === 'agent-core'
+    
     const newEdge = {
       ...connection,
       id: `${connection.source}-${connection.sourceHandle || '0'}-${connection.target}-${connection.targetHandle || 'input'}`,
@@ -791,7 +849,81 @@ export function CanvasPage() {
       hidden: shouldHide,
     }
     
-    const updatedEdges = addEdge(newEdge, edges)
+    let updatedEdges = addEdge(newEdge, edges)
+    
+    // Crear automáticamente la conexión bidireccional si es necesario
+    if (isAgentCoreToModel) {
+      // Crear automáticamente Model output-0 → Agent Core input (oculto)
+      const reverseEdge = {
+        id: `${connection.target}-output-0-${connection.source}-input`,
+        source: connection.target, // Model
+        target: connection.source, // Agent Core
+        sourceHandle: 'output-0',
+        targetHandle: 'input',
+        type: 'smoothstep',
+        style: {
+          strokeWidth: 2,
+          stroke: 'var(--color-edge-default)',
+          opacity: 0, // Oculto
+        },
+        markerEnd: {
+          type: 'arrowclosed',
+          color: 'var(--color-edge-default)',
+        },
+        hidden: true, // Oculto
+      }
+      
+      // Verificar que no exista ya
+      const edgeExists = updatedEdges.some(e => 
+        e.source === reverseEdge.source && 
+        e.target === reverseEdge.target && 
+        e.sourceHandle === reverseEdge.sourceHandle
+      )
+      
+      if (!edgeExists) {
+        updatedEdges = addEdge(reverseEdge, updatedEdges)
+        console.log(`[onConnect] ✅ Creando automáticamente conexión bidireccional: Model output-0 → Agent Core input (oculto)`)
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:820',message:'Conexión bidireccional creada automáticamente',data:{source:reverseEdge.source,target:reverseEdge.target,sourceHandle:reverseEdge.sourceHandle,targetHandle:reverseEdge.targetHandle},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      }
+    } else if (isModelToAgentCoreVisible) {
+      // Crear automáticamente Agent Core output-0 → Model input (visible)
+      const reverseEdge = {
+        id: `${connection.target}-output-0-${connection.source}-input`,
+        source: connection.target, // Agent Core
+        target: connection.source, // Model
+        sourceHandle: 'output-0',
+        targetHandle: 'input',
+        type: 'smoothstep',
+        style: {
+          strokeWidth: 2,
+          stroke: 'var(--color-edge-default)',
+          opacity: 1, // Visible
+        },
+        markerEnd: {
+          type: 'arrowclosed',
+          color: 'var(--color-edge-default)',
+        },
+        hidden: false, // Visible
+      }
+      
+      // Verificar que no exista ya
+      const edgeExists = updatedEdges.some(e => 
+        e.source === reverseEdge.source && 
+        e.target === reverseEdge.target && 
+        e.sourceHandle === reverseEdge.sourceHandle
+      )
+      
+      if (!edgeExists) {
+        updatedEdges = addEdge(reverseEdge, updatedEdges)
+        console.log(`[onConnect] ✅ Creando automáticamente conexión bidireccional: Agent Core output-0 → Model input (visible)`)
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:850',message:'Conexión bidireccional creada automáticamente',data:{source:reverseEdge.source,target:reverseEdge.target,sourceHandle:reverseEdge.sourceHandle,targetHandle:reverseEdge.targetHandle},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      }
+    }
+    
     setEdgesLocal(updatedEdges)
     setEdges(updatedEdges)
   }, [isEditMode, nodes, edges, setEdgesLocal, setEdges])
@@ -1053,22 +1185,53 @@ export function CanvasPage() {
         sample: nodesFromOtherFlows.slice(0, 5).map(n => ({ id: n.id, type: n.type, z: n.z, x: n.x, y: n.y })),
       })
       
+      // CRÍTICO: Normalizar wires de todos los nodos preservados
+      // Asegurar que wires siempre sea un array válido, nunca null o undefined
+      const normalizedNodesFromOtherFlows = nodesFromOtherFlows.map(node => {
+        if (node.wires !== undefined && node.wires !== null && !Array.isArray(node.wires)) {
+          console.warn(`[handleSave] ⚠️ Normalizando wires inválido para nodo ${node.id}:`, node.wires)
+          return { ...node, wires: [] }
+        }
+        // Si wires es null o undefined, usar array vacío
+        if (node.wires === null || node.wires === undefined) {
+          return { ...node, wires: [] }
+        }
+        // Si wires es un array, asegurar que todos los elementos sean arrays válidos
+        // CRÍTICO: Asegurar que cada elemento de wires sea un array válido, nunca null o undefined
+        const normalizedWires = node.wires.map((portWires: any, portIndex: number) => {
+          if (portWires === null || portWires === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1200',message:'Puerto de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex,hasWires:!!node.wires,wiresLength:Array.isArray(node.wires)?node.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+            // #endregion
+            return []
+          }
+          if (!Array.isArray(portWires)) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1206',message:'Puerto de wires no es array, normalizando',data:{nodeId:node.id,portIndex,portWiresType:typeof portWires,portWiresValue:portWires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+            // #endregion
+            return []
+          }
+          return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
+        })
+        return { ...node, wires: normalizedWires }
+      })
+      
       // #region agent log
       // const groupsInTransformed = nodeRedNodes.filter(n => n.type === 'group').map(n => n.id) // No usado por ahora
-      const nodesFromOtherFlowsByType = nodesFromOtherFlows.reduce((acc, n) => {
+      const nodesFromOtherFlowsByType = normalizedNodesFromOtherFlows.reduce((acc, n) => {
         acc[n.type] = (acc[n.type] || 0) + 1
         return acc
       }, {} as Record<string, number>)
       console.log('[handleSave] Nodos de otros flows a preservar:', {
-        count: nodesFromOtherFlows.length,
+        count: normalizedNodesFromOtherFlows.length,
         byType: nodesFromOtherFlowsByType,
-        sample: nodesFromOtherFlows.slice(0, 3).map(n => ({ id: n.id, type: n.type, z: n.z })),
+        sample: normalizedNodesFromOtherFlows.slice(0, 3).map(n => ({ id: n.id, type: n.type, z: n.z })),
       })
       
       // CRÍTICO: Asegurar que los subflows preservados tengan la propiedad 'flow' (array)
       // Node-RED puede devolver subflows sin 'flow' porque los convierte internamente a 'nodes' (objeto)
       // Pero cuando guardamos, necesitamos 'flow' (array) para que Node-RED los procese correctamente
-      const nodesFromOtherFlowsWithFlow = nodesFromOtherFlows.map(node => {
+      const nodesFromOtherFlowsWithFlow = normalizedNodesFromOtherFlows.map(node => {
         if (node.type === 'subflow') {
           const subflow = node as NodeRedSubflowDefinition
           
@@ -1796,10 +1959,125 @@ export function CanvasPage() {
       const projectId = currentFlowTab?.projectId ?? null
       
       // Guardar usando la API (la validación se hace dentro de saveFlow)
-      console.log('[handleSave] Guardando flow en Node-RED...', { projectId })
+      // CRÍTICO: Normalizar wires de TODOS los nodos antes de guardar
+      // Asegurar que ningún nodo tenga wires: null o undefined
+      const finalNormalizedNodes = allNodesToSave.map((node, index) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1830',message:'Normalizando nodo',data:{nodeId:node.id,nodeType:node.type,hasWires:node.wires!==undefined&&node.wires!==null,wiresType:typeof node.wires,wiresIsArray:Array.isArray(node.wires),wiresIsNull:node.wires===null,wiresIsUndefined:node.wires===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        // Si el nodo no tiene wires o wires es null/undefined, usar array vacío
+        if (node.wires === null || node.wires === undefined) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1835',message:'Wires es null/undefined, normalizando',data:{nodeId:node.id,nodeType:node.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          return { ...node, wires: [] }
+        }
+        // Si wires no es un array, usar array vacío
+        if (!Array.isArray(node.wires)) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1841',message:'Wires no es array, normalizando',data:{nodeId:node.id,nodeType:node.type,wiresValue:node.wires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          console.warn(`[handleSave] ⚠️ Normalizando wires inválido para nodo ${node.id}:`, node.wires)
+          return { ...node, wires: [] }
+        }
+        // Normalizar cada puerto de wires
+        // CRÍTICO: Asegurar que cada elemento de wires sea un array válido, nunca null o undefined
+        const normalizedWires = node.wires.map((portWires: any, portIndex: number) => {
+          if (portWires === null || portWires === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1976',message:'Puerto de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex,hasWires:!!node.wires,wiresLength:Array.isArray(node.wires)?node.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+            // #endregion
+            return []
+          }
+          if (!Array.isArray(portWires)) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1982',message:'Puerto de wires no es array, normalizando',data:{nodeId:node.id,portIndex,portWiresType:typeof portWires,portWiresValue:portWires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+            // #endregion
+            return []
+          }
+          return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
+        })
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1852',message:'Nodo normalizado',data:{nodeId:node.id,nodeType:node.type,wiresLength:normalizedWires.length,wiresIsArray:Array.isArray(normalizedWires)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        // Verificar propiedades de subflow
+        if (node.type === 'subflow') {
+          const subflow = node as any
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1858',message:'Verificando subflow',data:{nodeId:node.id,hasFlow:subflow.flow!==undefined&&subflow.flow!==null,flowIsArray:Array.isArray(subflow.flow),flowIsNull:subflow.flow===null,hasIn:subflow.in!==undefined&&subflow.in!==null,inIsArray:Array.isArray(subflow.in),inIsNull:subflow.in===null,hasOut:subflow.out!==undefined&&subflow.out!==null,outIsArray:Array.isArray(subflow.out),outIsNull:subflow.out===null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          
+          // Normalizar flow, in, out si son null
+          if (subflow.flow === null || subflow.flow === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1864',message:'Subflow flow es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            subflow.flow = []
+          }
+          if (subflow.in === null || subflow.in === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1868',message:'Subflow in es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            subflow.in = []
+          }
+          if (subflow.out === null || subflow.out === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1872',message:'Subflow out es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            subflow.out = []
+          }
+          
+          // Normalizar wires dentro de in/out
+          if (Array.isArray(subflow.in)) {
+            subflow.in = subflow.in.map((inPort: any) => {
+              if (inPort && inPort.wires !== null && inPort.wires !== undefined && !Array.isArray(inPort.wires)) {
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1879',message:'Subflow in port wires inválido',data:{nodeId:node.id,portIndex:subflow.in.indexOf(inPort)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
+                return { ...inPort, wires: [] }
+              }
+              if (inPort && (inPort.wires === null || inPort.wires === undefined)) {
+                return { ...inPort, wires: [] }
+              }
+              return inPort
+            })
+          }
+          if (Array.isArray(subflow.out)) {
+            subflow.out = subflow.out.map((outPort: any) => {
+              if (outPort && outPort.wires !== null && outPort.wires !== undefined && !Array.isArray(outPort.wires)) {
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1888',message:'Subflow out port wires inválido',data:{nodeId:node.id,portIndex:subflow.out.indexOf(outPort)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
+                return { ...outPort, wires: [] }
+              }
+              if (outPort && (outPort.wires === null || outPort.wires === undefined)) {
+                return { ...outPort, wires: [] }
+              }
+              return outPort
+            })
+          }
+        }
+        
+        return { ...node, wires: normalizedWires }
+      })
+      
+      // #region agent log
+      const nodesWithNullWires = finalNormalizedNodes.filter(n => n.wires === null || n.wires === undefined || !Array.isArray(n.wires))
+      const subflowsWithNullArrays = finalNormalizedNodes.filter(n => {
+        if (n.type !== 'subflow') return false
+        const sf = n as any
+        return sf.flow === null || sf.flow === undefined || sf.in === null || sf.in === undefined || sf.out === null || sf.out === undefined
+      })
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1905',message:'Payload final antes de guardar',data:{totalNodes:finalNormalizedNodes.length,nodesWithNullWires:nodesWithNullWires.length,subflowsWithNullArrays:subflowsWithNullArrays.length,nodeIdsWithNullWires:nodesWithNullWires.map(n=>n.id),subflowIdsWithNullArrays:subflowsWithNullArrays.map(n=>n.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      
+      console.log('[handleSave] Guardando flow en Node-RED...', { projectId, normalizedNodesCount: finalNormalizedNodes.length })
       let currentRev: string | undefined
       try {
-        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev, projectId)
+        const result = await saveFlow(activeFlowId, finalNormalizedNodes, currentRev, projectId)
         currentRev = result.rev
         console.log('[handleSave] ✅ Flow guardado exitosamente')
         
@@ -2436,6 +2714,7 @@ export function CanvasPage() {
       type: nodeType,
       name: '', // Dejar vacío para que use el label function del HTML
       z: activeFlowId,
+      wires: [], // CRÍTICO: Inicializar wires como array vacío para todos los nodos
     }
     
     // Agregar valores por defecto para nodos específicos
@@ -2443,6 +2722,8 @@ export function CanvasPage() {
       defaultNodeRedNode.endpoint = ''
       defaultNodeRedNode.deployment = ''
       defaultNodeRedNode.apiVersion = '2024-02-15-preview'
+      // Para nodos Model, asegurar que wires tenga al menos un puerto vacío
+      defaultNodeRedNode.wires = [[]]
     }
     
     const newNode: Node = {
@@ -4712,10 +4993,43 @@ export function CanvasPage() {
                      !(n.z && subflowIds.has(n.z)) // Excluir nodos internos de subflows
               )
               const nodeRedNodes = transformReactFlowToNodeRed(nodes, edges, activeFlowId!, allNodeRedNodes)
-              const allNodesToSave = [...allFlows, ...nodeRedNodes, ...nodesFromOtherFlows]
+              // Normalizar wires de nodos de otros flows antes de guardar
+              const normalizedNodesFromOtherFlows = nodesFromOtherFlows.map(node => {
+                if (node.wires !== undefined && node.wires !== null && !Array.isArray(node.wires)) {
+                  return { ...node, wires: [] }
+                }
+                if (node.wires === null || node.wires === undefined) {
+                  return { ...node, wires: [] }
+                }
+                const normalizedWires = node.wires.map((portWires: any) => {
+                  if (!Array.isArray(portWires)) {
+                    return []
+                  }
+                  return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
+                })
+                return { ...node, wires: normalizedWires }
+              })
+              let allNodesToSave = [...allFlows, ...nodeRedNodes, ...normalizedNodesFromOtherFlows]
+              
+              // CRÍTICO: Normalizar wires de TODOS los nodos antes de guardar
+              const finalNormalizedNodes = allNodesToSave.map(node => {
+                if (node.wires === null || node.wires === undefined) {
+                  return { ...node, wires: [] }
+                }
+                if (!Array.isArray(node.wires)) {
+                  return { ...node, wires: [] }
+                }
+                const normalizedWires = node.wires.map((portWires: any) => {
+                  if (!Array.isArray(portWires)) {
+                    return []
+                  }
+                  return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
+                })
+                return { ...node, wires: normalizedWires }
+              })
               
               // Guardar sin rev (force overwrite)
-              await saveFlow(activeFlowId!, allNodesToSave, '')
+              await saveFlow(activeFlowId!, finalNormalizedNodes, '')
               
             // Actualizar estado guardado
             const currentNodeRedNodes = useCanvasStore.getState().nodeRedNodes

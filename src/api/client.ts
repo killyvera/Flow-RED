@@ -707,6 +707,16 @@ export async function saveFlow(
     flows: nodesToSave,
   }
   
+  // #region agent log
+  const nodesWithNullWires = nodesToSave.filter(n => n.wires === null || n.wires === undefined || !Array.isArray(n.wires))
+  const subflowsWithNullArrays = nodesToSave.filter(n => {
+    if (n.type !== 'subflow') return false
+    const sf = n as any
+    return (sf.flow === null || sf.flow === undefined) || (sf.in === null || sf.in === undefined) || (sf.out === null || sf.out === undefined)
+  })
+  fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:710',message:'Payload antes de enviar a Node-RED',data:{totalNodes:nodesToSave.length,nodesWithNullWires:nodesWithNullWires.length,subflowsWithNullArrays:subflowsWithNullArrays.length,nodeIdsWithNullWires:nodesWithNullWires.map(n=>n.id).slice(0,10),subflowIdsWithNullArrays:subflowsWithNullArrays.map(n=>n.id).slice(0,10)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
+  
   apiLogger('📤 Enviando flow a Node-RED:', { 
     rev: currentRev, 
     totalNodes: nodesToSave.length 
