@@ -1539,7 +1539,6 @@ export function transformReactFlowToNodeRed(
     internalNodesInArray: internalNodesToAdd.length,
   })
 
-<<<<<<< HEAD
   // #region agent log
   // H1-H5: Verificar resultado final de la transformación
   // Variables no usadas - comentadas para evitar warnings
