@@ -2614,6 +2614,71 @@ export function CanvasPage() {
     }
   }, [handleTidyUp])
 
+  // Función para crear nodo en el centro del canvas
+  const handleCreateNodeAtCenter = useCallback((nodeType: string) => {
+    if (!activeFlowId || !reactFlowInstanceRef.current) return
+
+    // Obtener el viewport del canvas para calcular el centro
+    const viewport = reactFlowInstanceRef.current.getViewport()
+    
+    // Calcular posición en el centro del viewport
+    let position = { x: 0, y: 0 }
+    try {
+      // Usar la posición actual del viewport y agregar offset para centrar
+      position = {
+        x: -viewport.x + (window.innerWidth / 2) / viewport.zoom,
+        y: -viewport.y + (window.innerHeight / 2) / viewport.zoom,
+      }
+    } catch (e) {
+      console.debug('Error al calcular posición central:', e)
+      position = { x: 0, y: 0 }
+    }
+
+    // Mapeo de nombres amigables por defecto para tipos específicos
+    const friendlyNameMap: Record<string, string> = {
+      'agent-core': 'Agent Core',
+      'model.azure.openai': 'Azure OpenAI',
+    }
+    const friendlyName = friendlyNameMap[nodeType] || nodeType
+
+    // Crear el nuevo nodo
+    const newNodeId = `${nodeType}-${Date.now()}`
+    const newNodeType = getNodeType(nodeType)
+    
+    // Valores por defecto según el tipo de nodo
+    const defaultNodeRedNode: any = {
+      id: newNodeId,
+      type: nodeType,
+      name: '', // Dejar vacío para que use el label function del HTML
+      z: activeFlowId,
+    }
+    
+    // Agregar valores por defecto para nodos específicos
+    if (nodeType === 'model.azure.openai') {
+      defaultNodeRedNode.endpoint = ''
+      defaultNodeRedNode.deployment = ''
+      defaultNodeRedNode.apiVersion = '2024-02-15-preview'
+    }
+    
+    const newNode: Node = {
+      id: newNodeId,
+      type: newNodeType,
+      position,
+      data: {
+        label: friendlyName,
+        nodeRedType: nodeType,
+        flowId: activeFlowId,
+        outputPortsCount: 1,
+        nodeRedNode: defaultNodeRedNode,
+      },
+    }
+
+    // Agregar el nodo
+    const updatedNodes = [...nodes, newNode]
+    setNodesLocal(updatedNodes)
+    setNodes(updatedNodes)
+  }, [activeFlowId, nodes, setNodesLocal, setNodes, reactFlowInstanceRef])
+
   // Función para crear nodo desde handle con doble clic
   const handleCreateNodeFromHandle = useCallback((nodeType: string, connection: { sourceNodeId: string; sourceHandleId: string; position: { x: number; y: number } }) => {
     if (!activeFlowId || !reactFlowInstanceRef.current) return
@@ -4152,6 +4217,10 @@ export function CanvasPage() {
               setPendingConnection(null)
               setIsPaletteOpen(false)
             }
+          }}
+          onNodeDoubleClick={(nodeType) => {
+            // Crear nodo en el centro del canvas al hacer doble clic
+            handleCreateNodeAtCenter(nodeType)
           }}
         />
       )}
