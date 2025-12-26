@@ -51,6 +51,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
     code?: string
     statusCode?: number
   } | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   // Cargar credenciales y verificar clave maestra
   useEffect(() => {
@@ -100,11 +101,22 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
   }
 
   const handleCreateNew = () => {
-    setSelectedCredential(null)
-    setIsEditing(true)
-    setFormName('')
-    setFormType(CredentialType.AZURE_OPENAI)
-    setFormData({})
+    if (inline) {
+      // En modo inline, abrir modal
+      setShowCreateModal(true)
+      setSelectedCredential(null)
+      setIsEditing(true)
+      setFormName('')
+      setFormType(CredentialType.AZURE_OPENAI)
+      setFormData({})
+    } else {
+      // En modo modal, mostrar inline
+      setSelectedCredential(null)
+      setIsEditing(true)
+      setFormName('')
+      setFormType(CredentialType.AZURE_OPENAI)
+      setFormData({})
+    }
   }
 
   const handleEdit = async (credential: Credential) => {
@@ -170,6 +182,9 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
       setSelectedCredential(null)
       setFormName('')
       setFormData({})
+      if (showCreateModal) {
+        setShowCreateModal(false)
+      }
     } catch (error: any) {
       alert(`Error: ${error.message}`)
     } finally {
@@ -202,6 +217,9 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
     setSelectedCredential(null)
     setFormName('')
     setFormData({})
+    if (showCreateModal) {
+      setShowCreateModal(false)
+    }
   }
 
   const handleFieldChange = (fieldName: string, value: any) => {
@@ -381,7 +399,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
   // Si es inline, renderizar sin el overlay de modal
   if (inline) {
     return (
-      <div className="h-full flex flex-col bg-bg-primary">
+      <div className="h-full flex flex-col">
         {/* Dialog de clave maestra */}
         {showMasterKeyDialog && (
           <div className="p-4 border-b border-node-border">
@@ -474,7 +492,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
           <div className="p-3 border-t border-node-border flex-shrink-0">
             <button
               onClick={handleCreateNew}
-              disabled={isEditing}
+              disabled={isEditing && !showCreateModal}
               className="w-full px-3 py-2 text-sm bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             >
               + Nueva Credencial
@@ -482,8 +500,8 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
           </div>
         </div>
 
-        {/* Panel de edición/detalles */}
-        {(selectedCredential || isEditing) && (
+        {/* Panel de edición/detalles (solo para editar credencial existente, no para crear nueva) */}
+        {(selectedCredential || (isEditing && !showCreateModal)) && (
           <div className="flex-1 overflow-y-auto p-4 border-t border-node-border">
             {isEditing ? (
               <div className="space-y-4">
@@ -751,6 +769,202 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                 </div>
               </div>
             ) : null}
+          </div>
+        )}
+
+        {/* Modal para crear nueva credencial (solo en modo inline) */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-bg-primary rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" style={{ border: '1px solid var(--color-node-border)' }}>
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-node-border flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-text-primary">
+                  Nueva Credencial
+                </h2>
+                <button
+                  onClick={handleCancel}
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Contenido del formulario */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {isEditing && (
+                  <div className="space-y-4">
+                    {/* Nombre */}
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5 text-text-primary">Nombre</label>
+                      <input
+                        type="text"
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        placeholder="Mi credencial de Azure OpenAI"
+                        className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                      />
+                    </div>
+
+                    {/* Tipo */}
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5 text-text-primary">Tipo</label>
+                      <select
+                        value={formType}
+                        onChange={(e) => {
+                          setFormType(e.target.value as CredentialType)
+                          setFormData({}) // Limpiar datos al cambiar tipo
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                      >
+                        {Object.values(CredentialType).map(type => (
+                          <option key={type} value={type}>
+                            {CredentialSchemas[type].name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-text-secondary mt-1">
+                        {schema.description}
+                      </p>
+                    </div>
+
+                    {/* Campos del esquema */}
+                    <div className="space-y-3">
+                      {schema.fields.map(field => (
+                        <div key={field.name}>
+                          <label className="block text-xs font-medium mb-1.5 text-text-primary">
+                            {field.label}
+                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          <input
+                            type={field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text'}
+                            value={formData[field.name] || ''}
+                            onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                          />
+                          {field.helpText && (
+                            <p className="text-xs text-text-secondary mt-1">
+                              {field.helpText}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Botón de Test de Conexión (solo para Azure OpenAI) */}
+                    {formType === CredentialType.AZURE_OPENAI && (
+                      <div className="pt-4 border-t border-node-border">
+                        <button
+                          onClick={handleTestConnection}
+                          disabled={
+                            isTesting ||
+                            !formData.endpoint ||
+                            !formData.deployment ||
+                            !formData.apiVersion ||
+                            !formData.apiKey
+                          }
+                          className="w-full px-4 py-2 text-sm rounded-md border flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                          style={{
+                            backgroundColor:
+                              isTesting ||
+                              !formData.endpoint ||
+                              !formData.deployment ||
+                              !formData.apiVersion ||
+                              !formData.apiKey
+                                ? 'var(--background-tertiary, #e5e7eb)'
+                                : 'var(--accent-primary, #3b82f6)',
+                            borderColor: 'var(--border-color)',
+                            color:
+                              isTesting ||
+                              !formData.endpoint ||
+                              !formData.deployment ||
+                              !formData.apiVersion ||
+                              !formData.apiKey
+                                ? 'var(--text-tertiary, #9ca3af)'
+                                : '#ffffff',
+                          }}
+                        >
+                          {isTesting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Probando conexión...</span>
+                            </>
+                          ) : (
+                            <span>Probar Conexión</span>
+                          )}
+                        </button>
+
+                        {/* Mostrar resultado del test */}
+                        {testResult && (
+                          <div
+                            className={`mt-3 p-3 rounded-lg border-l-4 flex items-start gap-2 ${
+                              testResult.success
+                                ? 'bg-green-50 dark:bg-green-900/20'
+                                : 'bg-red-50 dark:bg-red-900/20'
+                            }`}
+                            style={{
+                              borderColor: testResult.success ? '#22c55e' : '#ef4444',
+                            }}
+                          >
+                            {testResult.success ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1">
+                              <p
+                                className={`font-semibold text-sm ${
+                                  testResult.success
+                                    ? 'text-green-800 dark:text-green-200'
+                                    : 'text-red-800 dark:text-red-200'
+                                }`}
+                              >
+                                {testResult.message}
+                              </p>
+                              {testResult.error && (
+                                <p
+                                  className={`text-xs mt-1 whitespace-pre-line ${
+                                    testResult.success
+                                      ? 'text-green-700 dark:text-green-300'
+                                      : 'text-red-700 dark:text-red-300'
+                                  }`}
+                                >
+                                  {testResult.error}
+                                </p>
+                              )}
+                              {testResult.code && (
+                                <p className="text-xs mt-1 text-text-secondary">
+                                  Código: {testResult.code}
+                                  {testResult.statusCode && ` (HTTP ${testResult.statusCode})`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Botones */}
+                    <div className="flex gap-2 pt-4">
+                      <button
+                        onClick={handleSave}
+                        disabled={loading}
+                        className="px-3 py-2 text-sm bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                      >
+                        {loading ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        className="px-3 py-2 text-sm bg-bg-secondary text-text-primary border border-node-border rounded-md hover:bg-node-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
