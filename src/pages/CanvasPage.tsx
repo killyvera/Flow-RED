@@ -546,10 +546,6 @@ export function CanvasPage() {
   // - applyNodeChanges es el método recomendado para aplicar cambios
   // - No debemos actualizar manualmente las posiciones en onNodeDrag
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
-    // Aplicar cambios inmediatamente para que los edges se actualicen en tiempo real
-    // React Flow ya incluye todos los nodos seleccionados en los cambios de posición
-    onNodesChange(changes)
-    
     // Verificar si hay cambios de posición (arrastre)
     const hasPositionChanges = changes.some(c => c.type === 'position')
     
@@ -558,27 +554,25 @@ export function CanvasPage() {
       isDraggingRef.current = true
     }
     
-    // Verificar si hay cambios persistentes antes de actualizar
+    // Aplicar cambios usando onNodesChange de useNodesState (similar al ejemplo simple)
+    // Esto actualiza el estado local de React Flow automáticamente
+    onNodesChange(changes)
+    
+    // Verificar si hay cambios persistentes (no de posición) antes de actualizar el store
     // IMPORTANTE: No actualizar el store durante el arrastre, solo cuando se suelta
     // Esto evita actualizaciones innecesarias que pueden causar delay
-    const hasPersistentChanges = isEditMode && !isInitialRenderRef.current && 
-      changes.some(c => (c.type === 'remove' || c.type === 'add') && !hasPositionChanges)
-    
-    // Aplicar cambios localmente usando applyNodeChanges (método recomendado por React Flow)
-    // React Flow ya incluye todos los nodos seleccionados en los cambios de posición,
-    // así que no necesitamos lógica adicional para múltiples nodos
-    setNodesLocal((prevNodes) => {
-      const updatedNodes = applyNodeChanges(changes, prevNodes)
-      
-      // Guardar en ref para actualizar el store después del render
-      // PERO: No actualizar durante el arrastre (solo cuando se suelta)
+    if (isEditMode && !isInitialRenderRef.current && !hasPositionChanges) {
+      const hasPersistentChanges = changes.some(c => c.type === 'remove' || c.type === 'add')
       if (hasPersistentChanges) {
-        pendingStoreUpdateRef.current.nodes = updatedNodes
+        // Para cambios persistentes, actualizar el store después del render
+        setNodesLocal((prevNodes) => {
+          const updatedNodes = applyNodeChanges(changes, prevNodes)
+          pendingStoreUpdateRef.current.nodes = updatedNodes
+          return updatedNodes
+        })
       }
-      
-      return updatedNodes
-    })
-  }, [isEditMode, setNodes, onNodesChange, setNodesLocal])
+    }
+  }, [isEditMode, onNodesChange, setNodesLocal])
 
   const handleEdgesChange: OnEdgesChange = useCallback((changes) => {
     onEdgesChange(changes)
@@ -4287,27 +4281,20 @@ export function CanvasPage() {
               // - Al confiar completamente en onNodesChange, React Flow optimiza el renderizado automáticamente
             }}
             onNodeDragStop={(_event, _node) => {
-              // Cuando se termina el arrastre, actualizar el store con las posiciones finales
-              // CRÍTICO: Para múltiples nodos seleccionados, React Flow actualiza todos los nodos
+              // Cuando se termina el arrastre, marcar que terminó y actualizar el store
+              // CRÍTICO: Para múltiples nodos seleccionados, React Flow ya actualizó todos los nodos
               // en handleNodesChange, así que solo necesitamos marcar que terminó el arrastre
-              // y actualizar el store con TODOS los nodos actuales (no solo el que se arrastró)
-              requestAnimationFrame(() => {
-                isDraggingRef.current = false
-                
-                // Actualizar el store con TODOS los nodos actuales (incluyendo las posiciones finales)
-                // Esto es importante para múltiples nodos seleccionados
-                if (isEditMode && !isInitialRenderRef.current) {
-                  // Obtener los nodos actuales del estado local (ya actualizados por handleNodesChange)
-                  setNodesLocal(prevNodes => {
-                    // Actualizar el store después del siguiente frame con TODOS los nodos
-                    requestAnimationFrame(() => {
-                      setNodes(prevNodes)
-                    })
-                    
-                    return prevNodes
-                  })
-                }
-              })
+              // y actualizar el store con los nodos actuales del estado local
+              isDraggingRef.current = false
+              
+              // Actualizar el store con los nodos actuales (ya actualizados por onNodesChange)
+              if (isEditMode && !isInitialRenderRef.current) {
+                // Los nodos ya están actualizados en el estado local por onNodesChange
+                // Solo necesitamos sincronizarlos con el store
+                requestAnimationFrame(() => {
+                  setNodes(nodes)
+                })
+              }
             }}
             onNodeContextMenu={(event, node) => {
               event.preventDefault()
