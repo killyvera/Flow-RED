@@ -43,6 +43,8 @@ export interface NodeRedNode {
   info?: string
   /** Si el flow está deshabilitado (para tabs) */
   disabled?: boolean
+  /** ID del proyecto al que pertenece el flow (null o "sin proyecto" si no está en ningún proyecto) */
+  projectId?: string | null
   /** Otras propiedades específicas del tipo de nodo */
   [key: string]: any
 }

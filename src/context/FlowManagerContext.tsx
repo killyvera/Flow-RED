@@ -21,6 +21,7 @@ interface FlowManagerContextType {
   onDeleteFlow: ((flowId: string) => Promise<void>) | undefined
   onImportFlow: ((json: string | object, options?: { name?: string }) => Promise<void>) | undefined
   onConvertToSubflow: ((flowId: string) => Promise<void>) | undefined
+  reloadFlows: (() => Promise<void>) | undefined
   setFlowManagerProps: (props: Partial<Omit<FlowManagerContextType, 'isFlowManagerOpen' | 'openFlowManager' | 'closeFlowManager' | 'setFlowManagerProps'>>) => void
 }
 
@@ -40,6 +41,7 @@ export function FlowManagerProvider({ children }: { children: React.ReactNode })
     onDeleteFlow: undefined,
     onImportFlow: undefined,
     onConvertToSubflow: undefined,
+    reloadFlows: undefined,
   })
 
   const openFlowManager = useCallback(() => {

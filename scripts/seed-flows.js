@@ -2516,13 +2516,59 @@ async function seedFlows() {
     // Node-RED API v2 espera un objeto con rev y flows
     // IMPORTANTE: Asegurar que todos los flows (tabs) tengan env definido ANTES de crear el payload
     // Node-RED puede fallar si un flow no tiene env cuando intenta procesarlo
+    // También asignar projectId a los flows según categorías
+    const projectCategories = {
+      'proyecto-basicos': {
+        name: 'Flujos Básicos',
+        description: 'Flujos de ejemplo básicos para aprender Node-RED',
+        flowIds: [flow1.id, flow2.id, flow3.id, flow4.id]
+      },
+      'proyecto-apis': {
+        name: 'APIs y HTTP',
+        description: 'Flujos que demuestran integración con APIs y HTTP',
+        flowIds: [flow5.id, flow7.id, flow8.id, flow9.id]
+      },
+      'proyecto-transformaciones': {
+        name: 'Transformaciones de Datos',
+        description: 'Flujos para transformar y procesar datos',
+        flowIds: [flow10.id]
+      },
+      'proyecto-avanzados': {
+        name: 'Funcionalidades Avanzadas',
+        description: 'Subflows, links y otras funcionalidades avanzadas',
+        flowIds: [flow11.id, flow12.id]
+      },
+      'proyecto-ia': {
+        name: 'Inteligencia Artificial',
+        description: 'Flujos con Agent Core y modelos de IA',
+        flowIds: [flow13.id, flow14.id]
+      }
+    }
+    
+    // Crear un mapa de flowId -> projectId
+    const flowToProjectMap = new Map()
+    Object.entries(projectCategories).forEach(([projectId, project]) => {
+      project.flowIds.forEach(flowId => {
+        flowToProjectMap.set(flowId, projectId)
+      })
+    })
+    
     const finalFlows = validFlowsToSend.map(f => {
-      // Si es un tab, asegurarse de que tenga env
+      // Si es un tab, asegurarse de que tenga env y projectId
       if (f.type === 'tab') {
-        if (!f.env || !Array.isArray(f.env)) {
+        const updatedTab = { ...f }
+        if (!updatedTab.env || !Array.isArray(updatedTab.env)) {
           console.warn(`⚠️ Tab ${f.id} (${f.label}) no tiene env, agregando...`)
-          return { ...f, env: [] }
+          updatedTab.env = []
         }
+        // Asignar projectId si el flow está en una categoría
+        const projectId = flowToProjectMap.get(f.id)
+        if (projectId) {
+          updatedTab.projectId = projectId
+        } else {
+          updatedTab.projectId = null // Sin proyecto
+        }
+        return updatedTab
       }
       return f
     })
@@ -2555,9 +2601,15 @@ async function seedFlows() {
     console.log('\n✅ Flows de ejemplo creados y desplegados exitosamente!')
     console.log('📋 Resultado:', result)
     console.log('\n📊 Resumen:')
-    console.log(`   - Total de flows creados: 13`)
+    console.log(`   - Total de flows creados: 14`)
     console.log(`   - Total de nodos creados: ${allFlows.filter(n => n.type !== 'tab' && n.type !== 'group').length}`)
     console.log(`   - Total de grupos creados: ${allFlows.filter(n => n.type === 'group').length}`)
+    console.log('\n📁 Proyectos asignados:')
+    Object.entries(projectCategories).forEach(([projectId, project]) => {
+      console.log(`   - ${project.name}: ${project.flowIds.length} flujos`)
+    })
+    console.log('\n💡 NOTA: Los flows tienen projectId asignado, pero los proyectos aún no están creados.')
+    console.log('   Ejecuta el script seed-projects.js desde el navegador para crear los proyectos.')
     console.log('\n🔄 Recarga tu editor visual para ver los flows')
     console.log('💡 Usa el selector de flows en la barra superior para cambiar entre ellos')
     console.log('📦 Los grupos se mostrarán como contenedores visuales con fondo y bordes')

@@ -636,7 +636,8 @@ export async function triggerInjectNode(nodeId: string): Promise<void> {
 export async function saveFlow(
   flowId: string,
   nodes: NodeRedNode[],
-  rev?: string
+  rev?: string,
+  projectId?: string | null
 ): Promise<{ rev: string }> {
   apiLogger('💾 Guardando flow:', { flowId, nodesCount: nodes.length })
   
@@ -690,9 +691,15 @@ export async function saveFlow(
       info: '',
       x: 0,
       y: 0,
+      projectId: projectId ?? null, // Agregar projectId al tab
     } as NodeRedNode,
     ...nodes,
   ])
+  
+  // Si hay un flowTab existente, actualizar su projectId
+  if (flowTab && projectId !== undefined) {
+    flowTab.projectId = projectId ?? null
+  }
   
   // Preparar el payload simple para la API v2
   const payload = {

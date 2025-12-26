@@ -1774,11 +1774,15 @@ export function CanvasPage() {
       const firstSubflowDefIndex = allNodesToSave.findIndex(n => finalSubflowDefs.some(sf => sf.id === n.id))
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
+      // Obtener projectId del flow actual (si existe)
+      const currentFlowTab = allNodeRedNodes.find(n => n.type === 'tab' && n.id === activeFlowId)
+      const projectId = currentFlowTab?.projectId ?? null
+      
       // Guardar usando la API (la validación se hace dentro de saveFlow)
-      console.log('[handleSave] Guardando flow en Node-RED...')
+      console.log('[handleSave] Guardando flow en Node-RED...', { projectId })
       let currentRev: string | undefined
       try {
-        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev)
+        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev, projectId)
         currentRev = result.rev
         console.log('[handleSave] ✅ Flow guardado exitosamente')
         
@@ -3381,8 +3385,9 @@ export function CanvasPage() {
         await importFlowFromJson(json, options)
       },
       onConvertToSubflow: handleConvertFlowToSubflow,
+      reloadFlows: loadFlows,
     })
-  }, [flows, activeFlowId, nodeRedNodes, isLoading, setFlowManagerProps, handleSwitchFlow, createNewFlow, switchFlow, duplicateExistingFlow, removeFlow, importFlowFromJson, handleConvertFlowToSubflow])
+  }, [flows, activeFlowId, nodeRedNodes, isLoading, setFlowManagerProps, handleSwitchFlow, createNewFlow, switchFlow, duplicateExistingFlow, removeFlow, importFlowFromJson, handleConvertFlowToSubflow, loadFlows])
 
   // Agregar handlers a nodos de grupo cuando se cargan o cambia el modo edición
   useEffect(() => {

@@ -114,6 +114,7 @@ export function Sidebar({
     onDeleteFlow,
     onImportFlow,
     onConvertToSubflow,
+    reloadFlows,
   } = useFlowManager()
 
   // Estado para FlowManager
@@ -315,9 +316,15 @@ export function Sidebar({
     if (!selectedProjectId) return
     try {
       await addFlowToProject(selectedProjectId, flowId)
+      
       // Recargar proyectos para actualizar la lista
       const updatedProjects = await getProjects()
       setProjects(updatedProjects)
+      
+      // Recargar flows desde Node-RED para reflejar el projectId actualizado
+      if (reloadFlows) {
+        await reloadFlows()
+      }
     } catch (err) {
       console.error('Error al agregar flujo al proyecto:', err)
       alert('Error al agregar flujo al proyecto')
@@ -328,9 +335,15 @@ export function Sidebar({
     if (!selectedProjectId) return
     try {
       await removeFlowFromProject(selectedProjectId, flowId)
+      
       // Recargar proyectos para actualizar la lista
       const updatedProjects = await getProjects()
       setProjects(updatedProjects)
+      
+      // Recargar flows desde Node-RED para reflejar el projectId actualizado (null)
+      if (reloadFlows) {
+        await reloadFlows()
+      }
     } catch (err) {
       console.error('Error al remover flujo del proyecto:', err)
       alert('Error al remover flujo del proyecto')
@@ -338,19 +351,35 @@ export function Sidebar({
   }
   
   // Obtener flujos del proyecto seleccionado
+  // CRÍTICO: Filtrar por projectId en el flow, no solo por flowIds en el proyecto
+  // Esto asegura que los flujos que ya están en un proyecto no aparezcan en otros proyectos
   const projectFlows = React.useMemo(() => {
     if (!selectedProjectId) return []
     const project = projects.find(p => p.id === selectedProjectId)
     if (!project) return []
-    return flows.filter(f => project.flowIds.includes(f.id))
+    // Filtrar por projectId en el flow Y por flowIds en el proyecto (doble verificación)
+    return flows.filter(f => {
+      const isInProject = project.flowIds.includes(f.id)
+      const hasCorrectProjectId = f.projectId === selectedProjectId || (f.projectId === null && isInProject)
+      return isInProject && hasCorrectProjectId
+    })
   }, [selectedProjectId, projects, flows])
   
   // Obtener flujos disponibles para agregar al proyecto
+  // CRÍTICO: Solo mostrar flujos que NO tienen projectId (null o "sin proyecto")
+  // Los flujos que ya están en otro proyecto no deben aparecer aquí
   const availableFlows = React.useMemo(() => {
     if (!selectedProjectId) return []
     const project = projects.find(p => p.id === selectedProjectId)
     if (!project) return []
-    return flows.filter(f => !project.flowIds.includes(f.id))
+    // Solo mostrar flujos que:
+    // 1. No están en este proyecto (flowIds)
+    // 2. No tienen projectId o tienen projectId = null (sin proyecto)
+    return flows.filter(f => {
+      const isNotInProject = !project.flowIds.includes(f.id)
+      const hasNoProject = f.projectId === null || f.projectId === undefined || f.projectId === 'sin proyecto'
+      return isNotInProject && hasNoProject
+    })
   }, [selectedProjectId, projects, flows])
 
   // Handlers para FlowManager
@@ -980,9 +1009,15 @@ export function Sidebar({
                 </div>
 
                 {/* Flow list */}
+                {/* CRÍTICO: Solo mostrar flujos que NO tienen projectId (null o "sin proyecto") */}
+                {/* Los flujos que ya están en un proyecto no deben aparecer aquí */}
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <FlowList
-                    flows={flows}
+                    flows={flows.filter(f => {
+                      // Solo mostrar flujos sin proyecto
+                      const hasNoProject = f.projectId === null || f.projectId === undefined || f.projectId === 'sin proyecto'
+                      return hasNoProject
+                    })}
                     activeFlowId={activeFlowId}
                     allNodes={allNodes}
                     onSelectFlow={onSelectFlow || (() => {})}
