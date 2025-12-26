@@ -496,7 +496,7 @@ export function Sidebar({
             {!isCollapsed && (
               <div className="border-t border-canvas-grid p-4">
                 <div className="text-xs text-text-tertiary text-center">
-                  Versión 0.0.1
+                  Versión 0.1.2
                 </div>
               </div>
             )}
