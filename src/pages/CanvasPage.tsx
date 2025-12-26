@@ -619,9 +619,6 @@ export function CanvasPage() {
           if (reverseEdge) {
             updatedEdges = updatedEdges.filter(e => e.id !== reverseEdge.id)
             console.log(`[handleEdgesChange] ✅ Eliminando automáticamente conexión bidireccional: ${reverseEdge.id}`)
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:625',message:'Conexión bidireccional eliminada automáticamente',data:{removedEdgeId:removedEdge.id,reverseEdgeId:reverseEdge.id,isAgentCoreToModel,isModelToAgentCore},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-            // #endregion
           }
         }
       }
@@ -883,9 +880,6 @@ export function CanvasPage() {
       if (!edgeExists) {
         updatedEdges = addEdge(reverseEdge, updatedEdges)
         console.log(`[onConnect] ✅ Creando automáticamente conexión bidireccional: Model output-0 → Agent Core input (oculto)`)
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:820',message:'Conexión bidireccional creada automáticamente',data:{source:reverseEdge.source,target:reverseEdge.target,sourceHandle:reverseEdge.sourceHandle,targetHandle:reverseEdge.targetHandle},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
       }
     } else if (isModelToAgentCoreVisible) {
       // Crear automáticamente Agent Core output-0 → Model input (visible)
@@ -918,9 +912,6 @@ export function CanvasPage() {
       if (!edgeExists) {
         updatedEdges = addEdge(reverseEdge, updatedEdges)
         console.log(`[onConnect] ✅ Creando automáticamente conexión bidireccional: Agent Core output-0 → Model input (visible)`)
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:850',message:'Conexión bidireccional creada automáticamente',data:{source:reverseEdge.source,target:reverseEdge.target,sourceHandle:reverseEdge.sourceHandle,targetHandle:reverseEdge.targetHandle},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
       }
     }
     
@@ -1200,15 +1191,9 @@ export function CanvasPage() {
         // CRÍTICO: Asegurar que cada elemento de wires sea un array válido, nunca null o undefined
         const normalizedWires = node.wires.map((portWires: any, portIndex: number) => {
           if (portWires === null || portWires === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1200',message:'Puerto de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex,hasWires:!!node.wires,wiresLength:Array.isArray(node.wires)?node.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-            // #endregion
             return []
           }
           if (!Array.isArray(portWires)) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1206',message:'Puerto de wires no es array, normalizando',data:{nodeId:node.id,portIndex,portWiresType:typeof portWires,portWiresValue:portWires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-            // #endregion
             return []
           }
           return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
@@ -1216,7 +1201,6 @@ export function CanvasPage() {
         return { ...node, wires: normalizedWires }
       })
       
-      // #region agent log
       // const groupsInTransformed = nodeRedNodes.filter(n => n.type === 'group').map(n => n.id) // No usado por ahora
       const nodesFromOtherFlowsByType = normalizedNodesFromOtherFlows.reduce((acc, n) => {
         acc[n.type] = (acc[n.type] || 0) + 1
@@ -1950,10 +1934,6 @@ export function CanvasPage() {
       // Guardar el flow local en ref para export en caso de conflicto
       localFlowRef.current = allNodesToSave
       
-      // #region agent log
-      // Hipótesis A,B,C,D,E: Verificar payload final antes de enviar
-      // Debugging code removed - was causing connection errors to 127.0.0.1:7243
-      
       // Obtener projectId del flow actual (si existe)
       const currentFlowTab = allNodeRedNodes.find(n => n.type === 'tab' && n.id === activeFlowId)
       const projectId = currentFlowTab?.projectId ?? null
@@ -1962,22 +1942,12 @@ export function CanvasPage() {
       // CRÍTICO: Normalizar wires de TODOS los nodos antes de guardar
       // Asegurar que ningún nodo tenga wires: null o undefined
       const finalNormalizedNodes = allNodesToSave.map((node, index) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1830',message:'Normalizando nodo',data:{nodeId:node.id,nodeType:node.type,hasWires:node.wires!==undefined&&node.wires!==null,wiresType:typeof node.wires,wiresIsArray:Array.isArray(node.wires),wiresIsNull:node.wires===null,wiresIsUndefined:node.wires===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
         // Si el nodo no tiene wires o wires es null/undefined, usar array vacío
         if (node.wires === null || node.wires === undefined) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1835',message:'Wires es null/undefined, normalizando',data:{nodeId:node.id,nodeType:node.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           return { ...node, wires: [] }
         }
         // Si wires no es un array, usar array vacío
         if (!Array.isArray(node.wires)) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1841',message:'Wires no es array, normalizando',data:{nodeId:node.id,nodeType:node.type,wiresValue:node.wires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           console.warn(`[handleSave] ⚠️ Normalizando wires inválido para nodo ${node.id}:`, node.wires)
           return { ...node, wires: [] }
         }
@@ -1985,48 +1955,26 @@ export function CanvasPage() {
         // CRÍTICO: Asegurar que cada elemento de wires sea un array válido, nunca null o undefined
         const normalizedWires = node.wires.map((portWires: any, portIndex: number) => {
           if (portWires === null || portWires === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1976',message:'Puerto de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex,hasWires:!!node.wires,wiresLength:Array.isArray(node.wires)?node.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-            // #endregion
             return []
           }
           if (!Array.isArray(portWires)) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1982',message:'Puerto de wires no es array, normalizando',data:{nodeId:node.id,portIndex,portWiresType:typeof portWires,portWiresValue:portWires},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-            // #endregion
             return []
           }
           return portWires.filter((targetId: any) => typeof targetId === 'string' && targetId.trim() !== '')
         })
         
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1852',message:'Nodo normalizado',data:{nodeId:node.id,nodeType:node.type,wiresLength:normalizedWires.length,wiresIsArray:Array.isArray(normalizedWires)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
         // Verificar propiedades de subflow
         if (node.type === 'subflow') {
           const subflow = node as any
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1858',message:'Verificando subflow',data:{nodeId:node.id,hasFlow:subflow.flow!==undefined&&subflow.flow!==null,flowIsArray:Array.isArray(subflow.flow),flowIsNull:subflow.flow===null,hasIn:subflow.in!==undefined&&subflow.in!==null,inIsArray:Array.isArray(subflow.in),inIsNull:subflow.in===null,hasOut:subflow.out!==undefined&&subflow.out!==null,outIsArray:Array.isArray(subflow.out),outIsNull:subflow.out===null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           
           // Normalizar flow, in, out si son null
           if (subflow.flow === null || subflow.flow === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1864',message:'Subflow flow es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
             subflow.flow = []
           }
           if (subflow.in === null || subflow.in === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1868',message:'Subflow in es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
             subflow.in = []
           }
           if (subflow.out === null || subflow.out === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1872',message:'Subflow out es null, normalizando',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
             subflow.out = []
           }
           
@@ -2034,9 +1982,6 @@ export function CanvasPage() {
           if (Array.isArray(subflow.in)) {
             subflow.in = subflow.in.map((inPort: any) => {
               if (inPort && inPort.wires !== null && inPort.wires !== undefined && !Array.isArray(inPort.wires)) {
-                // #region agent log
-                fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1879',message:'Subflow in port wires inválido',data:{nodeId:node.id,portIndex:subflow.in.indexOf(inPort)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-                // #endregion
                 return { ...inPort, wires: [] }
               }
               if (inPort && (inPort.wires === null || inPort.wires === undefined)) {
@@ -2048,9 +1993,6 @@ export function CanvasPage() {
           if (Array.isArray(subflow.out)) {
             subflow.out = subflow.out.map((outPort: any) => {
               if (outPort && outPort.wires !== null && outPort.wires !== undefined && !Array.isArray(outPort.wires)) {
-                // #region agent log
-                fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1888',message:'Subflow out port wires inválido',data:{nodeId:node.id,portIndex:subflow.out.indexOf(outPort)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-                // #endregion
                 return { ...outPort, wires: [] }
               }
               if (outPort && (outPort.wires === null || outPort.wires === undefined)) {
@@ -2063,16 +2005,6 @@ export function CanvasPage() {
         
         return { ...node, wires: normalizedWires }
       })
-      
-      // #region agent log
-      const nodesWithNullWires = finalNormalizedNodes.filter(n => n.wires === null || n.wires === undefined || !Array.isArray(n.wires))
-      const subflowsWithNullArrays = finalNormalizedNodes.filter(n => {
-        if (n.type !== 'subflow') return false
-        const sf = n as any
-        return sf.flow === null || sf.flow === undefined || sf.in === null || sf.in === undefined || sf.out === null || sf.out === undefined
-      })
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CanvasPage.tsx:1905',message:'Payload final antes de guardar',data:{totalNodes:finalNormalizedNodes.length,nodesWithNullWires:nodesWithNullWires.length,subflowsWithNullArrays:subflowsWithNullArrays.length,nodeIdsWithNullWires:nodesWithNullWires.map(n=>n.id),subflowIdsWithNullArrays:subflowsWithNullArrays.map(n=>n.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       
       console.log('[handleSave] Guardando flow en Node-RED...', { projectId, normalizedNodesCount: finalNormalizedNodes.length })
       let currentRev: string | undefined
@@ -2200,7 +2132,6 @@ export function CanvasPage() {
         activeFlowId,
       })
       
-      // #region agent log
       // H1,H4: Verificar propiedades después de recargar desde Node-RED
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       

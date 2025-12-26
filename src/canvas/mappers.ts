@@ -847,10 +847,6 @@ export function transformReactFlowToNodeRed(
       // CRÍTICO: Preservar el ID original de Node-RED si existe
       const preservedInternalId = originalNodeRedNode.id || node.id
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:842',message:'Creando nodo interno',data:{nodeId:node.id,preservedId:preservedInternalId,hasWires:!!wires,wiresIsArray:Array.isArray(wires),wiresLength:Array.isArray(wires)?wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
       const internalNode: NodeRedNode = {
         ...originalNodeRedNode,
         id: preservedInternalId,
@@ -863,10 +859,6 @@ export function transformReactFlowToNodeRed(
         // Asegurar que wires siempre sea un array válido, nunca null o undefined
         wires: Array.isArray(wires) ? wires : [],
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:856',message:'Nodo interno creado',data:{nodeId:internalNode.id,hasWires:!!internalNode.wires,wiresIsArray:Array.isArray(internalNode.wires),wiresLength:Array.isArray(internalNode.wires)?internalNode.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       
       // targetSubflowId ya está definido arriba
       subflowInternalNodes.get(targetSubflowId)!.push(internalNode)
@@ -1092,10 +1084,6 @@ export function transformReactFlowToNodeRed(
     // 1. Wire Model output-0 → Agent Core input (respuesta del modelo)
     // 2. Wire Agent Core output-0 → Model input (input al modelo)
     if (nodeRedType === 'model.azure.openai') {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1066',message:'Procesando nodo Azure OpenAI Model',data:{nodeId:node.id,hasWires:!!wires,wiresLength:Array.isArray(wires)?wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      
       // Buscar Agent Core conectado al Model (Agent Core output-0 → Model input)
       const agentCoreConnected = edges
         .filter(edge => 
@@ -1119,10 +1107,6 @@ export function transformReactFlowToNodeRed(
         const agentCoreId = agentCoreConnected[0] || agentCoreTarget[0]
         const agentCoreNodeRedId = (nodes.find(n => n.id === agentCoreId)?.data as any)?.nodeRedNode?.id || agentCoreId
         
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1085',message:'Agent Core conectado al Model',data:{nodeId:node.id,agentCoreId:agentCoreNodeRedId,hasInputConnection:agentCoreConnected.length>0,hasOutputConnection:agentCoreTarget.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-        
         // Crear wire Model output-0 → Agent Core input (si no existe)
         if (agentCoreTarget.length > 0 && validNodeIds.has(agentCoreNodeRedId)) {
           if (!wires[0]) {
@@ -1131,9 +1115,6 @@ export function transformReactFlowToNodeRed(
           if (!wires[0].includes(agentCoreNodeRedId)) {
             wires[0].push(agentCoreNodeRedId)
             console.log(`[transformReactFlowToNodeRed] ✅ Creando automáticamente wire Model output-0 → Agent Core ${agentCoreNodeRedId}`)
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1095',message:'Wire Model output-0 creado',data:{nodeId:node.id,agentCoreId:agentCoreNodeRedId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
           }
         }
       }
@@ -1143,10 +1124,6 @@ export function transformReactFlowToNodeRed(
       if (!wires[0]) {
         wires[0] = []
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1128',message:'Nodo Model wires finales',data:{nodeId:node.id,wiresLength:Array.isArray(wires)?wires.length:0,wiresIsArray:Array.isArray(wires),wiresPort0:Array.isArray(wires)&&wires[0]?wires[0].length:0,hasWires0:!!wires[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
     }
 
     // Propiedades que se actualizan desde React Flow
@@ -1263,14 +1240,8 @@ export function transformReactFlowToNodeRed(
         const normalizedWiresArray: string[][] = []
         for (let i = 0; i < wires.length; i++) {
           if (wires[i] === null || wires[i] === undefined) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1245',message:'Índice de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex:i,wiresLength:wires.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-            // #endregion
             normalizedWiresArray[i] = []
           } else if (!Array.isArray(wires[i])) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1250',message:'Índice de wires no es array, normalizando',data:{nodeId:node.id,portIndex:i,wiresLength:wires.length,portWiresType:typeof wires[i]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-            // #endregion
             normalizedWiresArray[i] = []
           } else {
             normalizedWiresArray[i] = wires[i]
@@ -1568,6 +1539,7 @@ export function transformReactFlowToNodeRed(
     internalNodesInArray: internalNodesToAdd.length,
   })
 
+<<<<<<< HEAD
   // #region agent log
   // H1-H5: Verificar resultado final de la transformación
   // Variables no usadas - comentadas para evitar warnings
