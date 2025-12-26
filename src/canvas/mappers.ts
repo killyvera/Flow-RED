@@ -829,17 +829,26 @@ export function transformReactFlowToNodeRed(
       // CRÍTICO: Preservar el ID original de Node-RED si existe
       const preservedInternalId = originalNodeRedNode.id || node.id
       
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:842',message:'Creando nodo interno',data:{nodeId:node.id,preservedId:preservedInternalId,hasWires:!!wires,wiresIsArray:Array.isArray(wires),wiresLength:Array.isArray(wires)?wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       const internalNode: NodeRedNode = {
         ...originalNodeRedNode,
         id: preservedInternalId,
         type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
-        x: node.position.x,
-        y: node.position.y,
+        x: typeof node.position.x === 'number' && !isNaN(node.position.x) ? node.position.x : (originalNodeRedNode.x ?? 0),
+        y: typeof node.position.y === 'number' && !isNaN(node.position.y) ? node.position.y : (originalNodeRedNode.y ?? 0),
         // NO incluir z - los nodos internos no tienen z
         ...(nodeName && { name: nodeName }),
         // CRÍTICO: Siempre sobrescribir wires, incluso si está vacío, para eliminar referencias a nodos inexistentes
-        wires, // Siempre usar los wires validados, incluso si es un array vacío
+        // Asegurar que wires siempre sea un array válido, nunca null o undefined
+        wires: Array.isArray(wires) ? wires : [],
       }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:856',message:'Nodo interno creado',data:{nodeId:internalNode.id,hasWires:!!internalNode.wires,wiresIsArray:Array.isArray(internalNode.wires),wiresLength:Array.isArray(internalNode.wires)?internalNode.wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       
       // targetSubflowId ya está definido arriba
       subflowInternalNodes.get(targetSubflowId)!.push(internalNode)
@@ -885,8 +894,8 @@ export function transformReactFlowToNodeRed(
         id: group.id,
         type: 'group',
         name: group.name || group.label,
-        x: node.position.x,
-        y: node.position.y,
+        x: typeof node.position.x === 'number' && !isNaN(node.position.x) ? node.position.x : (group.x ?? 0),
+        y: typeof node.position.y === 'number' && !isNaN(node.position.y) ? node.position.y : (group.y ?? 0),
         z: flowId,
         w: group.w || 400,
         h: group.h || 300,
@@ -899,6 +908,7 @@ export function transformReactFlowToNodeRed(
     const originalNodeRedNode = node.data.nodeRedNode || {}
 
     // Reconstruir wires desde edges
+    // CRÍTICO: Siempre inicializar como array vacío, nunca null o undefined
     const wires: string[][] = []
     const sourceEdges = edgesBySource.get(node.id)
     if (sourceEdges) {
@@ -917,6 +927,19 @@ export function transformReactFlowToNodeRed(
           console.log(`[transformReactFlowToNodeRed] Nodo ${node.id} puerto ${i}: ${validTargets.length} wires desde edges`)
         }
       }
+    }
+    
+    // CRÍTICO: Para nodos Azure OpenAI Model, asegurar que tenga al menos un puerto de salida
+    // incluso si no hay edges conectados
+    const nodeRedTypeForWires = node.data.nodeRedType || originalNodeRedNode.type
+    if (nodeRedTypeForWires === 'model.azure.openai' && wires.length === 0) {
+      wires[0] = []
+    }
+    
+    // CRÍTICO: Asegurar que wires siempre sea un array, nunca null o undefined
+    // Si no hay wires, usar array vacío
+    if (!Array.isArray(wires)) {
+      console.warn(`[transformReactFlowToNodeRed] ⚠️ wires no es un array para nodo ${node.id}, inicializando como array vacío`)
     }
     
     // Log para debugging: mostrar wires reconstruidos desde edges
@@ -997,7 +1020,9 @@ export function transformReactFlowToNodeRed(
     // CRÍTICO: Crear automáticamente wires ocultos basándose en conexiones lógicas
     // Esto es necesario porque cuando el usuario conecta manualmente, solo crea el edge visible
     // Pero los wires ocultos (Agent Core output-4 → Chat, Agent Core output-0 → Model) deben crearse automáticamente
+    // Declarar nodeRedType para usar en las siguientes condiciones
     const nodeRedType = node.data.nodeRedType || originalNodeRedNode.type
+    
     if (nodeRedType === 'agent-core') {
       // Buscar Chat nodes conectados al Agent Core (Chat output-0 → Agent Core input)
       const chatNodesConnected = edges
@@ -1044,6 +1069,68 @@ export function transformReactFlowToNodeRed(
           }
         }
       })
+    }
+    
+    // CRÍTICO: Crear automáticamente wires para nodos Azure OpenAI Model
+    // Cuando Model se conecta a Agent Core, debe crear:
+    // 1. Wire Model output-0 → Agent Core input (respuesta del modelo)
+    // 2. Wire Agent Core output-0 → Model input (input al modelo)
+    if (nodeRedType === 'model.azure.openai') {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1066',message:'Procesando nodo Azure OpenAI Model',data:{nodeId:node.id,hasWires:!!wires,wiresLength:Array.isArray(wires)?wires.length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      
+      // Buscar Agent Core conectado al Model (Agent Core output-0 → Model input)
+      const agentCoreConnected = edges
+        .filter(edge => 
+          edge.target === node.id && 
+          edge.sourceHandle === 'output-0' &&
+          (nodes.find(n => n.id === edge.source)?.data?.nodeRedType === 'agent-core')
+        )
+        .map(edge => edge.source)
+      
+      // Buscar Agent Core conectado desde Model (Model output-0 → Agent Core input)
+      const agentCoreTarget = edges
+        .filter(edge => 
+          edge.source === node.id && 
+          edge.sourceHandle === 'output-0' &&
+          (nodes.find(n => n.id === edge.target)?.data?.nodeRedType === 'agent-core')
+        )
+        .map(edge => edge.target)
+      
+      // Si hay Agent Core conectado, crear wires bidireccionales
+      if (agentCoreConnected.length > 0 || agentCoreTarget.length > 0) {
+        const agentCoreId = agentCoreConnected[0] || agentCoreTarget[0]
+        const agentCoreNodeRedId = (nodes.find(n => n.id === agentCoreId)?.data as any)?.nodeRedNode?.id || agentCoreId
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1085',message:'Agent Core conectado al Model',data:{nodeId:node.id,agentCoreId:agentCoreNodeRedId,hasInputConnection:agentCoreConnected.length>0,hasOutputConnection:agentCoreTarget.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+        
+        // Crear wire Model output-0 → Agent Core input (si no existe)
+        if (agentCoreTarget.length > 0 && validNodeIds.has(agentCoreNodeRedId)) {
+          if (!wires[0]) {
+            wires[0] = []
+          }
+          if (!wires[0].includes(agentCoreNodeRedId)) {
+            wires[0].push(agentCoreNodeRedId)
+            console.log(`[transformReactFlowToNodeRed] ✅ Creando automáticamente wire Model output-0 → Agent Core ${agentCoreNodeRedId}`)
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1095',message:'Wire Model output-0 creado',data:{nodeId:node.id,agentCoreId:agentCoreNodeRedId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
+          }
+        }
+      }
+      
+      // CRÍTICO: Asegurar que el nodo Model siempre tenga wires[0] inicializado
+      // incluso si no hay conexiones (para evitar null/undefined)
+      if (!wires[0]) {
+        wires[0] = []
+      }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1128',message:'Nodo Model wires finales',data:{nodeId:node.id,wiresLength:Array.isArray(wires)?wires.length:0,wiresIsArray:Array.isArray(wires),wiresPort0:Array.isArray(wires)&&wires[0]?wires[0].length:0,hasWires0:!!wires[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
     }
 
     // Propiedades que se actualizan desde React Flow
@@ -1135,15 +1222,45 @@ export function transformReactFlowToNodeRed(
       // Luego, sobrescribir SOLO las propiedades que React Flow gestiona
       id: preservedId,
       type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
-      x: node.position.x,
-      y: node.position.y,
+      x: typeof node.position.x === 'number' && !isNaN(node.position.x) ? node.position.x : (originalNodeRedNode.x ?? 0),
+      y: typeof node.position.y === 'number' && !isNaN(node.position.y) ? node.position.y : (originalNodeRedNode.y ?? 0),
       z: flowId, // CRÍTICO: El z debe ser el flowId actual, no el original
       
       // Propiedades que pueden haber cambiado (solo si tienen valor)
       // IMPORTANTE: Preservar name original si nodeName está vacío
       ...(nodeName !== undefined && nodeName !== '' ? { name: nodeName } : (originalNodeRedNode.name !== undefined ? { name: originalNodeRedNode.name } : {})),
       // CRÍTICO: Siempre sobrescribir wires, incluso si está vacío, para eliminar referencias a nodos inexistentes
-      wires, // Siempre usar los wires validados, incluso si es un array vacío
+      // Asegurar que wires siempre sea un array válido, nunca null o undefined
+      // CRÍTICO: Asegurar que todos los índices del array sean arrays válidos, nunca undefined
+      // Para nodos Azure OpenAI Model, asegurar que tenga al menos un puerto de salida
+      wires: (() => {
+        if (!Array.isArray(wires)) {
+          return nodeRedType === 'model.azure.openai' ? [[]] : []
+        }
+        // Para nodos Model, asegurar que wires[0] exista
+        if (nodeRedType === 'model.azure.openai' && wires.length === 0) {
+          return [[]]
+        }
+        // CRÍTICO: Normalizar todos los índices para asegurar que sean arrays válidos
+        // Si algún índice es undefined, reemplazarlo con array vacío
+        const normalizedWiresArray: string[][] = []
+        for (let i = 0; i < wires.length; i++) {
+          if (wires[i] === null || wires[i] === undefined) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1245',message:'Índice de wires es null/undefined, normalizando',data:{nodeId:node.id,portIndex:i,wiresLength:wires.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+            // #endregion
+            normalizedWiresArray[i] = []
+          } else if (!Array.isArray(wires[i])) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/df038860-10fe-4679-936e-7d54adcd2561',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mappers.ts:1250',message:'Índice de wires no es array, normalizando',data:{nodeId:node.id,portIndex:i,wiresLength:wires.length,portWiresType:typeof wires[i]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+            // #endregion
+            normalizedWiresArray[i] = []
+          } else {
+            normalizedWiresArray[i] = wires[i]
+          }
+        }
+        return normalizedWiresArray.length > 0 ? normalizedWiresArray : (nodeRedType === 'model.azure.openai' ? [[]] : [])
+      })(),
       ...(isLinkNode && preservedLinks !== undefined && { links: preservedLinks }),
     }
     

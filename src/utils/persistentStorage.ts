@@ -277,10 +277,17 @@ export async function set(key: string, value: any, sync: boolean = true): Promis
 }
 
 /**
- * Obtiene un valor (intenta servidor primero, luego local)
+ * Obtiene un valor (intenta local primero, luego servidor si no existe localmente)
  */
 export async function get(key: string): Promise<any | null> {
-  // Intentar cargar del servidor primero
+  // CRÍTICO: Verificar primero localmente para evitar 404 innecesarios
+  // Solo intentar cargar del servidor si no existe localmente
+  const localValue = await getLocal(key)
+  if (localValue !== null) {
+    return localValue
+  }
+  
+  // Si no existe localmente, intentar cargar del servidor
   try {
     // httpAdminRoot está configurado como '/' en settings.redflow.cjs
     const baseUrl = window.location.origin.includes(':5173') 
@@ -293,16 +300,16 @@ export async function get(key: string): Promise<any | null> {
       await setLocal(key, data.value)
       return data.value
     } else if (response.status === 404) {
-      // 404 es esperado si la clave no existe en el servidor, usar datos locales
-      // No loguear como error, es un caso normal
+      // 404 es esperado si la clave no existe en el servidor
+      // No hacer nada, simplemente retornar null
+      return null
     }
   } catch (error) {
-    // Si falla la conexión, usar datos locales (no es un error crítico)
+    // Si falla la conexión, retornar null (no es un error crítico)
     // Solo loguear en modo debug
-    console.debug('No se pudo cargar del servidor, usando caché local:', error)
+    console.debug('No se pudo cargar del servidor:', error)
   }
   
-  // Fallback a datos locales
-  return await getLocal(key)
+  return null
 }
 
