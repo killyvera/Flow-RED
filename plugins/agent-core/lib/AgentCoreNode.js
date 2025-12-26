@@ -199,6 +199,15 @@ function AgentCoreNode(RED, config) {
         
         // Output 4: model_response (nueva salida para respuestas del modelo)
         node.warn(`[agent-core] 🚀 Llamando send() con array de ${sendArray.length} elementos`)
+        node.warn(`[agent-core] 📋 Verificando modelResponseMsg antes de send():`, {
+          hasAgentResult: !!modelResponseMsg.agentResult,
+          agentResultMessageLength: modelResponseMsg.agentResult?.message ? modelResponseMsg.agentResult.message.length : 0,
+          agentResultKeys: modelResponseMsg.agentResult ? Object.keys(modelResponseMsg.agentResult) : [],
+          hasPayload: !!modelResponseMsg.payload,
+          payloadType: typeof modelResponseMsg.payload,
+          payloadMessageLength: modelResponseMsg.payload?.message ? modelResponseMsg.payload.message.length : 0,
+          msgKeys: Object.keys(modelResponseMsg).slice(0, 15)
+        });
         send(sendArray);
         node.warn(`[agent-core] ✅ send() completado para output 4`)
 

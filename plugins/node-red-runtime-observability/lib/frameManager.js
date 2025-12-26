@@ -362,14 +362,46 @@ class FrameManager {
                 return nodeExec;
             }
             
-            // Normalize send() → IOEvent[]
-            const ioEvents = normalizeSend(msg, this.config.limits);
+            // Normalize send() → IOEvent[] with context for special case detection
+            // Log SIMPLE para verificar que se ejecuta
+            console.log('[observability] frameManager.recordOutput CALLING normalizeSend', nodeType, nodeId);
+            
+            // Log de diagnóstico para verificar qué contexto se está pasando
+            console.log('[observability] 📤 frameManager.recordOutput - Llamando normalizeSend con contexto:', {
+                nodeType: nodeType,
+                nodeId: nodeId,
+                hasMsg: !!msg,
+                msgType: typeof msg,
+                isArray: Array.isArray(msg),
+                arrayLength: Array.isArray(msg) ? msg.length : 'N/A'
+            });
+            
+            const ioEvents = normalizeSend(msg, this.config.limits, {
+                nodeType: nodeType,
+                nodeId: nodeId
+            });
+            
+            console.log('[observability] frameManager.recordOutput normalizeSend RETURNED', ioEvents.length, 'events');
             
             console.log('[observability] recordOutput: normalized', ioEvents.length, 'output events');
             if (ioEvents.length > 0) {
                 console.log('[observability] recordOutput: output ports:', ioEvents.map(e => e.port));
                 ioEvents.forEach((event, idx) => {
-                    console.log(`[observability] recordOutput: output[${idx}] port: ${event.port}, hasPayload: ${!!event.payload}`);
+                    const payloadKeys = event.payload ? Object.keys(event.payload) : [];
+                    console.log(`[observability] recordOutput: output[${idx}] port: ${event.port}, hasPayload: ${!!event.payload}, payloadKeys: ${payloadKeys.join(', ')}`);
+                    
+                    // Log detallado para Agent Core puerto 4
+                    if (nodeType === 'agent-core' && event.port === 4) {
+                        console.log('[observability] 🎯 recordOutput - Agent Core puerto 4 payload detallado:', {
+                            port: event.port,
+                            payloadKeys: payloadKeys,
+                            hasAgentResult: !!event.payload.agentResult,
+                            hasFullMessage: !!event.payload.fullMessage,
+                            hasCompletePayload: !!event.payload.completePayload,
+                            truncated: event.payload.truncated,
+                            payloadString: JSON.stringify(event.payload, null, 2).substring(0, 1000)
+                        });
+                    }
                 });
             } else {
                 console.warn('[observability] recordOutput: ⚠️ normalizeSend retornó 0 eventos para array de longitud:', Array.isArray(msg) ? msg.length : 'N/A');
@@ -397,13 +429,33 @@ class FrameManager {
             
             // Emit node:output event
             console.log('[observability] recordOutput: emitting full node:output event for frame:', frame.id);
+            
+            // Log CRÍTICO: Verificar qué se está emitiendo
+            const outputsJSON = ioEvents.map(e => e.toJSON());
+            if (nodeType === 'agent-core') {
+                console.log('[observability] 🔴 EMITIENDO Agent Core outputs:', {
+                    nodeId,
+                    nodeType,
+                    outputsCount: outputsJSON.length,
+                    outputs: outputsJSON.map((o, idx) => ({
+                        index: idx,
+                        port: o.port,
+                        payloadKeys: o.payload ? Object.keys(o.payload) : [],
+                        hasAgentResult: !!o.payload?.agentResult,
+                        hasFullMessage: !!o.payload?.fullMessage,
+                        hasCompletePayload: !!o.payload?.completePayload,
+                        payloadString: JSON.stringify(o.payload, null, 2).substring(0, 2000)
+                    }))
+                });
+            }
+            
             this._emit('node:output', {
                 frameId: frame.id,
                 nodeId,
                 data: {
                     nodeId,
                     nodeType,
-                    outputs: ioEvents.map(e => e.toJSON()),
+                    outputs: outputsJSON,
                     semantics: { ...nodeExec.semantics },
                     timing: { ...nodeExec.timing }
                 }

@@ -15,6 +15,15 @@ const DEFAULT_LIMITS = {
     maxStringLength: 5000
 };
 
+// Límites altos para casos especiales (chat, Agent Core, tools, memoria)
+const SPECIAL_CASE_LIMITS = {
+    maxPayloadBytes: 5000000,  // 5MB
+    maxDepth: 20,
+    maxKeys: 500,
+    maxArrayItems: 1000,
+    maxStringLength: 500000  // 500KB
+};
+
 /**
  * Check if value is a Buffer or binary data
  */
@@ -199,12 +208,44 @@ function truncateValue(value, limits, currentDepth = 0, seen = new WeakSet()) {
         const keys = Object.keys(value);
         const maxKeys = Math.min(keys.length, limits.maxKeys);
         
+        // Detectar si estamos en un caso especial (límites altos indican caso especial)
+        const isSpecialCase = limits.maxStringLength >= 100000; // Casos especiales tienen límites muy altos
+        
+        // Para casos especiales, asegurar que agentResult tenga prioridad
+        // Procesar agentResult primero si existe
+        if (isSpecialCase && value.agentResult) {
+            try {
+                // Preservar agentResult completo, especialmente message
+                // NO truncar agentResult.message - es crítico para el chat
+                result.agentResult = {
+                    ...value.agentResult,
+                    message: value.agentResult.message // Preservar mensaje completo sin truncar
+                };
+            } catch (err) {
+                result.agentResult = '[Error accessing agentResult]';
+            }
+        }
+        
         for (let i = 0; i < maxKeys; i++) {
             const key = keys[i];
+            
+            // Si ya procesamos agentResult, saltarlo
+            if (isSpecialCase && key === 'agentResult') {
+                continue;
+            }
+            
             try {
-                const propResult = truncateValue(value[key], limits, currentDepth + 1, seen);
-                result[key] = propResult.preview;
-                if (propResult.truncated) truncated = true;
+                if (isSpecialCase && key === 'payload' && value[key] && typeof value[key] === 'object' && value[key].message) {
+                    // Si el payload tiene message pero está truncado, preservar el payload pero
+                    // asegurar que agentResult.message esté disponible
+                    const payloadResult = truncateValue(value[key], limits, currentDepth + 1, seen);
+                    result[key] = payloadResult.preview;
+                    if (payloadResult.truncated) truncated = true;
+                } else {
+                    const propResult = truncateValue(value[key], limits, currentDepth + 1, seen);
+                    result[key] = propResult.preview;
+                    if (propResult.truncated) truncated = true;
+                }
             } catch (err) {
                 // Property access threw an error (getter, proxy, etc)
                 result[key] = '[Error accessing property]';
@@ -225,41 +266,125 @@ function truncateValue(value, limits, currentDepth = 0, seen = new WeakSet()) {
 }
 
 /**
+ * Detect if a message is a special case that needs full message (no truncation)
+ * 
+ * @param {any} msg - The message object
+ * @param {string} nodeType - Type of node (e.g., 'agent-core', 'chat-node')
+ * @param {number} port - Output port number
+ * @returns {boolean} - True if this is a special case
+ */
+function isSpecialCase(msg, nodeType, port) {
+    // Agent Core output 4 (model_response)
+    if (nodeType === 'agent-core' && port === 4) {
+        return true;
+    }
+    
+    // Agent Core output 3 (result) - también puede contener mensajes completos
+    if (nodeType === 'agent-core' && port === 3) {
+        return true;
+    }
+    
+    // Chat Node (input/output)
+    if (nodeType === 'chat-node') {
+        return true;
+    }
+    
+    // Detectar por metadatos del mensaje
+    if (msg) {
+        // Agent Core model_response
+        if (msg._agentCore && msg._agentCore.type === 'model_response') {
+            return true;
+        }
+        
+        // Agent Core con agentResult.message
+        if (msg.agentResult && msg.agentResult.message) {
+            return true;
+        }
+        
+        // Tool response
+        if (msg._agentCore && msg._agentCore.type === 'tool_response') {
+            return true;
+        }
+        
+        // Memory
+        if (msg._agentCore && msg._agentCore.type === 'memory') {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
  * Create a DataSample from a message payload
  * 
  * @param {any} payload - The payload to sample
  * @param {object} limits - Limit configuration (optional)
+ * @param {object} options - Additional options (optional)
+ * @param {string} options.nodeType - Type of node
+ * @param {number} options.port - Output port number
+ * @param {any} options.originalMsg - Original message object for metadata detection
  * @returns {DataSample} - { ts, preview, size, truncated }
  */
-function createDataSample(payload, limits = {}) {
-    const effectiveLimits = { ...DEFAULT_LIMITS, ...limits };
+function createDataSample(payload, limits = {}, options = {}) {
+    // Detectar si es un caso especial
+    const isSpecial = options.originalMsg && isSpecialCase(options.originalMsg, options.nodeType, options.port);
+    
+    // Usar límites especiales si es un caso especial, sino usar límites por defecto
+    // IMPORTANTE: Para casos especiales, los límites especiales tienen prioridad
+    // sobre los límites pasados como parámetro (que vienen de la configuración)
+    const baseLimits = isSpecial ? SPECIAL_CASE_LIMITS : DEFAULT_LIMITS;
+    // Para casos especiales, ignorar los límites de configuración y usar solo los especiales
+    const effectiveLimits = isSpecial ? baseLimits : { ...baseLimits, ...limits };
+    
+    // Log para debugging (solo en casos especiales)
+    if (isSpecial) {
+        console.log('[observability] Caso especial detectado:', {
+            nodeType: options.nodeType,
+            port: options.port,
+            hasAgentResult: !!(options.originalMsg && options.originalMsg.agentResult),
+            agentResultMessageLength: options.originalMsg && options.originalMsg.agentResult && options.originalMsg.agentResult.message 
+                ? options.originalMsg.agentResult.message.length 
+                : 0,
+            limits: effectiveLimits
+        });
+    }
     
     try {
         const size = estimateSize(payload);
         const { preview, truncated } = truncateValue(payload, effectiveLimits);
         
         // Final size check on serialized preview
+        // IMPORTANTE: Para casos especiales, no truncar aunque sea grande
+        // porque necesitamos el mensaje completo
         let finalPreview = preview;
         let finalTruncated = truncated;
         
-        try {
-            const serialized = JSON.stringify(preview);
-            if (serialized && serialized.length > effectiveLimits.maxPayloadBytes) {
-                // Preview too large even after truncation, simplify further
+        // Solo hacer el check de tamaño si NO es un caso especial
+        if (!isSpecial) {
+            try {
+                const serialized = JSON.stringify(preview);
+                if (serialized && serialized.length > effectiveLimits.maxPayloadBytes) {
+                    // Preview too large even after truncation, simplify further
+                    finalPreview = {
+                        _notice: 'Payload too large for preview',
+                        _originalSize: size,
+                        _type: Array.isArray(payload) ? 'array' : typeof payload
+                    };
+                    finalTruncated = true;
+                }
+            } catch (serializeErr) {
+                // JSON stringify failed
                 finalPreview = {
-                    _notice: 'Payload too large for preview',
-                    _originalSize: size,
-                    _type: Array.isArray(payload) ? 'array' : typeof payload
+                    _notice: 'Payload could not be serialized',
+                    _type: typeof payload
                 };
                 finalTruncated = true;
             }
-        } catch (serializeErr) {
-            // JSON stringify failed
-            finalPreview = {
-                _notice: 'Payload could not be serialized',
-                _type: typeof payload
-            };
-            finalTruncated = true;
+        } else {
+            // Para casos especiales, preservar el preview completo aunque sea grande
+            // El mensaje completo es más importante que el tamaño
+            console.log('[observability] Preservando mensaje completo para caso especial (sin truncar por tamaño)');
         }
         
         return {
