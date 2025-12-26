@@ -614,7 +614,7 @@ export function CanvasPage() {
       y: point.clientY,
     })
 
-    let closestNode: typeof nodes[0] | null = null
+    let closestNode: Node | null = null
     let minDistance = 100 // Distancia máxima en píxeles del flow
     let targetHandle = 'input'
 
@@ -633,7 +633,7 @@ export function CanvasPage() {
         )
         if (distance < minDistance) {
           minDistance = distance
-          closestNode = node
+          closestNode = node as Node
         }
       })
       targetHandle = 'input'
@@ -651,7 +651,7 @@ export function CanvasPage() {
         )
         if (distance < minDistance) {
           minDistance = distance
-          closestNode = node
+          closestNode = node as Node
         }
       })
       targetHandle = 'input'
@@ -659,10 +659,13 @@ export function CanvasPage() {
 
     // Si hay un nodo objetivo cerca, auto-conectar
     if (closestNode) {
+      const targetNodeId = (closestNode as Node).id
+      if (!targetNodeId) return
+      
       const connection: Connection = {
         source: pendingAutoConnect.sourceNodeId,
         sourceHandle: pendingAutoConnect.sourceHandle,
-        target: closestNode.id,
+        target: targetNodeId,
         targetHandle: targetHandle,
       }
 
@@ -1766,19 +1769,17 @@ export function CanvasPage() {
       
       // #region agent log
       // Hipótesis A,B,C,D,E: Verificar payload final antes de enviar
-      const finalSubflowDefs = allNodesToSave.filter(n => n.type === 'subflow' && !n.x && !n.y && !n.z) as NodeRedSubflowDefinition[]
-      const finalInternalNodes = allNodesToSave.filter(n => n.z && finalSubflowDefs.some(sf => sf.id === n.z))
-      const tabsInPayload = allNodesToSave.filter(n => n.type === 'tab')
-      const tabIndex = allNodesToSave.findIndex(n => n.type === 'tab')
-      const firstInternalIndex = allNodesToSave.findIndex(n => finalInternalNodes.some(internal => internal.id === n.id))
-      const firstSubflowDefIndex = allNodesToSave.findIndex(n => finalSubflowDefs.some(sf => sf.id === n.id))
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
+      // Obtener projectId del flow actual (si existe)
+      const currentFlowTab = allNodeRedNodes.find(n => n.type === 'tab' && n.id === activeFlowId)
+      const projectId = currentFlowTab?.projectId ?? null
+      
       // Guardar usando la API (la validación se hace dentro de saveFlow)
-      console.log('[handleSave] Guardando flow en Node-RED...')
+      console.log('[handleSave] Guardando flow en Node-RED...', { projectId })
       let currentRev: string | undefined
       try {
-        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev)
+        const result = await saveFlow(activeFlowId, allNodesToSave, currentRev, projectId)
         currentRev = result.rev
         console.log('[handleSave] ✅ Flow guardado exitosamente')
         
@@ -1903,8 +1904,6 @@ export function CanvasPage() {
       
       // #region agent log
       // H1,H4: Verificar propiedades después de recargar desde Node-RED
-      const functionNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'function')
-      const injectNodesAfter = updatedNodeRedNodes.filter(n => n.type === 'inject')
       // Debugging code removed - was causing connection errors to 127.0.0.1:7243
       
       // Renderizar el flow activo con los datos actualizados desde Node-RED
@@ -3381,8 +3380,9 @@ export function CanvasPage() {
         await importFlowFromJson(json, options)
       },
       onConvertToSubflow: handleConvertFlowToSubflow,
+      reloadFlows: loadFlows,
     })
-  }, [flows, activeFlowId, nodeRedNodes, isLoading, setFlowManagerProps, handleSwitchFlow, createNewFlow, switchFlow, duplicateExistingFlow, removeFlow, importFlowFromJson, handleConvertFlowToSubflow])
+  }, [flows, activeFlowId, nodeRedNodes, isLoading, setFlowManagerProps, handleSwitchFlow, createNewFlow, switchFlow, duplicateExistingFlow, removeFlow, importFlowFromJson, handleConvertFlowToSubflow, loadFlows])
 
   // Agregar handlers a nodos de grupo cuando se cargan o cambia el modo edición
   useEffect(() => {
@@ -4095,7 +4095,20 @@ export function CanvasPage() {
               // Los nodos inject ya no se ejecutan al hacer clic
               // Solo se ejecutan mediante el botón "Ejecutar Flow"
             }}
-            onNodeDoubleClick={(_, node) => {
+            onNodeDoubleClick={(event, node) => {
+              // Verificar si el evento provino de un handle
+              // Si es así, no abrir el panel de propiedades (el handle manejará su propio evento)
+              const target = event.target as HTMLElement
+              const isFromHandle = target.closest('.react-flow__handle') || 
+                                   target.closest('[data-handleid]') ||
+                                   target.hasAttribute('data-handleid')
+              
+              if (isFromHandle) {
+                // El evento provino de un handle, no abrir el panel de propiedades
+                // El handle manejará su propio evento (abrir paleta)
+                return
+              }
+              
               // Si es un subflow, navegar a él
               if (node.type === 'subflow' && isSubflowInstance(node.data?.nodeRedNode)) {
                 const subflowNode = node.data.nodeRedNode
