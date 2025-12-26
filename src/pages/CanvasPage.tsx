@@ -4095,7 +4095,20 @@ export function CanvasPage() {
               // Los nodos inject ya no se ejecutan al hacer clic
               // Solo se ejecutan mediante el botón "Ejecutar Flow"
             }}
-            onNodeDoubleClick={(_, node) => {
+            onNodeDoubleClick={(event, node) => {
+              // Verificar si el evento provino de un handle
+              // Si es así, no abrir el panel de propiedades (el handle manejará su propio evento)
+              const target = event.target as HTMLElement
+              const isFromHandle = target.closest('.react-flow__handle') || 
+                                   target.closest('[data-handleid]') ||
+                                   target.hasAttribute('data-handleid')
+              
+              if (isFromHandle) {
+                // El evento provino de un handle, no abrir el panel de propiedades
+                // El handle manejará su propio evento (abrir paleta)
+                return
+              }
+              
               // Si es un subflow, navegar a él
               if (node.type === 'subflow' && isSubflowInstance(node.data?.nodeRedNode)) {
                 const subflowNode = node.data.nodeRedNode

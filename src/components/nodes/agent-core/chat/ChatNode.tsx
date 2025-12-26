@@ -509,17 +509,41 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
 
       {/* Output Handle (Derecha) - VISIBLE - Envía mensajes al Agent Core input */}
       {/* Similar al modelo Azure OpenAI: handle visible para conectar al Agent Core */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="output-0"
-        className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          // Emitir evento personalizado para abrir paleta
+          const event = new CustomEvent('handleDoubleClick', {
+            detail: {
+              nodeId: id,
+              handleId: 'output-0',
+              handleType: 'source',
+              position: { x: e.clientX, y: e.clientY },
+            },
+          })
+          window.dispatchEvent(event)
+        }}
         style={{
+          position: 'absolute',
           right: -5,
           top: '50%',
           transform: 'translateY(-50%)',
+          width: 10,
+          height: 10,
+          zIndex: 10,
         }}
-      />
+      >
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="output-0"
+          className="!w-2.5 !h-2.5 !bg-node-default dark:!bg-node-default !border-2 !border-node-border hover:!bg-accent-primary hover:!border-accent-primary transition-all duration-200"
+          style={{
+            right: 0,
+            top: '50%',
+          }}
+        />
+      </div>
 
       {/* Header */}
       <div
