@@ -49,7 +49,7 @@ export function ChatWindow({
     <div className="flex flex-col h-full" style={{ maxHeight }}>
       {/* Historial de mensajes */}
       <div
-        className="flex-1 overflow-y-auto p-4 space-y-3"
+        className="flex-1 overflow-y-auto px-2 py-3 space-y-2"
         style={{
           backgroundColor: 'var(--background-primary)',
           scrollbarWidth: 'thin',
@@ -85,7 +85,7 @@ export function ChatWindow({
 
       {/* Input y botón de envío */}
       <div
-        className="border-t p-3 flex gap-2"
+        className="border-t px-2 py-2 flex gap-2"
         style={{
           borderColor: 'var(--border-color)',
           backgroundColor: 'var(--background-secondary)',

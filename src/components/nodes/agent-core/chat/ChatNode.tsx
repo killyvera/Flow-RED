@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position, NodeResizeControl, useReactFlow } from 'reactflow'
 import type { BaseNodeProps } from '@/canvas/nodes/types'
 import { ChatWindow, ChatMessageData } from './ChatWindow'
 import { getObservabilityWebSocketClient } from '@/api/observabilityWebSocket'
@@ -14,6 +14,7 @@ import { useCanvasStore } from '@/state/canvasStore'
 import { MessageSquare } from 'lucide-react'
 
 export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
+  const { setNodes, getNodes } = useReactFlow()
   const nodeData = (data.data || data) as any
   const nodeRedNode = nodeData.nodeRedNode
   const label = nodeData.label || nodeRedNode?.name || 'Chat'
@@ -762,12 +763,49 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
       style={{
         minWidth: '320px',
         minHeight: '400px',
-        maxWidth: '500px',
-        maxHeight: '600px',
         width: '320px',
         height: '400px',
       }}
     >
+      {/* Control de redimensionamiento */}
+      <NodeResizeControl
+        style={{
+          background: 'transparent',
+          border: 'none',
+        }}
+        minWidth={320}
+        minHeight={400}
+        position="bottom-right"
+        onResizeStart={() => {
+          // Deshabilitar arrastre durante el resize
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === id ? { ...node, draggable: false } : node
+            )
+          )
+        }}
+        onResize={(_: any, params: { width: number; height: number }) => {
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === id
+                ? {
+                    ...node,
+                    width: params.width,
+                    height: params.height,
+                  }
+                : node
+            )
+          )
+        }}
+        onResizeEnd={() => {
+          // Rehabilitar arrastre después del resize
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === id ? { ...node, draggable: true } : node
+            )
+          )
+        }}
+      />
       {/* Input Handle (Izquierda) - OCULTO - Recibe respuestas del Agent Core output-4 */}
       <Handle
         type="target"
@@ -821,6 +859,31 @@ export const ChatNode = memo(({ data, selected, id }: BaseNodeProps) => {
           maxHeight="100%"
         />
       </div>
+
+      {/* Estilos para el handle de resize */}
+      <style>{`
+        [data-id="${id}"] .react-flow__resize-control [data-handleid]:not([data-handleid="se"]) {
+          display: none !important;
+        }
+        [data-id="${id}"] .react-flow__resize-control [data-handleid="se"] {
+          width: 16px !important;
+          height: 16px !important;
+          border-radius: 50% !important;
+          background-color: var(--color-accent-primary) !important;
+          border: 2px solid var(--color-bg-primary) !important;
+          box-shadow: var(--shadow-node-hover) !important;
+          opacity: 0.8 !important;
+          pointer-events: auto !important;
+          cursor: nwse-resize !important;
+          transition: opacity 0.2s !important;
+        }
+        [data-id="${id}"]:hover .react-flow__resize-control [data-handleid="se"] {
+          opacity: 1 !important;
+        }
+        [data-id="${id}"] .react-flow__resize-control-line {
+          display: none !important;
+        }
+      `}</style>
     </div>
   )
 })
