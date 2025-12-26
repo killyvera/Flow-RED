@@ -974,15 +974,15 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
   // Renderizado como modal (comportamiento por defecto)
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-bg-primary rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" style={{ border: '1px solid var(--color-node-border)' }}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="px-6 py-4 border-b border-node-border flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-text-primary">
             Gestión de Credenciales
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="text-text-tertiary hover:text-text-primary transition-colors"
           >
             ✕
           </button>
@@ -990,9 +990,9 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
 
         {/* Dialog de clave maestra */}
         {showMasterKeyDialog && (
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-medium mb-2">Establecer Clave Maestra</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <div className="p-6 border-b border-node-border">
+            <h3 className="text-lg font-medium mb-2 text-text-primary">Establecer Clave Maestra</h3>
+            <p className="text-sm text-text-secondary mb-4">
               Necesitas establecer una clave maestra para encriptar tus credenciales.
               Esta clave se guardará localmente y no se compartirá.
             </p>
@@ -1002,11 +1002,11 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                 value={newMasterKey}
                 onChange={(e) => setNewMasterKey(e.target.value)}
                 placeholder="Ingresa tu clave maestra (mínimo 8 caracteres)"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                className="flex-1 px-3 py-2 border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               />
               <button
                 onClick={handleSetMasterKey}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-4 py-2 bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               >
                 Establecer
               </button>
@@ -1017,20 +1017,20 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
         {/* Contenido principal */}
         <div className="flex-1 overflow-hidden flex">
           {/* Lista de credenciales */}
-          <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div className="w-1/3 border-r border-node-border flex flex-col">
             {/* Búsqueda y filtros */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-4 border-b border-node-border">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar credenciales..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white mb-2"
+                className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 mb-2"
               />
               <select
                 value={filterType || ''}
                 onChange={(e) => setFilterType(e.target.value ? e.target.value as CredentialType : undefined)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               >
                 <option value="">Todos los tipos</option>
                 {Object.values(CredentialType).map(type => (
@@ -1044,29 +1044,31 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
             {/* Lista */}
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <div className="p-4 text-center text-gray-500">Cargando...</div>
+                <div className="p-4 text-center text-text-tertiary text-sm">Cargando...</div>
               ) : filteredCredentials.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
+                <div className="p-4 text-center text-text-tertiary text-sm">
                   {searchQuery ? 'No se encontraron credenciales' : 'No hay credenciales'}
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="divide-y divide-node-border">
                   {filteredCredentials.map(cred => (
                     <div
                       key={cred.id}
                       onClick={() => !isEditing && setSelectedCredential(cred)}
-                      className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                        selectedCredential?.id === cred.id ? 'bg-blue-50 dark:bg-blue-900' : ''
+                      className={`p-3 cursor-pointer transition-colors ${
+                        selectedCredential?.id === cred.id 
+                          ? 'bg-node-selected' 
+                          : 'hover:bg-node-hover'
                       }`}
                     >
-                      <div className="font-medium text-gray-900 dark:text-white">
+                      <div className="font-medium text-sm text-text-primary">
                         {cred.name}
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className="text-xs text-text-secondary mt-0.5">
                         {CredentialSchemas[cred.type].name}
                       </div>
                       {cred.usedBy && cred.usedBy.length > 0 && (
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        <div className="text-xs text-accent-primary mt-1">
                           Usado por {cred.usedBy.length} nodo(s)
                         </div>
                       )}
@@ -1077,11 +1079,11 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
             </div>
 
             {/* Botón crear */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-4 border-t border-node-border flex-shrink-0">
               <button
                 onClick={handleCreateNew}
                 disabled={isEditing}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="w-full px-3 py-2 text-sm bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
               >
                 + Nueva Credencial
               </button>
@@ -1092,32 +1094,32 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
           <div className="flex-1 overflow-y-auto p-6">
             {isEditing ? (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">
+                <h3 className="text-sm font-semibold text-text-primary">
                   {selectedCredential ? 'Editar Credencial' : 'Nueva Credencial'}
                 </h3>
 
                 {/* Nombre */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nombre</label>
+                  <label className="block text-xs font-medium mb-1.5 text-text-primary">Nombre</label>
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="Mi credencial de Azure OpenAI"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   />
                 </div>
 
                 {/* Tipo */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Tipo</label>
+                  <label className="block text-xs font-medium mb-1.5 text-text-primary">Tipo</label>
                   <select
                     value={formType}
                     onChange={(e) => {
                       setFormType(e.target.value as CredentialType)
                       setFormData({}) // Limpiar datos al cambiar tipo
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   >
                     {Object.values(CredentialType).map(type => (
                       <option key={type} value={type}>
@@ -1125,7 +1127,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-text-secondary mt-1">
                     {schema.description}
                   </p>
                 </div>
@@ -1134,9 +1136,9 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                 <div className="space-y-3">
                   {schema.fields.map(field => (
                     <div key={field.name}>
-                      <label className="block text-sm font-medium mb-1">
+                      <label className="block text-xs font-medium mb-1.5 text-text-primary">
                         {field.label}
-                        {field.required && <span className="text-red-500">*</span>}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
                       <input
                         type={field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text'}
@@ -1144,10 +1146,10 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                         onChange={(e) => handleFieldChange(field.name, e.target.value)}
                         placeholder={field.placeholder}
                         required={field.required}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                        className="w-full px-3 py-2 text-sm border border-node-border rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                       />
                       {field.helpText && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <p className="text-xs text-text-secondary mt-1">
                           {field.helpText}
                         </p>
                       )}
@@ -1157,7 +1159,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
 
                 {/* Botón de Test de Conexión (solo para Azure OpenAI) */}
                 {formType === CredentialType.AZURE_OPENAI && (
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="pt-4 border-t border-node-border">
                     <button
                       onClick={handleTestConnection}
                       disabled={
@@ -1167,7 +1169,26 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                         !formData.apiVersion ||
                         !formData.apiKey
                       }
-                      className="w-full px-4 py-2 text-sm rounded-md border flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
+                      className="w-full px-4 py-2 text-sm rounded-md border flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
+                      style={{
+                        backgroundColor:
+                          isTesting ||
+                          !formData.endpoint ||
+                          !formData.deployment ||
+                          !formData.apiVersion ||
+                          !formData.apiKey
+                            ? 'var(--background-tertiary, #e5e7eb)'
+                            : 'var(--accent-primary, #3b82f6)',
+                        borderColor: 'var(--border-color)',
+                        color:
+                          isTesting ||
+                          !formData.endpoint ||
+                          !formData.deployment ||
+                          !formData.apiVersion ||
+                          !formData.apiKey
+                            ? 'var(--text-tertiary, #9ca3af)'
+                            : '#ffffff',
+                      }}
                     >
                       {isTesting ? (
                         <>
@@ -1218,7 +1239,7 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                             </p>
                           )}
                           {testResult.code && (
-                            <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">
+                            <p className="text-xs mt-1 text-text-secondary">
                               Código: {testResult.code}
                               {testResult.statusCode && ` (HTTP ${testResult.statusCode})`}
                             </p>
@@ -1234,13 +1255,13 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                   <button
                     onClick={handleSave}
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="px-3 py-2 text-sm bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   >
                     {loading ? 'Guardando...' : 'Guardar'}
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
+                    className="px-3 py-2 text-sm bg-bg-secondary text-text-primary border border-node-border rounded-md hover:bg-node-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                   >
                     Cancelar
                   </button>
@@ -1249,17 +1270,17 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
             ) : selectedCredential ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">{selectedCredential.name}</h3>
+                  <h3 className="text-sm font-semibold text-text-primary">{selectedCredential.name}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEdit(selectedCredential)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                      className="px-2.5 py-1 text-xs bg-accent-primary text-white rounded-md hover:bg-accent-secondary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => handleDelete(selectedCredential)}
-                      className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                      className="px-2.5 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                     >
                       Eliminar
                     </button>
@@ -1267,28 +1288,28 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                 </div>
 
                 <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Tipo</div>
-                  <div className="font-medium">{CredentialSchemas[selectedCredential.type].name}</div>
+                  <div className="text-xs text-text-secondary mb-1">Tipo</div>
+                  <div className="text-sm font-medium text-text-primary">{CredentialSchemas[selectedCredential.type].name}</div>
                 </div>
 
                 {selectedCredential.usedBy && selectedCredential.usedBy.length > 0 && (
                   <div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Usado por</div>
-                    <div className="text-sm">{selectedCredential.usedBy.length} nodo(s)</div>
+                    <div className="text-xs text-text-secondary mb-1">Usado por</div>
+                    <div className="text-sm text-text-primary">{selectedCredential.usedBy.length} nodo(s)</div>
                   </div>
                 )}
 
                 <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Creada</div>
-                  <div className="text-sm">
+                  <div className="text-xs text-text-secondary mb-1">Creada</div>
+                  <div className="text-sm text-text-primary">
                     {new Date(selectedCredential.createdAt).toLocaleString()}
                   </div>
                 </div>
 
                 {selectedCredential.lastUsedAt && (
                   <div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Último uso</div>
-                    <div className="text-sm">
+                    <div className="text-xs text-text-secondary mb-1">Último uso</div>
+                    <div className="text-sm text-text-primary">
                       {new Date(selectedCredential.lastUsedAt).toLocaleString()}
                     </div>
                   </div>
@@ -1296,8 +1317,8 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
 
                 {/* Mostrar información parcial de la credencial (sin datos sensibles) */}
                 {selectedCredential.data && (
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Información de la credencial</div>
+                  <div className="pt-4 border-t border-node-border space-y-2">
+                    <div className="text-xs font-medium text-text-secondary mb-2">Información de la credencial</div>
                     {Object.entries(selectedCredential.data).map(([key, value]) => {
                       const schema = CredentialSchemas[selectedCredential.type]
                       const field = schema.fields.find(f => f.name === key)
@@ -1307,8 +1328,8 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                         // Ocultar valores sensibles
                         return (
                           <div key={key}>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{field?.label || key}</div>
-                            <div className="text-sm font-mono text-gray-900 dark:text-white">
+                            <div className="text-xs text-text-secondary mb-0.5">{field?.label || key}</div>
+                            <div className="text-sm text-text-primary font-mono">
                               {'•'.repeat(20)} (oculto)
                             </div>
                           </div>
@@ -1317,8 +1338,8 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                         // Mostrar valores no sensibles
                         return (
                           <div key={key}>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{field?.label || key}</div>
-                            <div className="text-sm text-gray-900 dark:text-white break-all">
+                            <div className="text-xs text-text-secondary mb-0.5">{field?.label || key}</div>
+                            <div className="text-sm text-text-primary break-all">
                               {String(value)}
                             </div>
                           </div>
@@ -1329,15 +1350,15 @@ export function CredentialManager({ isOpen, onClose, inline = false }: Credentia
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="pt-4 border-t border-node-border">
+                  <p className="text-xs text-text-secondary">
                     Los datos sensibles (API keys, contraseñas) están ocultos por seguridad.
                     Usa "Editar" para ver o modificar todos los valores.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+              <div className="text-center text-text-tertiary text-sm py-12">
                 <p>Selecciona una credencial o crea una nueva</p>
               </div>
             )}
