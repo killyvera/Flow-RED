@@ -4004,8 +4004,41 @@ export function CanvasPage() {
           </div>
         )}
 
-        {/* Mensaje cuando no hay flows pero no hay error */}
-        {nodes.length === 0 && !isLoading && !error && (
+        {/* Estado vacío: Icono para agregar primer nodo */}
+        {nodes.length === 0 && !isLoading && !error && activeFlowId && isEditMode && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <button
+              onClick={() => setIsPaletteOpen(true)}
+              className="flex flex-col items-center gap-4 p-8 rounded-lg transition-all duration-200 hover:scale-105 pointer-events-auto cursor-pointer group"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                border: '2px dashed var(--color-node-border)',
+                boxShadow: 'var(--shadow-node)',
+              }}
+            >
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center transition-all duration-200 group-hover:bg-accent-primary group-hover:text-white"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  color: 'var(--color-accent-primary)',
+                }}
+              >
+                <Plus className="w-8 h-8" strokeWidth={2.5} />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  Agrega tu primer nodo
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Haz clic aquí o arrastra un nodo desde la paleta
+                </p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Mensaje cuando no hay flows pero no hay error (solo cuando no hay flow activo) */}
+        {nodes.length === 0 && !isLoading && !error && !activeFlowId && (
           <div className="absolute inset-0 flex items-center justify-center text-text-secondary">
             <div className="text-center">
               <p className="text-lg mb-2">No hay flows para mostrar</p>
