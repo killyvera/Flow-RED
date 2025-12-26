@@ -186,7 +186,7 @@ export function mapNodeRedWiresToReactFlowEdges(
       
       if (isSubflow && !isBidirectionalTarget) {
         // Obtener la definición del subflow
-        const subflowDef = targetNode?.data?.subflowDefinition
+        const subflowDef = targetNode?.data?.subflowDefinition as NodeRedSubflowDefinition | undefined
         const subflowType = targetNode?.data?.nodeRedType as string
         const subflowId = subflowType?.startsWith('subflow:') 
           ? subflowType.replace('subflow:', '')
@@ -233,6 +233,22 @@ export function mapNodeRedWiresToReactFlowEdges(
                                   targetNode?.data?.nodeRedType === 'agent-core'
       const shouldHide = isAgentCoreToChat || isModelToAgentCore
       
+      // Detectar conexiones desde agent-core hacia sus subnodos (Model, Tool, Memory)
+      // output-0 → Model, output-1 → Tool, output-2 → Memory
+      // Usar líneas punteadas para todas las conexiones desde estos outputs
+      const isAgentCoreSource = sourceNode?.data?.nodeRedType === 'agent-core'
+      const isAgentCoreToSubnode = isAgentCoreSource && (
+        outputPortIndex === 0 || // Model output
+        outputPortIndex === 1 || // Tool output
+        outputPortIndex === 2    // Memory output
+      )
+      
+      // Determinar el tipo de edge: usar 'dashed' para conexiones desde agent-core a subnodos
+      let finalEdgeType = edgeType
+      if (isAgentCoreToSubnode) {
+        finalEdgeType = 'dashed'
+      }
+      
       const edge: ReactFlowEdge = {
         id: edgeId,
         source: sourceNodeId,
@@ -246,7 +262,8 @@ export function mapNodeRedWiresToReactFlowEdges(
         targetHandle,
         // Tipo de edge: usar smoothstep para curvas suaves estilo Flowise/n8n
         // O bidirectional para nodos LLM
-        type: edgeType,
+        // O dashed para conexiones desde agent-core a subnodos
+        type: finalEdgeType,
         // Estilos modernos
         style: {
           strokeWidth: 2,
@@ -545,9 +562,9 @@ export function transformNodeRedFlow(
     mapperLogger('📦 Nodos transformados:', allReactFlowNodes.map(n => ({
       id: n.id,
       type: n.type === 'group' ? 'group' : n.data.nodeRedType,
-      label: n.type === 'group' ? n.data.group.name : n.data.label,
+      label: n.type === 'group' ? (n.data.group as NodeRedGroup | undefined)?.name : n.data.label,
       position: `${n.position.x},${n.position.y}`,
-      group: n.data.nodeRedNode?.g || 'none',
+      group: (n.data.nodeRedNode as NodeRedNode | undefined)?.g || 'none',
     })))
   }
   
@@ -746,7 +763,7 @@ export function transformReactFlowToNodeRed(
   })
 
   nodes.forEach((node) => {
-    const originalNodeRedNode = node.data.nodeRedNode || {}
+    const originalNodeRedNode = (node.data.nodeRedNode as NodeRedNode | undefined) || ({} as NodeRedNode)
     const nodeZ = originalNodeRedNode.z
     const flowIdFromData = node.data.flowId // También verificar flowId desde data
     
@@ -757,7 +774,7 @@ export function transformReactFlowToNodeRed(
     // también es un nodo interno (viene de subflow.flow[] que no tiene z)
     const isEditingSubflow = originalSubflows.has(flowId) || (flowId && allNodeRedNodes?.some(n => n.id === flowId && n.type === 'subflow'))
     // Usar nodeZ o flowIdFromData para determinar el z del nodo
-    const effectiveZ = nodeZ || flowIdFromData
+    const effectiveZ: string | undefined = (typeof nodeZ === 'string' ? nodeZ : undefined) || (typeof flowIdFromData === 'string' ? flowIdFromData : undefined)
     // Un nodo es interno de un subflow si:
     // 1. Su z apunta a un subflow que existe en originalSubflows (NO si z === flowId cuando flowId es un tab)
     // 2. O estamos editando un subflow (isEditingSubflow=true) y el nodo no tiene z o su z es el subflow actual
@@ -766,7 +783,7 @@ export function transformReactFlowToNodeRed(
     
     if (isInternalNode) {
       // Usar effectiveZ como subflowId, o flowId si effectiveZ no está definido
-      const targetSubflowId = effectiveZ || flowId
+      const targetSubflowId: string = effectiveZ || flowId
       if (!subflowInternalNodes.has(targetSubflowId)) {
         subflowInternalNodes.set(targetSubflowId, [])
       }
@@ -790,10 +807,11 @@ export function transformReactFlowToNodeRed(
 
       // Convertir el nodo interno usando la misma lógica que los nodos normales
       // pero sin z (ya que está dentro del subflow)
-      const originalNodeRedNode = node.data.nodeRedNode || {}
-      const nodeName = originalNodeRedNode.name !== undefined && originalNodeRedNode.name !== ''
-        ? originalNodeRedNode.name
-        : (node.data.label || undefined)
+      const originalNodeRedNode = (node.data.nodeRedNode as NodeRedNode | undefined) || ({} as NodeRedNode)
+      const originalName = (originalNodeRedNode as NodeRedNode).name
+      const nodeName: string | undefined = (originalName !== undefined && typeof originalName === 'string' && originalName !== '')
+        ? originalName
+        : (typeof node.data.label === 'string' ? node.data.label : undefined)
       
       // Reconstruir wires desde edges (solo edges internos del subflow)
       const wires: string[][] = []
@@ -832,7 +850,7 @@ export function transformReactFlowToNodeRed(
       const internalNode: NodeRedNode = {
         ...originalNodeRedNode,
         id: preservedInternalId,
-        type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
+        type: (node.data.nodeRedType || (originalNodeRedNode as NodeRedNode).type || 'unknown') as string,
         x: node.position.x,
         y: node.position.y,
         // NO incluir z - los nodos internos no tienen z
@@ -875,7 +893,7 @@ export function transformReactFlowToNodeRed(
     // Si es un grupo, manejar de forma especial
     // Detectar grupos por: node.type === 'group' O node.data.nodeRedType === 'group'
     const isGroupNode = node.type === 'group' || node.data?.nodeRedType === 'group'
-    const groupData = node.data?.group || (node.data?.nodeRedNode?.type === 'group' ? node.data.nodeRedNode : null)
+    const groupData = node.data?.group || ((node.data?.nodeRedNode as NodeRedNode | undefined)?.type === 'group' ? node.data.nodeRedNode : null)
     
     if (isGroupNode && groupData) {
       const group = groupData as NodeRedGroup
@@ -896,7 +914,7 @@ export function transformReactFlowToNodeRed(
     }
     
     // Obtener datos originales del nodo si están preservados
-    const originalNodeRedNode = node.data.nodeRedNode || {}
+    const originalNodeRedNode = (node.data.nodeRedNode as NodeRedNode | undefined) || ({} as NodeRedNode)
 
     // Reconstruir wires desde edges
     const wires: string[][] = []
@@ -997,7 +1015,7 @@ export function transformReactFlowToNodeRed(
     // CRÍTICO: Crear automáticamente wires ocultos basándose en conexiones lógicas
     // Esto es necesario porque cuando el usuario conecta manualmente, solo crea el edge visible
     // Pero los wires ocultos (Agent Core output-4 → Chat, Agent Core output-0 → Model) deben crearse automáticamente
-    const nodeRedType = node.data.nodeRedType || originalNodeRedNode.type
+    const nodeRedType = node.data.nodeRedType || (originalNodeRedNode as NodeRedNode).type
     if (nodeRedType === 'agent-core') {
       // Buscar Chat nodes conectados al Agent Core (Chat output-0 → Agent Core input)
       const chatNodesConnected = edges
@@ -1055,10 +1073,10 @@ export function transformReactFlowToNodeRed(
     
     // Para nodos link, preservar la propiedad 'links' que contiene las conexiones de link
     // Los nodos link no usan wires para conectarse entre sí, sino la propiedad 'links'
-    const isLinkNode = originalNodeRedNode.type === 'link in' || 
-                       originalNodeRedNode.type === 'link out' || 
-                       originalNodeRedNode.type === 'link call'
-    const preservedLinks = isLinkNode ? originalNodeRedNode.links : undefined
+    const isLinkNode = (originalNodeRedNode as NodeRedNode).type === 'link in' || 
+                       (originalNodeRedNode as NodeRedNode).type === 'link out' || 
+                       (originalNodeRedNode as NodeRedNode).type === 'link call'
+    const preservedLinks = isLinkNode ? (originalNodeRedNode as NodeRedNode).links : undefined
     
     // Simplificado: usar el ID directamente desde React Flow
     // Si hay un ID original, usarlo; si no, usar el ID de React Flow
@@ -1077,8 +1095,8 @@ export function transformReactFlowToNodeRed(
     // que vienen de node.data.nodeRedNode (que se actualiza desde los custom editors)
     // IMPORTANTE: Las credenciales (como apiKey) NO deben incluirse en el nodeRedNode
     // porque se almacenan por separado en el sistema de credenciales de Node-RED
-    const updatedNodeData = node.data.nodeRedNode && typeof node.data.nodeRedNode === 'object' 
-      ? { ...node.data.nodeRedNode } 
+    const updatedNodeData: Record<string, unknown> = node.data.nodeRedNode && typeof node.data.nodeRedNode === 'object' 
+      ? { ...(node.data.nodeRedNode as Record<string, unknown>) } 
       : {}
     
     // Filtrar credenciales del nodeRedNode (se guardan por separado)
@@ -1092,18 +1110,19 @@ export function transformReactFlowToNodeRed(
     if (isAzureOpenAINode) {
       // Si updatedNodeData tiene endpoint o deployment, asegurar que se preserven
       // Si no están en updatedNodeData pero están en originalNodeRedNode, preservarlos
-      if (!updatedNodeData.endpoint && originalNodeRedNode.endpoint) {
-        updatedNodeData.endpoint = originalNodeRedNode.endpoint
+      const originalNode = originalNodeRedNode as NodeRedNode & { endpoint?: string; deployment?: string; apiVersion?: string; credentialId?: string }
+      if (!updatedNodeData.endpoint && originalNode.endpoint) {
+        updatedNodeData.endpoint = originalNode.endpoint
       }
-      if (!updatedNodeData.deployment && originalNodeRedNode.deployment) {
-        updatedNodeData.deployment = originalNodeRedNode.deployment
+      if (!updatedNodeData.deployment && originalNode.deployment) {
+        updatedNodeData.deployment = originalNode.deployment
       }
-      if (!updatedNodeData.apiVersion && originalNodeRedNode.apiVersion) {
-        updatedNodeData.apiVersion = originalNodeRedNode.apiVersion
+      if (!updatedNodeData.apiVersion && originalNode.apiVersion) {
+        updatedNodeData.apiVersion = originalNode.apiVersion
       }
       // Preservar credentialId si existe (para sistema de credenciales centralizado)
-      if (updatedNodeData.credentialId || originalNodeRedNode.credentialId) {
-        updatedNodeData.credentialId = updatedNodeData.credentialId || originalNodeRedNode.credentialId
+      if (updatedNodeData.credentialId || originalNode.credentialId) {
+        updatedNodeData.credentialId = (updatedNodeData.credentialId as string | undefined) || originalNode.credentialId
       }
       
       // Log para debugging (solo en desarrollo)
@@ -1134,14 +1153,14 @@ export function transformReactFlowToNodeRed(
       
       // Luego, sobrescribir SOLO las propiedades que React Flow gestiona
       id: preservedId,
-      type: node.data.nodeRedType || originalNodeRedNode.type || 'unknown',
+      type: (node.data.nodeRedType || (originalNodeRedNode as NodeRedNode).type || 'unknown') as string,
       x: node.position.x,
       y: node.position.y,
       z: flowId, // CRÍTICO: El z debe ser el flowId actual, no el original
       
       // Propiedades que pueden haber cambiado (solo si tienen valor)
       // IMPORTANTE: Preservar name original si nodeName está vacío
-      ...(nodeName !== undefined && nodeName !== '' ? { name: nodeName } : (originalNodeRedNode.name !== undefined ? { name: originalNodeRedNode.name } : {})),
+      ...(nodeName !== undefined && nodeName !== '' ? { name: nodeName as string } : ((originalNodeRedNode as NodeRedNode).name !== undefined && typeof (originalNodeRedNode as NodeRedNode).name === 'string' ? { name: (originalNodeRedNode as NodeRedNode).name } : {})),
       // CRÍTICO: Siempre sobrescribir wires, incluso si está vacío, para eliminar referencias a nodos inexistentes
       wires, // Siempre usar los wires validados, incluso si es un array vacío
       ...(isLinkNode && preservedLinks !== undefined && { links: preservedLinks }),
@@ -1149,9 +1168,12 @@ export function transformReactFlowToNodeRed(
     
     // #region agent log
     // H1, H4: Verificar preservación de propiedades críticas
-    const criticalProps = ['func', 'props', 'payloadType', 'payload', 'topic', 'repeat', 'crontab', 'once', 'onceDelay', 'outputs', 'noerr', 'initialize', 'finalize', 'libs']
-    const missingCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] === undefined)
-    const changedCritical = criticalProps.filter(p => originalNodeRedNode[p] !== undefined && nodeRedNode[p] !== undefined && JSON.stringify(originalNodeRedNode[p]) !== JSON.stringify(nodeRedNode[p]))
+    // Variables comentadas para evitar warnings - código de debugging removido
+    // const criticalProps = ['func', 'props', 'payloadType', 'payload', 'topic', 'repeat', 'crontab', 'once', 'onceDelay', 'outputs', 'noerr', 'initialize', 'finalize', 'libs'] as const
+    // const originalNode = originalNodeRedNode as NodeRedNode & Record<string, unknown>
+    // const nodeRed = nodeRedNode as NodeRedNode & Record<string, unknown>
+    // const _missingCritical = criticalProps.filter(p => originalNode[p] !== undefined && nodeRed[p] === undefined)
+    // const _changedCritical = criticalProps.filter(p => originalNode[p] !== undefined && nodeRed[p] !== undefined && JSON.stringify(originalNode[p]) !== JSON.stringify(nodeRed[p]))
     // Debugging code removed - was causing connection errors to 127.0.0.1:7243
     
     // CRÍTICO: Para nodos inject, asegurar que todas las propiedades necesarias estén presentes
@@ -1159,32 +1181,34 @@ export function transformReactFlowToNodeRed(
     if (nodeRedNode.type === 'inject') {
       // Asegurar que props, payloadType, repeat, cron, once, onceDelay, topic, payload estén presentes
       // Si no están en el nodo transformado, usar los valores del original
-      if (!nodeRedNode.props && originalNodeRedNode.props) {
-        nodeRedNode.props = originalNodeRedNode.props
+      const injectOriginal = originalNodeRedNode as NodeRedNode & { props?: unknown; payloadType?: unknown; repeat?: unknown; cron?: unknown; crontab?: unknown; once?: unknown; onceDelay?: unknown; topic?: unknown; payload?: unknown }
+      const injectNode = nodeRedNode as NodeRedNode & { props?: unknown; payloadType?: unknown; repeat?: unknown; cron?: unknown; crontab?: unknown; once?: unknown; onceDelay?: unknown; topic?: unknown; payload?: unknown }
+      if (!injectNode.props && injectOriginal.props) {
+        injectNode.props = injectOriginal.props
       }
-      if (nodeRedNode.payloadType === undefined && originalNodeRedNode.payloadType !== undefined) {
-        nodeRedNode.payloadType = originalNodeRedNode.payloadType
+      if (injectNode.payloadType === undefined && injectOriginal.payloadType !== undefined) {
+        injectNode.payloadType = injectOriginal.payloadType
       }
-      if (nodeRedNode.repeat === undefined && originalNodeRedNode.repeat !== undefined) {
-        nodeRedNode.repeat = originalNodeRedNode.repeat
+      if (injectNode.repeat === undefined && injectOriginal.repeat !== undefined) {
+        injectNode.repeat = injectOriginal.repeat
       }
-      if (nodeRedNode.cron === undefined && originalNodeRedNode.cron !== undefined) {
-        nodeRedNode.cron = originalNodeRedNode.cron
+      if (injectNode.cron === undefined && injectOriginal.cron !== undefined) {
+        injectNode.cron = injectOriginal.cron
       }
-      if (nodeRedNode.crontab === undefined && originalNodeRedNode.crontab !== undefined) {
-        nodeRedNode.crontab = originalNodeRedNode.crontab
+      if (injectNode.crontab === undefined && injectOriginal.crontab !== undefined) {
+        injectNode.crontab = injectOriginal.crontab
       }
-      if (nodeRedNode.once === undefined && originalNodeRedNode.once !== undefined) {
-        nodeRedNode.once = originalNodeRedNode.once
+      if (injectNode.once === undefined && injectOriginal.once !== undefined) {
+        injectNode.once = injectOriginal.once
       }
-      if (nodeRedNode.onceDelay === undefined && originalNodeRedNode.onceDelay !== undefined) {
-        nodeRedNode.onceDelay = originalNodeRedNode.onceDelay
+      if (injectNode.onceDelay === undefined && injectOriginal.onceDelay !== undefined) {
+        injectNode.onceDelay = injectOriginal.onceDelay
       }
-      if (nodeRedNode.topic === undefined && originalNodeRedNode.topic !== undefined) {
-        nodeRedNode.topic = originalNodeRedNode.topic
+      if (injectNode.topic === undefined && injectOriginal.topic !== undefined) {
+        injectNode.topic = injectOriginal.topic
       }
-      if (nodeRedNode.payload === undefined && originalNodeRedNode.payload !== undefined) {
-        nodeRedNode.payload = originalNodeRedNode.payload
+      if (injectNode.payload === undefined && injectOriginal.payload !== undefined) {
+        injectNode.payload = injectOriginal.payload
       }
     }
     
@@ -1431,9 +1455,10 @@ export function transformReactFlowToNodeRed(
 
   // #region agent log
   // H1-H5: Verificar resultado final de la transformación
-  const functionNodes = orderedFinalNodes.filter(n => n.type === 'function')
-  const injectNodes = orderedFinalNodes.filter(n => n.type === 'inject')
-  const nodesWithoutWires = orderedFinalNodes.filter(n => n.type !== 'tab' && n.type !== 'subflow' && n.type !== 'group' && !n.wires)
+  // Variables no usadas - comentadas para evitar warnings
+  // const functionNodes = orderedFinalNodes.filter(n => n.type === 'function')
+  // const injectNodes = orderedFinalNodes.filter(n => n.type === 'inject')
+  // const nodesWithoutWires = orderedFinalNodes.filter(n => n.type !== 'tab' && n.type !== 'subflow' && n.type !== 'group' && !n.wires)
   // Debugging code removed - was causing connection errors to 127.0.0.1:7243
 
   return orderedFinalNodes
